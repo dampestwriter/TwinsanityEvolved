@@ -63,7 +63,9 @@ $QtVersion = & (Join-Path $Qt "bin\qmake.exe") -query QT_VERSION
 Copy-Item (Join-Path $Root "LICENSE") (Join-Path $Dist "LICENSE")
 Copy-Item (Join-Path $Root "README.md") (Join-Path $Dist "README.md")
 $lgpl = Get-ChildItem -Path $Qt -Recurse -Filter "LICENSE.LGPL3" -ErrorAction SilentlyContinue | Select-Object -First 1
-if ($lgpl) { Copy-Item $lgpl.FullName (Join-Path $Dist "licenses\Qt-LICENSE.LGPL3") } else { Invoke-WebRequest https://www.gnu.org/licenses/lgpl-3.0.txt -OutFile (Join-Path $Dist "licenses\Qt-LICENSE.LGPL3") }
+# the kit's own copy, else the repository's (no network at release time)
+if (-not $lgpl) { $lgpl = Get-Item (Join-Path $Root "$Engine\tools\dist\licenses\Qt-LICENSE.LGPL3.txt") }
+Copy-Item $lgpl.FullName (Join-Path $Dist "licenses\Qt-LICENSE.LGPL3")
 @"
 # $Product launcher -- third-party notices -- $Product launcher $Version (windows-x64)
 

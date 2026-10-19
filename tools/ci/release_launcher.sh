@@ -96,7 +96,7 @@ QT_VERSION="$("$QT/bin/qmake" -query QT_VERSION)"
 QT_LIC_SRC="$QT/share/qt/licenses"
 [ -d "$QT_LIC_SRC" ] || QT_LIC_SRC="$(ls -d "$QT"/../qt*/*/share/qt/licenses 2>/dev/null | head -1 || true)"
 for f in LICENSE.LGPL3 LICENSE.GPL3-EXCEPT LICENSE.GPL3 LICENSE.FDL; do [ -f "$QT_LIC_SRC/$f" ] && cp "$QT_LIC_SRC/$f" "$RES/licenses/Qt-$f" || true; done
-[ -f "$RES/licenses/Qt-LICENSE.LGPL3" ] || curl -fsSL -o "$RES/licenses/Qt-LICENSE.LGPL3" https://www.gnu.org/licenses/lgpl-3.0.txt
+[ -f "$RES/licenses/Qt-LICENSE.LGPL3" ] || cp "$ENGINE/tools/dist/licenses/Qt-LICENSE.LGPL3.txt" "$RES/licenses/Qt-LICENSE.LGPL3"   # the repository's copy: no network at release time
 {
   echo "# $PRODUCT launcher -- third-party notices -- $(head -1 "$RES/BUILD-ID")"
   echo
