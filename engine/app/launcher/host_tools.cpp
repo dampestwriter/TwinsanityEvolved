@@ -4,12 +4,29 @@
 #include <QFileInfo>
 #include <QProcess>
 #include <QRegularExpression>
+#include <QSettings>
 #include <QStandardPaths>
 #include "app_data.h"
 #include "download_pins.h"
 namespace ps2r::launcher {
 
 HostTools::HostTools(const AppData* appData) : appData_(appData) {}
+
+namespace {
+#ifdef Q_OS_WIN
+// "%USERPROFILE%\AppData\..." -> the path, from this process's environment (the registry keeps PATH entries unexpanded)
+QString expandEnvironment(const QString& value) {
+    QString out = value;
+    static const QRegularExpression var("%([^%]+)%");
+    for (QRegularExpressionMatchIterator it = var.globalMatch(value); it.hasNext();) {
+        const QRegularExpressionMatch m = it.next();
+        const QString v = qEnvironmentVariable(m.captured(1).toLocal8Bit().constData());
+        if (!v.isEmpty()) out.replace(m.captured(0), v);
+    }
+    return out;
+}
+#endif
+}  // namespace
 
 QString HostTools::which(const QString& name) { return QStandardPaths::findExecutable(name); }
 
@@ -60,27 +77,61 @@ bool HostTools::hasCompiler(QString* description) const {
 #endif
 }
 
-bool HostTools::promptCompilerInstall(QString* error) const {
+HostTools::InstallCommand HostTools::installCommand(const QString& stepId) const {
+    InstallCommand c;
 #ifdef Q_OS_MACOS
-    // The system's own dialog offers the Command Line Tools; the launcher waits for the user and re-checks.
-    if (QProcess::startDetached("/usr/bin/xcode-select", {"--install"})) return true;
-    if (error) *error = QStringLiteral("xcode-select --install could not be started");
-    return false;
+    // the system's own dialog offers the Command Line Tools (clang, git, python3); the launcher watches for them
+    if (stepId == "compiler" || stepId == "source" || stepId == "python") {
+        c = {"/usr/bin/xcode-select", {"--install"}, false, QStringLiteral("the Xcode Command Line Tools")};
+    }
 #elif defined(Q_OS_WIN)
-    // winget runs the Visual Studio installer (it asks for administrator approval): the C++ workload with the Clang
-    // tools the build uses. Without winget, the download page.
+    // winget runs the installer in the open (Windows asks for administrator approval for Visual Studio) and returns
+    // when it is done; without winget, the download page, and the launcher watches for the tool to appear
     const QString winget = which("winget");
-    if (!winget.isEmpty() && QProcess::startDetached(winget, {"install", "--id", "Microsoft.VisualStudio.2022.BuildTools", "--exact",
-            "--accept-package-agreements", "--accept-source-agreements", "--override",
-            "--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Llvm.Clang "
-            "--add Microsoft.VisualStudio.Component.VC.Llvm.ClangToolset --add Microsoft.VisualStudio.Component.Git --includeRecommended"}))
-        return true;
-    if (QProcess::startDetached("cmd.exe", {"/c", "start", "", "https://visualstudio.microsoft.com/visual-cpp-build-tools/"})) return true;
-    if (error) *error = QStringLiteral("the Visual Studio Build Tools installer could not be started");
-    return false;
+    if (stepId == "compiler") {
+        if (!winget.isEmpty())
+            c = {winget, {"install", "--id", "Microsoft.VisualStudio.2022.BuildTools", "--exact", "--accept-package-agreements",
+                          "--accept-source-agreements", "--disable-interactivity", "--override",
+                          "--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Llvm.Clang "
+                          "--add Microsoft.VisualStudio.Component.VC.Llvm.ClangToolset --includeRecommended"},
+                 true, QStringLiteral("the Visual Studio Build Tools")};
+        else
+            c = {"cmd.exe", {"/c", "start", "", "https://visualstudio.microsoft.com/visual-cpp-build-tools/"}, false,
+                 QStringLiteral("the Visual Studio Build Tools")};
+    } else if (stepId == "python") {
+        if (!winget.isEmpty())
+            c = {winget, {"install", "--id", "Python.Python.3.12", "--exact", "--scope", "user", "--accept-package-agreements",
+                          "--accept-source-agreements", "--disable-interactivity"},
+                 true, QStringLiteral("Python 3.12")};
+        else
+            c = {"cmd.exe", {"/c", "start", "", "https://www.python.org/downloads/windows/"}, false, QStringLiteral("Python")};
+    }
 #else
-    if (error) *error = QStringLiteral("no system installer for a compiler on this platform");
-    return false;
+    Q_UNUSED(stepId);
+#endif
+    return c;
+}
+
+void HostTools::refresh() const {
+    vsChecked_ = false;
+    vsCache_.clear();
+    cmakeChecked_ = ninjaChecked_ = false;
+    cmakeCache_.clear();
+    ninjaCache_.clear();
+#ifdef Q_OS_WIN
+    // An installer writes the new PATH to the registry; a running process keeps the one it started with. The system's
+    // and the user's entries as they are now come first, then whatever this process had that they do not name.
+    QStringList path;
+    auto add = [&path](const QString& list) {
+        for (QString e : list.split(';', Qt::SkipEmptyParts)) {
+            const QString expanded = expandEnvironment(e.trimmed());
+            if (!expanded.isEmpty() && !path.contains(expanded, Qt::CaseInsensitive)) path << expanded;
+        }
+    };
+    add(QSettings("HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment", QSettings::NativeFormat).value("Path").toString());
+    add(QSettings("HKEY_CURRENT_USER\\Environment", QSettings::NativeFormat).value("Path").toString());
+    add(qEnvironmentVariable("PATH"));
+    qputenv("PATH", path.join(';').toLocal8Bit());
 #endif
 }
 
@@ -139,6 +190,11 @@ QString HostTools::git() const {
     const QString vs = visualStudio();
     const QString bundled = vs + "/Common7/IDE/CommonExtensions/Microsoft/TeamFoundation/Team Explorer/Git/cmd/git.exe";
     if (!vs.isEmpty() && QFileInfo(bundled).isExecutable()) return bundled;
+    // the launcher's own MinGit (the source step downloads it when the machine has none)
+    if (const DownloadPin* pin = DownloadPins::find("git")) {
+        const QString portable = portableGitDir() + "/" + pin->executable;
+        if (QFileInfo(portable).isExecutable()) return portable;
+    }
 #endif
     return QString();
 }
@@ -190,21 +246,6 @@ QString HostTools::systemNinja() const {
     return ninjaCache_;
 }
 
-bool HostTools::promptPythonInstall(QString* error) const {
-#ifdef Q_OS_WIN
-    const QString winget = which("winget");
-    if (!winget.isEmpty() && QProcess::startDetached(winget, {"install", "--id", "Python.Python.3.12", "--exact", "--scope", "user",
-                                                              "--accept-package-agreements", "--accept-source-agreements"}))
-        return true;
-    if (QProcess::startDetached("cmd.exe", {"/c", "start", "", "https://www.python.org/downloads/windows/"})) return true;
-    if (error) *error = QStringLiteral("the Python installer could not be started");
-    return false;
-#else
-    if (error) *error = QStringLiteral("Python comes with the developer tools of the first step");
-    return false;
-#endif
-}
-
 QString HostTools::python3() const {
     for (const QString& candidate : {which("python3"), QString("/usr/bin/python3"), which("python")}) {
         if (candidate.isEmpty()) continue;
@@ -218,6 +259,7 @@ QString HostTools::python3() const {
 
 QString HostTools::portableCmakeDir() const { return appData_->toolchainDir() + "/cmake"; }
 QString HostTools::portableNinjaDir() const { return appData_->toolchainDir() + "/ninja"; }
+QString HostTools::portableGitDir() const { return appData_->toolchainDir() + "/git"; }
 
 QString HostTools::cmake() const {
     if (const DownloadPin* pin = DownloadPins::find("cmake")) {

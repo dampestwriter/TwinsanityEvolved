@@ -146,9 +146,10 @@ jobs:
              *OK* (this stops Windows SmartScreen warning about the unsigned launcher), then *Extract All*.
           2. Open the extracted **TwinsanityEvolved** folder and run `TwinsanityEvolved.exe`.
           3. Choose where to install the game.
-          4. The first step needs **Visual Studio 2022 Build Tools with the C++ Clang tools** (they include Git). If they
-             are missing, press **Install** on that step (Windows asks for administrator approval; about 5 GB), then
-             **Retry**. If Python 3.8+ is missing, the Python step's **Install** gets it.
+          4. The first step needs **Visual Studio 2022 Build Tools with the C++ Clang tools**. If they are missing, press
+             **Install** on that step (Windows asks for administrator approval; about 5 GB): the launcher shows the
+             installer's progress and carries on by itself once they are in place. If Git is missing, the Game source
+             step downloads a portable Git for you. If Python 3.8+ is missing, the Python step's **Install** gets it.
           5. Let the first run finish, then press **Build** on the Crash Twinsanity card. When it is done, start the game
              from the **Crash Twinsanity** shortcut (or **Play** in the launcher).
 
@@ -156,7 +157,8 @@ jobs:
           1. Open `twinsanityevolved-launcher-macos-arm64.dmg` and drag **TwinsanityEvolved** to Applications.
           2. The first time, right-click the app and choose **Open** (the app is not notarised).
           3. Choose where to install the game.
-          4. If the Xcode Command Line Tools are missing, press **Install** on the first step, then **Retry**.
+          4. If the Xcode Command Line Tools are missing, press **Install** on the first step; the launcher carries on
+             by itself once macOS has installed them.
           5. Let the first run finish, then **Build**. The game is installed to the folder you chose; start it from there
              or with **Play**.
 

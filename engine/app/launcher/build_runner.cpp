@@ -147,6 +147,7 @@ void BuildRunner::configure() {
     QStringList path;
     if (!host.cmake().isEmpty()) path << QFileInfo(host.cmake()).absolutePath();
     if (!host.ninja().isEmpty()) path << QFileInfo(host.ninja()).absolutePath();
+    if (!host.git().isEmpty()) path << QFileInfo(host.git()).absolutePath();   // vcpkg and the scripts call git by name (the portable MinGit too)
     if (spec_->needs.contains("vitasdk")) { path << installer_->vitaSdkDir() + "/bin"; env.insert("VITASDK", installer_->vitaSdkDir()); }
     path << env.value("PATH").split(QDir::listSeparator(), Qt::SkipEmptyParts);
     env.insert("PATH", path.join(QDir::listSeparator()));

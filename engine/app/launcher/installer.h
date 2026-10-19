@@ -9,6 +9,7 @@
 #include <QObject>
 #include <QVector>
 #include <functional>
+class QTimer;
 namespace ps2r::launcher {
 class AppData;
 class HostTools;
@@ -24,7 +25,7 @@ struct InstallStep {
     QString reason;    // the failure, in one sentence
     qint64 bytes = 0;  // downloaded / on disk
     bool optional = false;
-    bool canPromptInstall = false;   // the compiler step: the system's own installer can be offered
+    bool canPromptInstall = false;   // the system's own installer can be offered (the compiler; Python on Windows; git on macOS)
 };
 
 class Installer : public QObject {
@@ -56,7 +57,10 @@ public:
     void startVitaSdk();               // the optional step, on request from the Targets page
     void cancel();
     void promptCompilerInstall();      // the compiler step's system installer
-    void promptInstall(int stepIndex); // the step's own system installer (the compiler, Python on Windows)
+    // The step's own system installer, run in the open: its output goes to the Details log, and when it ends the
+    // machine is checked again (the PATH re-read, nothing cached). A tool that is there now finishes the step and the
+    // remaining steps continue by themselves; one not there yet (a system dialog still open) is watched for.
+    void promptInstall(int stepIndex);
 
     static qint64 folderBytes(const QString& dir);
     static QString bytesText(qint64 bytes);
@@ -70,6 +74,8 @@ signals:
 
 private:
     void runFrom(int index);
+    bool stepSatisfied(const QString& id) const;   // the tool the step needs is on the machine now
+    void watchFor(int index, int seconds, const QString& what);
     void runStep(int index);
     void finishStep(int index, bool ok, const QString& detail, const QString& reason, qint64 bytes);
     void stepCompiler(int i);
@@ -99,6 +105,8 @@ private:
     QJsonObject installed_;
     QElapsedTimer stepTimer_;
     qint64 downloadedBytes_ = 0;
+    QTimer* watch_ = nullptr;   // re-checks for a tool a system installer is still putting in place
+    int watchLeft_ = 0;
     int current_ = -1;
     bool running_ = false, cancelled_ = false, vitaRequested_ = false;
 };

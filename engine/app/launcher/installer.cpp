@@ -32,7 +32,11 @@ Installer::Installer(AppData* appData, const TitleManifest* manifest, QObject* p
     steps_ = {
         {"compiler", "Developer tools", InstallStep::Pending, "", "", 0, false, true},
         {"tools", "Build tools", InstallStep::Pending, "", "", 0, false, false},
-        {"source", "Game source", InstallStep::Pending, "", "", 0, false, false},
+#ifdef Q_OS_MACOS
+        {"source", "Game source", InstallStep::Pending, "", "", 0, false, true},   // git comes with the Command Line Tools
+#else
+        {"source", "Game source", InstallStep::Pending, "", "", 0, false, false},  // Windows: MinGit, downloaded by the step
+#endif
         {"toolchain", "Game compiler", InstallStep::Pending, "", "", 0, false, false},
         {"media", "Media libraries", InstallStep::Pending, "", "", 0, false, false},
 #ifdef Q_OS_WIN
@@ -43,6 +47,8 @@ Installer::Installer(AppData* appData, const TitleManifest* manifest, QObject* p
         {"vitasdk", "PlayStation Vita tools", InstallStep::Pending, "only when the Vita target is used", "", 0, true, false},
     };
     proc_ = new ProcessRunner(this);
+    watch_ = new QTimer(this);
+    watch_->setInterval(3000);
     connect(proc_, &ProcessRunner::line, this, &Installer::logLine);
     connect(proc_, &ProcessRunner::finished, this, [this](bool ok, int) {
         if (onProcDone_) { auto f = onProcDone_; onProcDone_ = nullptr; f(ok); }
@@ -186,20 +192,91 @@ void Installer::startVitaSdk() {
 void Installer::cancel() {
     cancelled_ = true;
     if (proc_) proc_->cancel();
+    if (watch_->isActive() && current_ >= 0) {
+        watch_->stop();
+        finishStep(current_, false, QStringLiteral("stopped"), QStringLiteral("Stopped while waiting for the installer. Retry checks again."), 0);
+    }
 }
 
-void Installer::promptCompilerInstall() {
-    QString err;
-    host_->promptCompilerInstall(&err);
-    if (!err.isEmpty()) emit logLine(err);
+void Installer::promptCompilerInstall() { promptInstall(0); }
+
+bool Installer::stepSatisfied(const QString& id) const {
+    if (id == "compiler") return host_->hasCompiler();
+    if (id == "python") return !host_->python3().isEmpty();
+    if (id == "source") return !host_->git().isEmpty();
+    return false;
 }
 
 void Installer::promptInstall(int stepIndex) {
-    if (stepIndex < 0 || stepIndex >= steps_.size()) return;
-    QString err;
-    if (steps_[stepIndex].id == "python") host_->promptPythonInstall(&err);
-    else host_->promptCompilerInstall(&err);
-    if (!err.isEmpty()) emit logLine(err);
+    if (running_ || stepIndex < 0 || stepIndex >= steps_.size()) return;
+    const QString id = steps_[stepIndex].id;
+    const HostTools::InstallCommand cmd = host_->installCommand(id);
+    if (cmd.program.isEmpty()) { emit logLine(QStringLiteral("no system installer for %1 on this machine").arg(steps_[stepIndex].name)); return; }
+    cancelled_ = false;
+    running_ = true;
+    current_ = stepIndex;
+    InstallStep& s = steps_[stepIndex];
+    s.state = InstallStep::Running;
+    s.reason.clear();
+    s.detail = QStringLiteral("installing %1").arg(cmd.what);
+    emit stepChanged(stepIndex);
+    if (!cmd.attached) {
+        // a system dialog or a download page: the user finishes it there, the launcher notices the tool when it arrives
+        if (!QProcess::startDetached(cmd.program, cmd.args)) {
+            finishStep(stepIndex, false, QStringLiteral("installer not started"), QStringLiteral("The installer for %1 could not be started.").arg(cmd.what), 0);
+            return;
+        }
+        watchFor(stepIndex, 45 * 60, cmd.what);
+        return;
+    }
+    emit progress(QStringLiteral("Installing %1 — Windows may ask for approval; this can take a while").arg(cmd.what), 0, 0, true);
+    // winget draws a bar ("12.0 MB / 30.0 MB", "45%"): it drives the progress bar
+    auto conn = std::make_shared<QMetaObject::Connection>();
+    *conn = connect(proc_, &ProcessRunner::line, this, [this, what = cmd.what](const QString& l) {
+        static const QRegularExpression mb("([\\d.]+)\\s*([KMG]B)\\s*/\\s*([\\d.]+)\\s*([KMG]B)");
+        static const QRegularExpression pct("(\\d+)%");
+        const QRegularExpressionMatch m = mb.match(l);
+        if (m.hasMatch() && m.captured(2) == m.captured(4) && m.captured(3).toDouble() > 0) {
+            emit progress(QStringLiteral("Downloading %1 (%2 of %3 %4)").arg(what, m.captured(1), m.captured(3), m.captured(4)),
+                          int(1000 * m.captured(1).toDouble() / m.captured(3).toDouble()), 1000, false);
+        } else if (const QRegularExpressionMatch p = pct.match(l); p.hasMatch()) {
+            emit progress(QStringLiteral("Installing %1").arg(what), p.captured(1).toInt() * 10, 1000, false);
+        } else if (l.contains("Starting package install", Qt::CaseInsensitive)) {
+            emit progress(QStringLiteral("Installing %1 — Windows may ask for approval; this can take a while").arg(what), 0, 0, true);
+        }
+    });
+    runProcess(cmd.program, cmd.args, appData_->toolchainDir(), "install-" + id, [=](bool) {
+        disconnect(*conn);
+        // winget's exit code is not the answer (an already-installed package "fails"): the machine is checked instead
+        watchFor(stepIndex, 90, cmd.what);
+    });
+}
+
+// Re-checks the step's tool now and every few seconds for up to `seconds`; when it is there the step runs again (it
+// finds the tool, finishes, and the steps after it continue).
+void Installer::watchFor(int i, int seconds, const QString& what) {
+    watch_->disconnect();
+    watchLeft_ = seconds;
+    auto check = [=] {
+        host_->refresh();
+        if (stepSatisfied(steps_[i].id)) {
+            watch_->stop();
+            emit logLine(QStringLiteral("%1 found; continuing").arg(what));
+            runStep(i);
+            return;
+        }
+        if (watchLeft_ <= 0) {
+            watch_->stop();
+            finishStep(i, false, QStringLiteral("not found"),
+                       QStringLiteral("%1 was not found after its installer ended. If it is still installing, Retry checks again when it is done.").arg(what), 0);
+            return;
+        }
+        emit progress(QStringLiteral("Waiting for %1 to finish installing — the launcher continues by itself").arg(what), 0, 0, true);
+        watchLeft_ -= watch_->interval() / 1000;
+    };
+    connect(watch_, &QTimer::timeout, this, check);
+    watch_->start();
+    check();
 }
 
 void Installer::runFrom(int index) {
@@ -217,6 +294,7 @@ void Installer::runFrom(int index) {
 }
 
 void Installer::runStep(int i) {
+    host_->refresh();   // nothing remembered from an earlier check: a tool installed meanwhile is seen now
     current_ = i;
     steps_[i].state = InstallStep::Running;
     steps_[i].reason.clear();
@@ -268,6 +346,7 @@ void Installer::runProcess(const QString& program, const QStringList& args, cons
     QStringList path;
     if (!host_->cmake().isEmpty()) path << QFileInfo(host_->cmake()).absolutePath();
     if (!host_->ninja().isEmpty()) path << QFileInfo(host_->ninja()).absolutePath();
+    if (!host_->git().isEmpty()) path << QFileInfo(host_->git()).absolutePath();   // vcpkg and the scripts call git by name (the portable MinGit too)
     if (vitaSdkInstalled()) { path << vitaSdkDir() + "/bin"; env.insert("VITASDK", vitaSdkDir()); }
     path << env.value("PATH").split(QDir::listSeparator(), Qt::SkipEmptyParts);
     env.insert("PATH", path.join(QDir::listSeparator()));
@@ -293,11 +372,11 @@ void Installer::stepCompiler(int i) {
 #ifdef Q_OS_MACOS
     finishStep(i, false, QStringLiteral("not installed"),
                QStringLiteral("The Xcode Command Line Tools are not installed. Press Install to let macOS offer them (about 1 GB, no "
-                              "administrator password for the download), then Retry when it has finished."), 0);
+                              "administrator password for the download); the launcher continues when they are in place."), 0);
 #elif defined(Q_OS_WIN)
     finishStep(i, false, QStringLiteral("not installed"),
                QStringLiteral("Visual Studio 2022 Build Tools with the C++ Clang tools are not installed. Press Install (Windows asks for "
-                              "administrator approval; about 5 GB), then Retry when it has finished."), 0);
+                              "administrator approval; about 5 GB); the launcher continues when they are in place."), 0);
 #else
     finishStep(i, false, QStringLiteral("not installed"), QStringLiteral("No C++ compiler was found on this machine: %1.").arg(desc), 0);
 #endif
@@ -384,7 +463,22 @@ void Installer::stepTools(int i) {
 // --- step 3: the title's source at the latest commit of its repository -------------------------------------------
 void Installer::stepSource(int i) {
     const QString git = host_->git();
-    if (git.isEmpty()) { finishStep(i, false, "no git", QStringLiteral("git was not found; it comes with the developer tools of step 1."), 0); return; }
+    if (git.isEmpty()) {
+#ifdef Q_OS_WIN
+        // the prebuilt, portable Git for Windows into Toolchain/git (no installer, no approval), then the step again
+        downloadAndUnpack("git", host_->portableGitDir(), [=](bool ok, QString reason, qint64) {
+            host_->refresh();
+            if (!ok || host_->git().isEmpty()) { finishStep(i, false, QStringLiteral("git could not be installed"), reason.isEmpty() ? QStringLiteral("git did not unpack.") : reason, 0); return; }
+            emit logLine(QStringLiteral("git %1 installed at %2").arg(DownloadPins::find("git")->version, host_->portableGitDir()));
+            stepSource(i);
+        });
+#elif defined(Q_OS_MACOS)
+        finishStep(i, false, "no git", QStringLiteral("git is not installed; it comes with the Xcode Command Line Tools. Press Install, and the launcher continues when they are in place."), 0);
+#else
+        finishStep(i, false, "no git", QStringLiteral("git is not installed. Install it with your package manager, then Retry."), 0);
+#endif
+        return;
+    }
     const QString dir = sourceDir();
     const QString url = manifest_->sourceUrl();
     if (url.isEmpty()) { finishStep(i, false, "no source", QStringLiteral("The manifest names no source repository."), 0); return; }
@@ -546,7 +640,7 @@ void Installer::stepMedia(int i) {
 // own vcpkg checkout at the manifest's builtin-baseline; the first game build compiles the libraries through it.
 void Installer::stepVcpkg(int i) {
     const QString git = host_->git();
-    if (git.isEmpty()) { finishStep(i, false, "no git", QStringLiteral("git was not found (Git for Windows: https://git-scm.com)."), 0); return; }
+    if (git.isEmpty()) { finishStep(i, false, "no git", QStringLiteral("git was not found; the Game source step installs it — Retry that step."), 0); return; }
     const QString baseline = vcpkgBaseline();
     if (baseline.isEmpty()) { finishStep(i, false, "no manifest", QStringLiteral("The source has no vcpkg.json with a builtin-baseline."), 0); return; }
     const QString root = vcpkgRoot();
@@ -581,7 +675,7 @@ void Installer::stepPython(int i) {
     const QString py = host_->python3();
     if (py.isEmpty()) {
 #ifdef Q_OS_WIN
-        finishStep(i, false, "not found", QStringLiteral("No Python 3.8 or newer was found. Press Install (Python 3.12 through winget), then Retry."), 0);
+        finishStep(i, false, "not found", QStringLiteral("No Python 3.8 or newer was found. Press Install (Python 3.12 through winget); the launcher continues when it is in place."), 0);
 #else
         finishStep(i, false, "not found", QStringLiteral("No Python 3.8 or newer was found. On macOS it comes with the developer tools of step 1; "
                                                            "install them, then Retry."), 0);
@@ -599,7 +693,7 @@ void Installer::stepVitaSdk(int i) {
     const QString git = host_->git();
     const QString sdk = vitaSdkDir();
     if (vitaSdkInstalled()) { finishStep(i, true, QStringLiteral("VitaSDK at %1").arg(AppData::shortPath(sdk)), QString(), folderBytes(sdk)); return; }
-    if (git.isEmpty()) { finishStep(i, false, "no git", QStringLiteral("git was not found; it comes with the developer tools of step 1."), 0); return; }
+    if (git.isEmpty()) { finishStep(i, false, "no git", QStringLiteral("git was not found; the first-run setup's Game source step installs it."), 0); return; }
     const QString vdpm = appData_->toolchainDir() + "/vdpm";
     auto packages = [=] {
         emit progress(QStringLiteral("Installing the Vita packages (SDL2, vitaGL, FFmpeg)"), 0, 0, true);

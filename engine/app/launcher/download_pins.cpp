@@ -28,6 +28,10 @@ const QVector<DownloadPin> kPins = {
     {"ninja", "windows-x86_64", "1.12.1",
      "https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-win.zip",
      "ninja-win-1.12.1.zip", "f550fec705b6d6ff58f2db3c374c2277a37691678d6aba463adcbb129108467a", "ninja.exe", 275425},
+    // MinGit: the prebuilt, portable Git for Windows (no installer, no administrator approval); only when the machine has no git
+    {"git", "windows-x86_64", "2.56.0.2",
+     "https://github.com/git-for-windows/git/releases/download/v2.56.0.windows.2/MinGit-2.56.0.2-64-bit.zip",
+     "MinGit-2.56.0.2-64-bit.zip", "da35e72aa21c005a5a0d298cfbae110bc1609a815730ea0dde84b01a1b3cd3be", "cmd/git.exe", 39806486},
 };
 }  // namespace
 
