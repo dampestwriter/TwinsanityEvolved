@@ -216,7 +216,8 @@ void SetCurrentThreadName(const char* name) {
     if (!name || !*name) return;
     // SetThreadDescription (Windows 10 1607+); resolved at run time so older loaders start.
     using Fn = HRESULT(WINAPI*)(HANDLE, PCWSTR);
-    static Fn fn = reinterpret_cast<Fn>(GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "SetThreadDescription"));
+    // through void*: newer clang-cl rejects a direct FARPROC -> Fn cast (-Wcast-function-type-mismatch)
+    static Fn fn = reinterpret_cast<Fn>(reinterpret_cast<void*>(GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "SetThreadDescription")));
     if (!fn) return;
     wchar_t wide[64];
     const int n = MultiByteToWideChar(CP_UTF8, 0, name, -1, wide, 63);
