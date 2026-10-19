@@ -1,6 +1,6 @@
 # .github/workflows/release.yml -- TwinsanityEvolved release artifacts: on a version tag (or by hand), one zip per
-# platform -- macOS arm64, macOS x86_64, Linux x86_64, Linux aarch64, Windows x64 -- built by the SAME scripts a
-# developer runs locally (charter: CI workflows are authored and run locally through their scripts):
+# platform -- macOS arm64, macOS x86_64, Linux x86_64, Linux aarch64, Windows x64 -- built by the same scripts a
+# developer runs locally:
 #
 #   tools/ci/release_dist.sh          macOS / Linux: pinned wasm32 toolchain (tools/fetch_toolchain.sh), the engine's
 #                                     static LGPL FFmpeg + static SDL2 (TE_DIST), configure + build, stage
@@ -16,11 +16,8 @@
 # decompilation (game/) are vendored trees in this repository
 # so a plain checkout holds everything the build needs.
 #
-# WINDOWS: the lane configures and builds through the engine's clang-cl shape; the port's runner has its Win32 arm
-# (runner/te_fiber.c VirtualAlloc, runner/te_fiber_win64.c inline-asm switch, runner/te_savestate.cpp /DYNAMICBASE:NO +
-# the adopted /GS cookie) compiled for x86_64-pc-windows-msvc on the dev host but NOT yet run on
-# Windows. Until a Windows run passes te_fiber_test and a save/load round trip the Windows job is `continue-on-error`
-# and the release job attaches the zips it finds (a missing Windows zip is named in the notes, never silently dropped).
+# Windows builds through the preset (vcpkg at the manifest's builtin-baseline); its unit tests run on Mesa's llvmpipe
+# because the runner has no GPU. The release job attaches the zips it finds and names any missing platform.
 #
 # Local validation: `actionlint .github/workflows/release.yml`; the scripts: `bash -n tools/ci/release_dist.sh`.
 name: TwinsanityEvolved release
@@ -38,7 +35,7 @@ env:
 
 jobs:
   guard:
-    name: asset scan (tree) + no-codenames lint + script syntax
+    name: asset scan (tree) + script syntax
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -64,10 +61,10 @@ jobs:
           - { os: windows-2022,     target: windows-x64,   platform: windows, jobs: 3 }
     runs-on: ${{ matrix.os }}
     timeout-minutes: 240
-    continue-on-error: ${{ matrix.platform == 'windows' }}
     env:
-      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
       VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg-cache
+      MESA_VERSION: 26.2.3
+      MESA_SHA256: 3f3613adb43cfd0f2e665ce2400b130c275f0b3317cb3a05566320a3a67589ed
     steps:
       - uses: actions/checkout@v4
 
@@ -97,12 +94,14 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: vcpkg checkout
+      - name: vcpkg at the manifest's builtin-baseline
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
-          git clone --depth 1 https://github.com/microsoft/vcpkg.git $env:VCPKG_ROOT
-          & "$env:VCPKG_ROOT/bootstrap-vcpkg.bat" -disableMetrics
+          $baseline = (Get-Content vcpkg.json -Raw | ConvertFrom-Json).'builtin-baseline'
+          git clone --quiet https://github.com/microsoft/vcpkg.git "${{ github.workspace }}/vcpkg"
+          git -C "${{ github.workspace }}/vcpkg" checkout --quiet $baseline
+          & "${{ github.workspace }}/vcpkg/bootstrap-vcpkg.bat" -disableMetrics
           New-Item -ItemType Directory -Force -Path $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
       - name: vcpkg binary cache (restore)
         if: matrix.platform == 'windows'
@@ -122,10 +121,39 @@ jobs:
         shell: bash
         run: tools/ci/release_dist.sh --jobs ${{ matrix.jobs }} 2>&1 | tee release_dist.log
 
-      - name: release_dist.ps1 (toolchain, vcpkg deps, build, stage, scan, zip)
+      # Windows: configure + build through the preset (VCPKG_ROOT on the step: the developer environment exports its
+      # own), the unit tests on Mesa's llvmpipe, then the same staging as the other platforms
+      - name: Windows -- toolchain, configure, build
         if: matrix.platform == 'windows'
         shell: pwsh
-        run: ./tools/ci/release_dist.ps1 -Jobs ${{ matrix.jobs }} 2>&1 | Tee-Object -FilePath release_dist.log
+        env:
+          VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+        run: |
+          ./tools/fetch_toolchain.ps1
+          cmake --preset windows-clang-cl-release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cmake --build --preset windows-clang-cl-release -j ${{ matrix.jobs }}
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Windows -- unit tests on Mesa llvmpipe
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        env:
+          GALLIUM_DRIVER: llvmpipe
+        run: |
+          $archive = "mesa3d-$env:MESA_VERSION-release-msvc.7z"
+          Invoke-WebRequest -UseBasicParsing "https://github.com/pal1000/mesa-dist-win/releases/download/$env:MESA_VERSION/$archive" -OutFile $archive
+          if ((Get-FileHash $archive -Algorithm SHA256).Hash.ToLower() -ne $env:MESA_SHA256) { throw "mesa: sha256 mismatch" }
+          7z x -y -omesa $archive x64/opengl32.dll x64/libgallium_wgl.dll | Out-Null
+          $dirs = Get-ChildItem build-windows-release -Recurse -Filter *.exe | Where-Object { $_.Name -match '^(te_|test_)' } | ForEach-Object { $_.DirectoryName } | Sort-Object -Unique
+          foreach ($d in $dirs) { Copy-Item mesa/x64/opengl32.dll, mesa/x64/libgallium_wgl.dll $d }
+          ctest --preset windows-clang-cl-release -j ${{ matrix.jobs }}
+          $rc = $LASTEXITCODE
+          foreach ($d in $dirs) { Remove-Item "$d/opengl32.dll", "$d/libgallium_wgl.dll" -ErrorAction SilentlyContinue }
+          if ($rc -ne 0) { exit $rc }
+      - name: Windows -- stage, scan, zip
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: ./tools/ci/release_dist.ps1 -SkipBuild -BuildDir "$PWD/build-windows-release" 2>&1 | Tee-Object -FilePath release_dist.log
       - name: vcpkg binary cache (save)
         if: matrix.platform == 'windows' && always()
         uses: actions/cache/save@v4

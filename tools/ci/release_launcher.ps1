@@ -2,7 +2,7 @@
 # Widgets) built from the vendored engine/ tree with the Windows Qt, staged as a portable folder (the .exe with the Qt
 # DLLs beside it -- windeployqt, dynamic, LGPL -- the manifest under titles\, BUILD-ID, THIRD_PARTY_NOTICES.md,
 # licenses\) and zipped. No installer: unzip and run TwinsanityEvolved.exe. The Windows mirror of
-# tools/ci/release_launcher.sh; prepared on macOS, to be run on a Windows machine.
+# tools/ci/release_launcher.sh.
 #
 #   powershell -ExecutionPolicy Bypass -File tools\ci\release_launcher.ps1 -Qt C:\Qt\6.8.0\msvc2022_64 [-BuildDir DIR]
 #              [-DistDir DIR] [-Engine DIR] [-SkipBuild] [-SourceUrl URL]
@@ -33,9 +33,13 @@ if (-not $SkipBuild) {
     cmake --build $BuildDir
     if ($LASTEXITCODE -ne 0) { throw "build failed" }
     Step "the launcher's tests"
+    # the test executables load the Qt DLLs from the kit (windeployqt only runs on the staged copy)
+    $env:PATH = "$(Join-Path $Qt 'bin');$env:PATH"
     $env:QT_QPA_PLATFORM = "offscreen"
     ctest --test-dir $BuildDir --output-on-failure
+    $rc = $LASTEXITCODE
     Remove-Item Env:QT_QPA_PLATFORM
+    if ($rc -ne 0) { throw "release_launcher: the launcher's tests failed" }
 }
 $Exe = Join-Path $BuildDir "ps2r_launcher.exe"
 if (-not (Test-Path $Exe)) { throw "release_launcher: no $Exe" }
@@ -82,7 +86,29 @@ Step "windeployqt (the Qt DLLs and plugins beside the executable, dynamic)"
 if ($LASTEXITCODE -ne 0) { throw "windeployqt failed" }
 
 Step "asset scan over the staged folder"
-if (Get-Command bash -ErrorAction SilentlyContinue) { bash tools/ci/asset_scan.sh $Dist } else { Write-Host "asset_scan.sh needs bash (Git Bash); skipped here, run it on the staged folder" }
+# Git for Windows' bash runs the asset scan. Not `bash` from PATH: on a machine with WSL that is System32\bash.exe,
+# which cannot open a Windows path.
+function Get-GitBash {
+    $git = Get-Command git -ErrorAction SilentlyContinue
+    if ($git) {
+        foreach ($up in @(1, 2)) {
+            $root = $git.Source
+            for ($i = 0; $i -le $up; $i++) { $root = Split-Path $root -Parent }
+            $candidate = Join-Path $root "bin\bash.exe"
+            if (Test-Path $candidate) { return $candidate }
+        }
+    }
+    $default = Join-Path $env:ProgramFiles "Git\bin\bash.exe"
+    if (Test-Path $default) { return $default }
+    $any = Get-Command bash -ErrorAction SilentlyContinue
+    if ($any) { return $any.Source }
+    return $null
+}
+$Bash = Get-GitBash
+if ($Bash) {
+    & $Bash tools/ci/asset_scan.sh ($Dist.Replace('\', '/'))
+    if ($LASTEXITCODE -ne 0) { throw "release_launcher: the asset scan found something in $Dist" }
+} else { throw "release_launcher: Git for Windows' bash.exe not found (the asset scan runs under it)" }
 
 Step "zip"
 $ZipName = "$($Product.ToLower())-launcher-windows-x64.zip"

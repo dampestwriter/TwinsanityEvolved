@@ -94,9 +94,29 @@ if (-not (Get-Command clang-cl -ErrorAction SilentlyContinue)) {
         }
     }
 }
-foreach ($tool in @("cmake", "ninja", "clang-cl", "python", "bash")) {
+# Git for Windows' bash runs the asset scan. Not `bash` from PATH: on a machine with WSL that is System32\bash.exe,
+# which cannot open a Windows path.
+function Get-GitBash {
+    $git = Get-Command git -ErrorAction SilentlyContinue
+    if ($git) {
+        foreach ($up in @(1, 2)) {
+            $root = $git.Source
+            for ($i = 0; $i -le $up; $i++) { $root = Split-Path $root -Parent }
+            $candidate = Join-Path $root "bin\bash.exe"
+            if (Test-Path $candidate) { return $candidate }
+        }
+    }
+    $default = Join-Path $env:ProgramFiles "Git\bin\bash.exe"
+    if (Test-Path $default) { return $default }
+    $any = Get-Command bash -ErrorAction SilentlyContinue
+    if ($any) { return $any.Source }
+    return $null
+}
+$Bash = Get-GitBash
+foreach ($tool in @("cmake", "ninja", "clang-cl", "python")) {
     if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) { throw "release_dist.ps1: '$tool' not on PATH (prerequisites at the top of this script)" }
 }
+if (-not $Bash) { throw "release_dist.ps1: Git for Windows' bash.exe not found (the asset scan runs under it)" }
 if (-not $SkipBuild) {
     if (-not $env:VCPKG_ROOT -or -not (Test-Path (Join-Path $env:VCPKG_ROOT "scripts\buildsystems\vcpkg.cmake"))) {
         throw "release_dist.ps1: VCPKG_ROOT must point at a vcpkg checkout (git clone https://github.com/microsoft/vcpkg; .\bootstrap-vcpkg.bat)"
@@ -193,7 +213,7 @@ if ($conf[0] -match '--enable-gpl|--enable-nonfree|--enable-libx26|--enable-vers
 
 Step "asset scan over the staged folder (zero findings)"
 $distBash = $Dist.Replace('\', '/')
-$rc = Invoke-Native { bash tools/ci/asset_scan.sh "$distBash" }
+$rc = Invoke-Native { & $Bash tools/ci/asset_scan.sh "$distBash" }
 if ($rc -ne 0) { throw "release_dist.ps1: asset scan found game data in the staged folder ($rc)" }
 
 if (-not $NoZip) {

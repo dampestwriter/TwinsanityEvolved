@@ -29,11 +29,15 @@ EXT_RE='\.(iso|bin|cue|img|mdf|nrg|elf|irx|erx|ps2st|p2s|psu|mcd|mc2|max|cbs|pss
 # the explicit exclusion list: paths relative to ROOT (find -path form). The vendored engine/ tree is the only tree
 # excluded; add a path here, never a pattern.
 EXCLUDED_DIRS=( ./engine )
-PRUNE=( -path ./.git -o -path './build*' -o -path ./tools/toolchain -o -name __pycache__ -o -path '*/.git' )
+PRUNE=( -path ./.git -o -path './build*' -o -path ./tools/toolchain -o -path ./dist -o -name __pycache__ -o -path '*/.git' )
 if [ "$INCLUDE_ENGINE" = 0 ]; then for d in "${EXCLUDED_DIRS[@]}"; do PRUNE+=( -o -path "$d" ); done; fi
 
 findings=0
 report() { findings=$((findings+1)); echo "FINDING: $1  ($2)"; }
+
+size_of() { # bytes: GNU stat first (GNU's `stat -f` is --file-system and exits 0); BSD stat has no -c
+  stat -c %s "$1" 2>/dev/null || stat -f %z "$1"
+}
 
 magic_of() { # file -> label or empty
   local f="$1" head
@@ -64,7 +68,7 @@ magic_of() { # file -> label or empty
   b4_12="$(head -c 12 "$f" 2>/dev/null | tail -c 8 | od -An -c | tr -d ' \n')"
   case "$b4_12" in *ftyp*) echo "MP4/MOV video"; return ;; esac
   # ISO9660: "CD001" at byte 0x8001 (plain) -- only worth checking on files >= 64 KB
-  if [ "$(stat -f %z "$f" 2>/dev/null || stat -c %s "$f")" -ge 65536 ]; then
+  if [ "$(size_of "$f")" -ge 65536 ]; then
     if [ "$(dd if="$f" bs=1 skip=32769 count=5 2>/dev/null)" = "CD001" ]; then echo "ISO9660 disc image"; return; fi
   fi
   # tar: "ustar" at 257
@@ -80,7 +84,7 @@ while IFS= read -r -d '' f; do
   # The ONE picture exemption: screenshots of the launcher's own window for README (docs/launcher/screenshots/
   # launcher-*.png, under 2 MB). The launcher shows no disc content -- its card artwork is generated from the title
   # id -- so these carry no game data; anything else under that folder, or larger, is still a finding.
-  if [[ "$lower" =~ ^docs/launcher/screenshots/launcher-[a-z0-9-]+\.png$ ]] && [ "$(stat -f %z "$f" 2>/dev/null || stat -c %s "$f")" -le 2097152 ]; then continue; fi
+  if [[ "$lower" =~ ^docs/launcher/screenshots/launcher-[a-z0-9-]+\.png$ ]] && [ "$(size_of "$f")" -le 2097152 ]; then continue; fi
   if [[ "$lower" =~ $EXT_RE ]]; then report "$rel" "forbidden extension"; continue; fi
   case "$(basename "$rel")" in SLUS_*|SLES_*|SCUS_*|SCES_*|IOPRP*) report "$rel" "PS2 executable name"; continue ;; esac
   m="$(magic_of "$f")"

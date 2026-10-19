@@ -1,0 +1,128 @@
+# .github/workflows/launcher.yml -- the launcher players download: a portable Windows zip and a macOS .dmg, built by
+# tools/ci/release_launcher.ps1 / tools/ci/release_launcher.sh with the official Qt 6 kit.
+#
+# The launcher carries no game code: on its first run it installs the toolchain, clones the latest commit of this
+# repository and builds the game on the player's machine from their own disc image.
+#
+#   push to main / pull request    build + test + stage both launchers, uploaded as workflow artifacts
+#   tag v*                         the same, then a GitHub release with the zip, the dmg and their sha256 files
+#   workflow_dispatch              by hand
+name: TwinsanityEvolved launcher
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths-ignore: ['**.md', 'docs/**']
+  pull_request:
+    paths-ignore: ['**.md', 'docs/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  QT_VERSION: 6.8.3
+
+jobs:
+  windows:
+    name: launcher windows-x64
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # `git describe` names the version
+      - name: Qt ${{ env.QT_VERSION }} (msvc2022_64)
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
+          cache: true
+      - name: MSVC developer environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: tools/ci/release_launcher.ps1 (build, tests, stage, windeployqt, asset scan, zip)
+        shell: pwsh
+        run: ./tools/ci/release_launcher.ps1 -Qt "$env:QT_ROOT_DIR"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: twinsanityevolved-launcher-windows-x64
+          path: |
+            dist/twinsanityevolved-launcher-windows-x64.zip
+            dist/twinsanityevolved-launcher-windows-x64.zip.sha256
+          if-no-files-found: error
+
+  macos:
+    name: launcher macos-arm64
+    runs-on: macos-14
+    timeout-minutes: 60
+    env:
+      TE_MIN_FREE_GB: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Ninja
+        run: brew install ninja
+      - name: Qt ${{ env.QT_VERSION }} (macOS)
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: mac
+          target: desktop
+          arch: clang_64
+          cache: true
+      - name: tools/ci/release_launcher.sh (build, tests, stage, macdeployqt, codesign, asset scan, dmg)
+        run: tools/ci/release_launcher.sh --qt "$QT_ROOT_DIR"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: twinsanityevolved-launcher-macos-arm64
+          path: |
+            dist/twinsanityevolved-launcher-macos-arm64.dmg
+            dist/twinsanityevolved-launcher-macos-arm64.dmg.sha256
+          if-no-files-found: error
+
+  release:
+    name: GitHub release
+    needs: [windows, macos]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: twinsanityevolved-launcher-*
+          path: release
+          merge-multiple: true
+      - name: Release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "TwinsanityEvolved ${GITHUB_REF_NAME} -- the launcher."
+            echo
+            echo "Download the launcher for your system, open it and point it at your own Crash Twinsanity disc image (the PAL"
+            echo "disc, SLES-52568). On its first run it installs what it needs into its own app-data folder, downloads the"
+            echo "latest source of this repository and builds the game on your machine. No game data is included."
+            echo
+            echo "- Windows: unzip twinsanityevolved-launcher-windows-x64.zip and run TwinsanityEvolved.exe (Visual Studio 2022"
+            echo "  Build Tools with the C++ Clang tools are needed for the build; the launcher offers to install them)."
+            echo "- macOS (Apple silicon): open the .dmg and drag TwinsanityEvolved to Applications."
+            echo
+            echo "| file | sha256 |"
+            echo "|---|---|"
+            for f in release/*.sha256; do read -r sha name < "$f"; echo "| ${name} | \`${sha}\` |"; done
+          } > notes.txt
+          cat notes.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          body_path: notes.txt
+          files: |
+            release/*.zip
+            release/*.dmg
+            release/*.sha256
+          fail_on_unmatched_files: true
