@@ -314,6 +314,10 @@
     "memory_cards": {
       "label": "Memory cards",
       "default": "~/.twinsanityevolved/memcards"
+    },
+    "game_output": {
+      "label": "Game folder",
+      "default": "~/Desktop/Crash Twinsanity"
     }
   },
   "scan": {

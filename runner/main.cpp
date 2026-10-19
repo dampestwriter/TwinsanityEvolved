@@ -52,6 +52,7 @@
 #include "te_autopilot.h"
 #include "te_probe.h"
 #include "te_savestate.h"
+#include "te_startup.h"
 #if defined(__vita__)
 #include "te_vita.h"   // the Vita lane: baked arguments, the log file, the memory report
 #endif
@@ -120,6 +121,7 @@ const char* GuestString(uint32_t address, std::size_t max) {
 }  // namespace te
 
 int main(int argc, char** argv) {
+    te::startup::AttachParentConsole();
 #if defined(__vita__)
     te::vita::Startup(&argc, &argv);
 #endif
@@ -199,7 +201,14 @@ int main(int argc, char** argv) {
         }
         else { Usage(); return 2; }
     }
-    if (iso.empty() && elf_path.empty()) { Usage(); return 2; }
+    // no image on the command line: the one named beside the executable (the launcher's installed copy, a shortcut)
+    if (iso.empty() && elf_path.empty()) iso = te::startup::DiscImageBesideExecutable();
+    if (iso.empty() && elf_path.empty()) {
+        te::startup::ShowError("Crash Twinsanity", std::string("No disc image. Run the TwinsanityEvolved launcher once (it writes ") +
+                                                       te::startup::kDiscImageFile + " beside the game), or start the game with --iso <image>.");
+        Usage();
+        return 2;
+    }
     if (!g_save_requests.empty() || !load_state.empty()) {
         std::string warning;
         te::savestate_runner::EnsureNoAslr(argc, argv, &warning);   // re-execs (and never returns) when ASLR moved us
@@ -342,7 +351,10 @@ int main(int argc, char** argv) {
     std::vector<uint8_t> elf;
     std::string error;
     if (!iso.empty()) {
-        if (!te::ReadElfFromIso(iso, elf_in_iso, elf, &error)) { std::fprintf(stderr, "[twinsanityevolved] %s\n", error.c_str()); return 3; }
+        if (!te::ReadElfFromIso(iso, elf_in_iso, elf, &error)) {
+            te::startup::ShowError("Crash Twinsanity", error + " -- the PAL disc image (SLES-52568) is needed.");
+            return 3;
+        }
     } else {
         std::ifstream f(elf_path, std::ios::binary);
         if (!f) { std::fprintf(stderr, "[twinsanityevolved] cannot read %s\n", elf_path.c_str()); return 3; }

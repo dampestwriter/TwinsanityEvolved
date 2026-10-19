@@ -33,7 +33,7 @@ public:
     GameProcess* game() const { return game_; }
     DiscScanner* scanner() const { return scanner_; }
 
-    // folders (games / mods / memory_cards): the manifest's default unless the user changed it
+    // folders (games / mods / memory_cards / game_output): the manifest's default unless the user changed it
     QString folder(const QString& id) const;
     void setFolder(const QString& id, const QString& path);
     QString settingsFilePath() const;
@@ -57,6 +57,15 @@ public:
     bool play(const QString& isoPath, QString* error);
     void stopGame();
 
+    // The finished game, installed: the build's files copied to the game folder (folder("game_output")), the disc
+    // image named beside it (disc-image.txt) and, on Windows, Desktop and Start-menu shortcuts. The game then runs
+    // without the launcher; a build refreshes the copy. gameFolderChosen() is false until the user picked the folder.
+    bool gameFolderChosen() const;
+    void chooseGameFolder(const QString& parentOrFolder);   // the folder itself, or one to create it in
+    bool exportGame(QString* error = nullptr);
+    QString installedGame() const;                          // the installed executable, or empty
+    QString exportError() const { return exportError_; }
+
     QString version() const;
     QString engineCommit() const;
 
@@ -64,6 +73,7 @@ signals:
     void foldersChanged();
     void settingsChanged(const QString& key);
     void stateChanged();   // anything a card shows
+    void gameExported(const QString& folder);
 
 private:
     void seedFolders();
@@ -76,6 +86,8 @@ private:
     DiscScanner* scanner_ = nullptr;
     IniSettings* settings_ = nullptr;
     QString playingIso_;
+    QString exportError_;
+    QString discForExport() const;
 };
 
 }  // namespace ps2r::launcher

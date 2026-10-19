@@ -42,6 +42,23 @@ SettingsPage::SettingsPage(LauncherApp* app, QWidget* parent) : QWidget(parent),
         }
     }
     for (const FolderSpec& f : app->manifest()->folders()) {
+        if (f.id != "game_output") continue;
+        auto* title = new QLabel(QStringLiteral("Installed game"), inner);
+        title->setFont(t.font(LauncherTheme::Title));
+        title->setStyleSheet(QStringLiteral("color: %1;").arg(t.css(LauncherTheme::Text)));
+        col->addSpacing(LauncherTheme::S3);
+        col->addWidget(title);
+        gameFolder_ = new FolderRow(f.label, inner);
+        gameFolder_->setObjectName(QStringLiteral("folder_game_output_settings"));
+        connect(gameFolder_, &FolderRow::changeRequested, this, [this] {
+            const QString dir = QFileDialog::getExistingDirectory(this, QStringLiteral("Choose where to install the game"), app_->folder("game_output"));
+            if (!dir.isEmpty()) app_->chooseGameFolder(dir);
+        });
+        connect(app_, &LauncherApp::foldersChanged, this, [this] { gameFolder_->setPath(app_->folder("game_output")); });
+        gameFolder_->setPath(app_->folder("game_output"));
+        col->addWidget(gameFolder_);
+    }
+    for (const FolderSpec& f : app->manifest()->folders()) {
         if (f.id != "memory_cards") continue;
         auto* title = new QLabel(QStringLiteral("Saves"), inner);
         title->setFont(t.font(LauncherTheme::Title));

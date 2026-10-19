@@ -5,7 +5,9 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonObject>
+#include <QProcess>
 #include <QProcessEnvironment>
+#include <QStandardPaths>
 #include "app_data.h"
 #include "build_runner.h"
 #include "game_library.h"
@@ -94,18 +96,32 @@ bool LauncherApp::loadManifest(const QString& explicitPath, QString* error) {
     connect(scanner_, &DiscScanner::found, this, [this](const DiscFound& d) { library_->add(d.path, d.fingerprintFile, d.sizeBytes); });
     connect(installer_, &Installer::stepChanged, this, [this](int) { emit stateChanged(); });
     connect(installer_, &Installer::finished, this, [this](bool) { emit stateChanged(); });
-    connect(builder_, &BuildRunner::finished, this, [this](const QString&, bool, const BuildRecord&) { emit stateChanged(); });
+    connect(builder_, &BuildRunner::finished, this, [this](const QString& target, bool ok, const BuildRecord&) {
+        // a build for this machine is installed to the game folder at once
+        if (ok && target == hostTarget()) exportGame();
+        emit stateChanged();
+    });
     connect(game_, &GameProcess::finished, this, [this](bool, qint64 seconds) {
         if (!playingIso_.isEmpty()) library_->recordPlayEnd(playingIso_, seconds);
         playingIso_.clear();
         emit stateChanged();
     });
     connect(library_, &GameLibrary::changed, this, &LauncherApp::stateChanged);
+    // tests and scripted installs name the game folder up front instead of answering the question
+    const QString preset = qEnvironmentVariable("PS2R_LAUNCHER_GAME_FOLDER");
+    if (!preset.isEmpty() && !gameFolderChosen()) {
+        appData_->setValue("folder.game_output", QDir::cleanPath(preset));
+        appData_->save();
+    }
+    // a build already made (an earlier launcher, or the folder moved): bring the installed copy up to date
+    const BuildRecord r = builder_->record(hostTarget());
+    if (r.ok && gameFolderChosen() && appData_->value("installed_game_commit").toString() != r.sourceCommit) exportGame();
     return true;
 }
 
 void LauncherApp::seedFolders() {
-    for (const FolderSpec& f : manifest_->folders()) QDir().mkpath(folder(f.id));
+    // the game folder is made when the game is installed into it, not before the user chose it
+    for (const FolderSpec& f : manifest_->folders()) if (f.id != "game_output") QDir().mkpath(folder(f.id));
 }
 
 QString LauncherApp::folder(const QString& id) const {
@@ -223,6 +239,8 @@ bool LauncherApp::play(const QString& isoPath, QString* error) {
     QStringList extra;
     const QString mc = folder("memory_cards");
     if (!game_->start(r.binaryPath, isoPath, settingsFilePath(), mc, extra, appData_->logPath("play"), error)) return false;
+    appData_->setValue("last_disc", isoPath);   // the disc the installed game names
+    appData_->save();
     playingIso_ = isoPath;
     library_->recordPlayStart(isoPath);
     emit stateChanged();
@@ -230,6 +248,123 @@ bool LauncherApp::play(const QString& isoPath, QString* error) {
 }
 
 void LauncherApp::stopGame() { game_->stop(); }
+
+bool LauncherApp::gameFolderChosen() const { return !appData_->value("folder.game_output").toString().isEmpty(); }
+
+void LauncherApp::chooseGameFolder(const QString& parentOrFolder) {
+    // a folder of the title's name inside the one picked, unless the pick already is it
+    QString dir = QDir::cleanPath(parentOrFolder);
+    if (QFileInfo(dir).fileName().compare(manifest_->name(), Qt::CaseInsensitive) != 0) dir += "/" + manifest_->name();
+    appData_->setValue("folder.game_output", dir);
+    appData_->save();
+    emit foldersChanged();
+    if (builder_->record(hostTarget()).ok) exportGame();
+}
+
+QString LauncherApp::discForExport() const {
+    // the disc last played, else the first one the library has
+    const QString last = appData_->value("last_disc").toString();
+    if (!last.isEmpty() && QFileInfo::exists(last)) return last;
+    for (const GameEntry& g : library_->games()) if (!g.missing && QFileInfo::exists(g.path)) return g.path;
+    return QString();
+}
+
+namespace {
+bool copyTreeOver(const QString& from, const QString& to, QString* failed) {
+    QDir().mkpath(to);
+    for (const QFileInfo& fi : QDir(from).entryInfoList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot | QDir::Hidden)) {
+        const QString dest = to + "/" + fi.fileName();
+        if (fi.isDir()) {
+            if (!copyTreeOver(fi.absoluteFilePath(), dest, failed)) return false;
+            continue;
+        }
+        QFile::remove(dest);
+        if (!QFile::copy(fi.absoluteFilePath(), dest)) { *failed = dest; return false; }
+    }
+    return true;
+}
+
+#ifdef Q_OS_WIN
+void makeShortcut(const QString& lnk, const QString& target, const QString& workDir, const QString& description) {
+    auto quote = [](QString s) { return "'" + s.replace("'", "''") + "'"; };
+    const QString script = QStringLiteral("$s = (New-Object -ComObject WScript.Shell).CreateShortcut(%1); $s.TargetPath = %2; "
+                                          "$s.WorkingDirectory = %3; $s.Description = %4; $s.Save()")
+                               .arg(quote(QDir::toNativeSeparators(lnk)), quote(QDir::toNativeSeparators(target)),
+                                    quote(QDir::toNativeSeparators(workDir)), quote(description));
+    QProcess::execute("powershell", {"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script});
+}
+#endif
+}  // namespace
+
+bool LauncherApp::exportGame(QString* error) {
+    auto fail = [&](const QString& why) {
+        exportError_ = why;
+        if (error) *error = why;
+        emit stateChanged();
+        return false;
+    };
+    const BuildRecord r = builder_->record(hostTarget());
+    if (!r.ok || !QFileInfo::exists(r.binaryPath)) return fail(QStringLiteral("the game has not been built yet"));
+    if (!gameFolderChosen()) return fail(QStringLiteral("no game folder has been chosen"));
+    const QString out = folder("game_output");
+    if (!QDir().mkpath(out)) return fail(QStringLiteral("the game folder %1 could not be made").arg(QDir::toNativeSeparators(out)));
+    // what goes in: the release folder the build staged (Windows: the executable, its DLLs, the notices), else the binary
+    const QString exeName = QFileInfo(r.binaryPath).fileName();
+    const QString staged = installer_->sourceDir() + "/dist/windows-x64";
+    QString failed;
+#ifdef Q_OS_WIN
+    const bool useStaged = QFileInfo::exists(staged + "/" + exeName);
+#else
+    const bool useStaged = false;
+#endif
+    if (useStaged) {
+        if (!copyTreeOver(staged, out, &failed))
+            return fail(QStringLiteral("%1 could not be written (is the game still running?)").arg(QDir::toNativeSeparators(failed)));
+    } else {
+        const QString dest = out + "/" + exeName;
+        QFile::remove(dest);
+        if (!QFile::copy(r.binaryPath, dest))
+            return fail(QStringLiteral("%1 could not be written (is the game still running?)").arg(QDir::toNativeSeparators(dest)));
+        QFile(dest).setPermissions(QFile(dest).permissions() | QFileDevice::ExeOwner | QFileDevice::ExeUser);
+        for (const QString& f : {QStringLiteral("LICENSE"), QStringLiteral("README.md"), QStringLiteral("THIRD_PARTY_NOTICES.md")}) {
+            QFile::remove(out + "/" + f);
+            QFile::copy(installer_->sourceDir() + "/" + f, out + "/" + f);
+        }
+    }
+    // the disc image the game starts with when it is given none (runner/te_startup.h)
+    const QString disc = discForExport();
+    if (!disc.isEmpty()) {
+        QFile f(out + "/disc-image.txt");
+        if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+#ifdef Q_OS_WIN
+            f.write(QDir::toNativeSeparators(disc).toLocal8Bit());   // the C runtime opens it in the system code page
+#else
+            f.write(disc.toUtf8());
+#endif
+            f.write("\n");
+        }
+    }
+    const QString exe = out + "/" + exeName;
+#ifdef Q_OS_WIN
+    const QString name = manifest_->name();
+    const QString desktop = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
+    const QString startMenu = QStandardPaths::writableLocation(QStandardPaths::ApplicationsLocation);
+    if (!desktop.isEmpty()) makeShortcut(desktop + "/" + name + ".lnk", exe, out, name);
+    if (!startMenu.isEmpty()) makeShortcut(startMenu + "/" + name + ".lnk", exe, out, name);
+#endif
+    appData_->setValue("installed_game_commit", r.sourceCommit);
+    appData_->setValue("installed_game", exe);
+    appData_->save();
+    exportError_.clear();
+    emit gameExported(out);
+    emit stateChanged();
+    return true;
+}
+
+QString LauncherApp::installedGame() const {
+    const QString exe = appData_->value("installed_game").toString();
+    return QFileInfo::exists(exe) ? exe : QString();
+}
 
 QString LauncherApp::version() const {
 #ifdef PS2R_LAUNCHER_VERSION

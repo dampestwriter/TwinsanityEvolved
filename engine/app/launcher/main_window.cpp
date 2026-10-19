@@ -4,6 +4,9 @@
 #include <QCloseEvent>
 #include <QDateTime>
 #include <QDir>
+#include <QFileDialog>
+#include <QMessageBox>
+#include <QStandardPaths>
 #include <QHBoxLayout>
 #include <QJsonObject>
 #include <QKeySequence>
@@ -86,7 +89,20 @@ void MainWindow::showPage(int index) {
 
 int MainWindow::currentPage() const { return stack_->currentIndex(); }
 
+void MainWindow::askGameFolderIfNeeded() {
+    if (app_->gameFolderChosen()) return;
+    const QString name = app_->manifest()->name();
+    QMessageBox::information(this, QStringLiteral("Where should %1 go?").arg(name),
+                             QStringLiteral("%1 builds %2 from your own disc and installs it as a normal program you can start "
+                                            "without the launcher.\n\nChoose the folder to put it in: a \"%2\" folder is made "
+                                            "there, with a shortcut on your Desktop.").arg(app_->manifest()->product(), name));
+    const QString start = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
+    const QString picked = QFileDialog::getExistingDirectory(this, QStringLiteral("Choose where to install %1").arg(name), start);
+    app_->chooseGameFolder(picked.isEmpty() ? start : picked);
+}
+
 bool MainWindow::startFirstRunIfNeeded() {
+    askGameFolderIfNeeded();
     if (app_->installer()->complete()) {
         app_->installer()->checkForSourceUpdate();
         return false;

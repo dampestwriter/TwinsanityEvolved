@@ -498,7 +498,7 @@ if(TE_VITA)
 else()
     set(TE_SAVESTATE_RUNNER runner/te_savestate.cpp)
 endif()
-add_executable(twinsanityevolved runner/main.cpp runner/te_env.cpp runner/te_run.c
+add_executable(twinsanityevolved runner/main.cpp runner/te_env.cpp runner/te_run.c runner/te_startup.cpp
     runner/te_fiber.c ${TE_FIBER_SWITCH} runner/te_game.cpp ${TE_SAVESTATE_RUNNER}
     runner/te_probe.cpp runner/te_autopilot.cpp)
 set_target_properties(twinsanityevolved PROPERTIES C_STANDARD 99 C_EXTENSIONS ON)   # te_run.c: as tegame (above)
@@ -519,6 +519,9 @@ if(WIN32)
     # and the loading process. POSIX re-execs without ASLR (te_savestate.cpp EnsureNoAslr); Windows has no per-process
     # switch, so the image is linked without a dynamic base and the loader keeps the preferred base.
     target_link_options(twinsanityevolved PRIVATE /DYNAMICBASE:NO)
+    # A windowed program: started from a shortcut no console opens behind the game (runner/te_startup.cpp attaches the
+    # terminal's console when started from one). main() stays the entry point.
+    target_link_options(twinsanityevolved PRIVATE /SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup)
 endif()
 # The coroutine's contract on this host's ABI arm: fixed mapping + guard, enter / yield / finish, callee-saved state
 # across both directions. No module, no engine: the fiber files alone.

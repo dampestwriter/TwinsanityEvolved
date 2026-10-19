@@ -138,7 +138,7 @@ bool TitleManifest::loadJson(const QJsonObject& root, QString* error) {
 
     folders_.clear();
     const QJsonObject folders = root.value("folders").toObject();
-    for (const QString& id : {QStringLiteral("games"), QStringLiteral("mods"), QStringLiteral("memory_cards")}) {
+    for (const QString& id : {QStringLiteral("games"), QStringLiteral("mods"), QStringLiteral("memory_cards"), QStringLiteral("game_output")}) {
         if (!folders.contains(id)) continue;
         const QJsonObject o = folders.value(id).toObject();
         FolderSpec fs;

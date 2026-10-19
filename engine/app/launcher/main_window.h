@@ -33,6 +33,7 @@ public:
     QString screenshot(const QString& path = QString());
     // Opens the first-run sheet and starts the installer when it is not complete; false when nothing was needed.
     bool startFirstRunIfNeeded();
+    void askGameFolderIfNeeded();   // the first question: where the finished game is installed
 
 protected:
     void closeEvent(QCloseEvent* event) override;

@@ -17,6 +17,7 @@ public:
     SettingsRow* row(const QString& key) const;
     const QVector<SettingsRow*>& rows() const { return rows_; }
     FolderRow* memoryCardsRow() const { return memoryCards_; }
+    FolderRow* gameFolderRow() const { return gameFolder_; }
 
 protected:
     void showEvent(QShowEvent* event) override;
@@ -26,6 +27,7 @@ private:
     LauncherApp* app_;
     QVector<SettingsRow*> rows_;
     FolderRow* memoryCards_ = nullptr;
+    FolderRow* gameFolder_ = nullptr;
 };
 
 }  // namespace ps2r::launcher
