@@ -65,14 +65,16 @@ QColor LauncherTheme::color(Role role) const {
 QString LauncherTheme::css(Role role) const { return color(role).name(QColor::HexRgb); }
 
 QFont LauncherTheme::font(TextStyle style) const {
+    // Pixel sizes, not points: a point is one pixel at macOS's 72 dpi but 1.33 at Windows' 96, so point sizes made every
+    // text a third larger on Windows than the layout was drawn for. Qt scales pixel sizes with the display's scale.
     QFont f = QFontDatabase::systemFont(style == Mono ? QFontDatabase::FixedFont : QFontDatabase::GeneralFont);
     switch (style) {
-    case Display: f.setPointSize(28); f.setWeight(QFont::DemiBold); break;
-    case Title:   f.setPointSize(17); f.setWeight(QFont::DemiBold); break;
-    case Body:    f.setPointSize(13); f.setWeight(QFont::Normal); break;
-    case Label:   f.setPointSize(13); f.setWeight(QFont::Medium); break;
-    case Caption: f.setPointSize(11); f.setWeight(QFont::Normal); break;
-    case Mono:    f.setPointSize(12); break;
+    case Display: f.setPixelSize(28); f.setWeight(QFont::DemiBold); break;
+    case Title:   f.setPixelSize(17); f.setWeight(QFont::DemiBold); break;
+    case Body:    f.setPixelSize(13); f.setWeight(QFont::Normal); break;
+    case Label:   f.setPixelSize(13); f.setWeight(QFont::Medium); break;
+    case Caption: f.setPixelSize(11); f.setWeight(QFont::Normal); break;
+    case Mono:    f.setPixelSize(12); break;
     }
     return f;
 }

@@ -19,7 +19,8 @@ SettingsRow::SettingsRow(const SettingsRowSpec& spec, QWidget* parent) : QWidget
     setObjectName(QStringLiteral("setting_%1").arg(spec.key));
     label_ = new QLabel(spec.label, this);
     label_->setFont(t.font(LauncherTheme::Label));
-    label_->setFixedWidth(176);
+    label_->setMinimumWidth(176);
+    label_->setWordWrap(true);
     help_ = new QLabel(spec.help, this);
     help_->setFont(t.font(LauncherTheme::Caption));
     help_->setWordWrap(true);

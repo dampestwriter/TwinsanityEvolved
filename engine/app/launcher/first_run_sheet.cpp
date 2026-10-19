@@ -32,7 +32,7 @@ FirstRunSheet::FirstRunSheet(Installer* installer, DetailsSheet* details, QWidge
         row->setObjectName(QStringLiteral("checklist_%1").arg(steps[i].id));
         connect(row, &ChecklistRow::retryRequested, this, [this, i] { installer_->retry(i); });
         connect(row, &ChecklistRow::detailsRequested, this, [this] { detailsSheet_->showLogFile(QStringLiteral("Details"), installer_->currentLogPath()); });
-        connect(row, &ChecklistRow::installRequested, this, [this] { installer_->promptCompilerInstall(); });
+        connect(row, &ChecklistRow::installRequested, this, [this, i] { installer_->promptInstall(i); });
         rows_ << row;
         col->addWidget(row);
     }
@@ -90,6 +90,7 @@ void FirstRunSheet::open() {
 }
 
 bool FirstRunSheet::isOpen() const { return overlay_->isVisible(); }
+void FirstRunSheet::close() { overlay_->close(); }
 
 void FirstRunSheet::refreshTotals() {
     qint64 onDisk = 0;

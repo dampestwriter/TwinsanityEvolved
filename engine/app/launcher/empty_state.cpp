@@ -20,18 +20,19 @@ EmptyState::EmptyState(const QString& title, const QString& body, const QString&
     body_->setFont(t.font(LauncherTheme::Body));
     body_->setAlignment(Qt::AlignCenter);
     body_->setWordWrap(true);
-    body_->setMaximumWidth(560);
     primary_ = new FlatButton(primaryText, FlatButton::Primary, this);
     primary_->setLarge(true);
     quiet_ = new FlatButton(quietText, FlatButton::Quiet, this);
     quiet_->setVisible(!quietText.isEmpty());
     auto* col = new QVBoxLayout(this);
-    col->setContentsMargins(LauncherTheme::S5, LauncherTheme::S6, LauncherTheme::S5, LauncherTheme::S6);
+    col->setContentsMargins(LauncherTheme::S6 * 2, LauncherTheme::S6, LauncherTheme::S6 * 2, LauncherTheme::S6);
     col->setSpacing(LauncherTheme::S3);
     col->addStretch(1);
     col->addWidget(glyph_, 0, Qt::AlignHCenter);
-    col->addWidget(title_, 0, Qt::AlignHCenter);
-    col->addWidget(body_, 0, Qt::AlignHCenter);
+    // the wrapped labels take the full width (their text is centred): a label placed with an alignment flag is not
+    // given its wrapped height, and its lines run into the next widget
+    col->addWidget(title_);
+    col->addWidget(body_);
     col->addSpacing(LauncherTheme::S2);
     col->addWidget(primary_, 0, Qt::AlignHCenter);
     col->addWidget(quiet_, 0, Qt::AlignHCenter);

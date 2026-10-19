@@ -14,17 +14,17 @@ namespace ps2r::launcher {
 
 FolderRow::FolderRow(const QString& label, QWidget* parent) : QWidget(parent) {
     const LauncherTheme& t = LauncherTheme::instance();
-    setFixedHeight(LauncherTheme::rowHeight());
+    setMinimumHeight(LauncherTheme::rowHeight());
     label_ = new QLabel(label, this);
     label_->setFont(t.font(LauncherTheme::Label));
-    label_->setFixedWidth(128);
+    label_->setMinimumWidth(qMax(128, QFontMetrics(label_->font()).horizontalAdvance(label) + LauncherTheme::S3));
     pathLabel_ = new QLabel(this);
     pathLabel_->setFont(t.font(LauncherTheme::Body));
     pathLabel_->setTextInteractionFlags(Qt::TextSelectableByMouse);
     change_ = new FlatButton(QStringLiteral("Change…"), FlatButton::Secondary, this);
     open_ = new FlatButton(openInFileManagerLabel(), FlatButton::Quiet, this);
     auto* row = new QHBoxLayout(this);
-    row->setContentsMargins(0, 0, 0, 0);
+    row->setContentsMargins(0, LauncherTheme::S1, 0, LauncherTheme::S1);
     row->setSpacing(LauncherTheme::S2);
     row->addWidget(label_);
     row->addWidget(pathLabel_, 1);

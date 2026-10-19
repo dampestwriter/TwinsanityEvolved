@@ -106,7 +106,7 @@ QWidget* AboutPage::linkRow(const QString& label, const QString& path, QWidget* 
     row->setSpacing(LauncherTheme::S2);
     auto* l = new QLabel(label, w);
     l->setFont(t.font(LauncherTheme::Label));
-    l->setFixedWidth(96);
+    l->setMinimumWidth(96);
     l->setStyleSheet(QStringLiteral("color: %1;").arg(t.css(LauncherTheme::Text)));
     auto* p = new QLabel(AppData::shortPath(path), w);
     p->setFont(t.font(LauncherTheme::Body));

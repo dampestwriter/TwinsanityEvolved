@@ -25,9 +25,11 @@ signals:
 
 protected:
     void paintEvent(QPaintEvent* event) override;
+    void resizeEvent(QResizeEvent* event) override;
 
 private:
     void restyle();
+    void elideDetail();
     InstallStep step_;
     QLabel* name_;
     QLabel* detail_;

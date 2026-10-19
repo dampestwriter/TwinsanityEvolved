@@ -35,7 +35,11 @@ Installer::Installer(AppData* appData, const TitleManifest* manifest, QObject* p
         {"source", "Game source", InstallStep::Pending, "", "", 0, false, false},
         {"toolchain", "Game compiler", InstallStep::Pending, "", "", 0, false, false},
         {"media", "Media libraries", InstallStep::Pending, "", "", 0, false, false},
+#ifdef Q_OS_WIN
+        {"python", "Python", InstallStep::Pending, "", "", 0, false, true},   // winget can install it
+#else
         {"python", "Python", InstallStep::Pending, "", "", 0, false, false},
+#endif
         {"vitasdk", "PlayStation Vita tools", InstallStep::Pending, "only when the Vita target is used", "", 0, true, false},
     };
     proc_ = new ProcessRunner(this);
@@ -99,8 +103,8 @@ bool Installer::upToDate() const {
     const DownloadPin* cmake = DownloadPins::find("cmake");
     const DownloadPin* ninja = DownloadPins::find("ninja");
     if (!cmake || !ninja) return false;
-    if (installed_.value("cmake").toString() != cmake->version || host_->cmake().isEmpty()) return false;
-    if (installed_.value("ninja").toString() != ninja->version || host_->ninja().isEmpty()) return false;
+    if (host_->cmake().isEmpty() || host_->ninja().isEmpty()) return false;   // the launcher's copies or the machine's own
+    Q_UNUSED(cmake); Q_UNUSED(ninja);
     if (!host_->hasCompiler()) return false;
     if (!QFileInfo(sourceDir() + "/CMakeLists.txt").exists()) return false;
     if (installed_.value("source_commit").toString().isEmpty()) return false;
@@ -187,6 +191,14 @@ void Installer::cancel() {
 void Installer::promptCompilerInstall() {
     QString err;
     host_->promptCompilerInstall(&err);
+    if (!err.isEmpty()) emit logLine(err);
+}
+
+void Installer::promptInstall(int stepIndex) {
+    if (stepIndex < 0 || stepIndex >= steps_.size()) return;
+    QString err;
+    if (steps_[stepIndex].id == "python") host_->promptPythonInstall(&err);
+    else host_->promptCompilerInstall(&err);
     if (!err.isEmpty()) emit logLine(err);
 }
 
@@ -342,6 +354,17 @@ void Installer::downloadAndUnpack(const QString& tool, const QString& destDir, s
 }
 
 void Installer::stepTools(int i) {
+    // a CMake and a Ninja this machine already has are used as they are; only a missing one is downloaded
+    const QString haveCmake = host_->cmake(), haveNinja = host_->ninja();
+    if (!haveCmake.isEmpty() && !haveNinja.isEmpty()) {
+        installed_["cmake"] = HostTools::toolVersion(haveCmake);
+        installed_["ninja"] = HostTools::toolVersion(haveNinja);
+        const bool own = haveCmake.startsWith(host_->portableCmakeDir()) && haveNinja.startsWith(host_->portableNinjaDir());
+        finishStep(i, true, QStringLiteral("CMake %1 and Ninja %2 %3").arg(installed_["cmake"].toString(), installed_["ninja"].toString(),
+                                                                          own ? QStringLiteral("installed") : QStringLiteral("found on this machine")),
+                   QString(), own ? folderBytes(host_->portableCmakeDir()) + folderBytes(host_->portableNinjaDir()) : 0);
+        return;
+    }
     const DownloadPin* cmake = DownloadPins::find("cmake");
     const DownloadPin* ninja = DownloadPins::find("ninja");
     if (!cmake || !ninja) { finishStep(i, false, "unsupported", QStringLiteral("No pinned CMake and Ninja exist for this kind of machine (%1).").arg(DownloadPins::currentHost()), 0); return; }
@@ -557,8 +580,12 @@ void Installer::stepPython(int i) {
     if (!manifest_->needsPython()) { finishStep(i, true, QStringLiteral("not needed"), QString(), 0); return; }
     const QString py = host_->python3();
     if (py.isEmpty()) {
+#ifdef Q_OS_WIN
+        finishStep(i, false, "not found", QStringLiteral("No Python 3.8 or newer was found. Press Install (Python 3.12 through winget), then Retry."), 0);
+#else
         finishStep(i, false, "not found", QStringLiteral("No Python 3.8 or newer was found. On macOS it comes with the developer tools of step 1; "
-                                                           "on Windows install it from python.org (any 3.8+), then Retry."), 0);
+                                                           "install them, then Retry."), 0);
+#endif
         return;
     }
     const QString v = HostTools::runForOutput(py, {"--version"});

@@ -210,7 +210,9 @@ void GamesPage::showDiscError(const QString& reason) {
 
 void GamesPage::changeFolder(const QString& id) {
     const QString dir = QFileDialog::getExistingDirectory(this, QStringLiteral("Choose the %1 folder").arg(QString(id).replace('_', ' ')), app_->folder(id));
-    if (!dir.isEmpty()) app_->setFolder(id, dir);
+    if (dir.isEmpty()) return;
+    if (id == "game_output") app_->chooseGameFolder(dir);   // a folder of the title's name inside it, the game copied there
+    else app_->setFolder(id, dir);
 }
 
 void GamesPage::dragEnterEvent(QDragEnterEvent* event) {

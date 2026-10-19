@@ -73,7 +73,7 @@ bool HostTools::promptCompilerInstall(QString* error) const {
     if (!winget.isEmpty() && QProcess::startDetached(winget, {"install", "--id", "Microsoft.VisualStudio.2022.BuildTools", "--exact",
             "--accept-package-agreements", "--accept-source-agreements", "--override",
             "--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Llvm.Clang "
-            "--add Microsoft.VisualStudio.Component.VC.Llvm.ClangToolset --includeRecommended"}))
+            "--add Microsoft.VisualStudio.Component.VC.Llvm.ClangToolset --add Microsoft.VisualStudio.Component.Git --includeRecommended"}))
         return true;
     if (QProcess::startDetached("cmd.exe", {"/c", "start", "", "https://visualstudio.microsoft.com/visual-cpp-build-tools/"})) return true;
     if (error) *error = QStringLiteral("the Visual Studio Build Tools installer could not be started");
@@ -86,12 +86,15 @@ bool HostTools::promptCompilerInstall(QString* error) const {
 
 QString HostTools::visualStudio() const {
 #ifdef Q_OS_WIN
+    if (vsChecked_) return vsCache_;
+    vsChecked_ = true;
     const QString vswhere = QProcessEnvironment::systemEnvironment().value("ProgramFiles(x86)") + "/Microsoft Visual Studio/Installer/vswhere.exe";
     if (!QFileInfo(vswhere).exists()) return QString();
     const QString path = runForOutput(vswhere, {"-latest", "-products", "*", "-requires", "Microsoft.VisualStudio.Component.VC.Llvm.Clang",
                                                 "-property", "installationPath"}, 30000).section('\n', 0, 0).trimmed();
     if (path.isEmpty() || !QFileInfo(path + "/VC/Tools/Llvm/x64/bin/clang-cl.exe").exists()) return QString();
-    return QDir::cleanPath(path);
+    vsCache_ = QDir::cleanPath(path);
+    return vsCache_;
 #else
     return QString();
 #endif
@@ -129,7 +132,77 @@ QString HostTools::git() const {
     // /usr/bin/git is a shim that offers the Command Line Tools when they are missing; only count it with a compiler.
     if (!hasCompiler()) return QString();
 #endif
-    return which("git");
+    const QString onPath = which("git");
+    if (!onPath.isEmpty()) return onPath;
+#ifdef Q_OS_WIN
+    // Visual Studio carries its own Git for Windows
+    const QString vs = visualStudio();
+    const QString bundled = vs + "/Common7/IDE/CommonExtensions/Microsoft/TeamFoundation/Team Explorer/Git/cmd/git.exe";
+    if (!vs.isEmpty() && QFileInfo(bundled).isExecutable()) return bundled;
+#endif
+    return QString();
+}
+
+QString HostTools::toolVersion(const QString& exe) {
+    const QRegularExpressionMatch m = QRegularExpression("(\\d+)\\.(\\d+)(?:\\.(\\d+))?").match(runForOutput(exe, {"--version"}, 15000));
+    return m.hasMatch() ? m.captured(0) : QString();
+}
+
+namespace {
+bool atLeast(const QString& version, int major, int minor) {
+    const QStringList p = version.split('.');
+    if (p.size() < 2) return false;
+    return p[0].toInt() > major || (p[0].toInt() == major && p[1].toInt() >= minor);
+}
+}  // namespace
+
+QString HostTools::systemCmake() const {
+    if (cmakeChecked_) return cmakeCache_;
+    cmakeChecked_ = true;
+    QStringList candidates = {which("cmake")};
+#ifdef Q_OS_WIN
+    const QString vs = visualStudio();
+    if (!vs.isEmpty()) candidates << vs + "/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe";
+#elif defined(Q_OS_MACOS)
+    candidates << "/opt/homebrew/bin/cmake" << "/usr/local/bin/cmake" << "/Applications/CMake.app/Contents/bin/cmake";
+#endif
+    for (const QString& c : candidates) {
+        if (c.isEmpty() || !QFileInfo(c).isExecutable()) continue;
+        if (atLeast(toolVersion(c), 3, 24)) { cmakeCache_ = c; break; }   // the presets and WHOLE_ARCHIVE need 3.24
+    }
+    return cmakeCache_;
+}
+
+QString HostTools::systemNinja() const {
+    if (ninjaChecked_) return ninjaCache_;
+    ninjaChecked_ = true;
+    QStringList candidates = {which("ninja")};
+#ifdef Q_OS_WIN
+    const QString vs = visualStudio();
+    if (!vs.isEmpty()) candidates << vs + "/Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja/ninja.exe";
+#elif defined(Q_OS_MACOS)
+    candidates << "/opt/homebrew/bin/ninja" << "/usr/local/bin/ninja";
+#endif
+    for (const QString& c : candidates) {
+        if (c.isEmpty() || !QFileInfo(c).isExecutable()) continue;
+        if (atLeast(toolVersion(c), 1, 10)) { ninjaCache_ = c; break; }
+    }
+    return ninjaCache_;
+}
+
+bool HostTools::promptPythonInstall(QString* error) const {
+#ifdef Q_OS_WIN
+    const QString winget = which("winget");
+    if (!winget.isEmpty() && QProcess::startDetached(winget, {"install", "--id", "Python.Python.3.12", "--exact", "--scope", "user",
+                                                              "--accept-package-agreements", "--accept-source-agreements"}))
+        return true;
+    if (QProcess::startDetached("cmd.exe", {"/c", "start", "", "https://www.python.org/downloads/windows/"})) return true;
+    if (error) *error = QStringLiteral("the Python installer could not be started");
+    return false;
+#else
+    if (error) *error = QStringLiteral("Python comes with the developer tools of the first step");
+    return false;
+#endif
 }
 
 QString HostTools::python3() const {
@@ -147,17 +220,19 @@ QString HostTools::portableCmakeDir() const { return appData_->toolchainDir() + 
 QString HostTools::portableNinjaDir() const { return appData_->toolchainDir() + "/ninja"; }
 
 QString HostTools::cmake() const {
-    const DownloadPin* pin = DownloadPins::find("cmake");
-    if (!pin) return QString();
-    const QString p = portableCmakeDir() + "/" + pin->executable;
-    return QFileInfo(p).isExecutable() ? p : QString();
+    if (const DownloadPin* pin = DownloadPins::find("cmake")) {
+        const QString p = portableCmakeDir() + "/" + pin->executable;
+        if (QFileInfo(p).isExecutable()) return p;
+    }
+    return systemCmake();
 }
 
 QString HostTools::ninja() const {
-    const DownloadPin* pin = DownloadPins::find("ninja");
-    if (!pin) return QString();
-    const QString p = portableNinjaDir() + "/" + pin->executable;
-    return QFileInfo(p).isExecutable() ? p : QString();
+    if (const DownloadPin* pin = DownloadPins::find("ninja")) {
+        const QString p = portableNinjaDir() + "/" + pin->executable;
+        if (QFileInfo(p).isExecutable()) return p;
+    }
+    return systemNinja();
 }
 
 }  // namespace ps2r::launcher

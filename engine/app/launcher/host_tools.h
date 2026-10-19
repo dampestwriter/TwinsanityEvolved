@@ -23,15 +23,24 @@ public:
     QProcessEnvironment buildEnvironment() const;
     QString git() const;       // the git executable or empty
     QString python3() const;   // a python3 of at least 3.8, or empty
-    QString cmake() const;     // the portable one under Toolchain/cmake when present, else empty
-    QString ninja() const;     // the portable one under Toolchain/ninja when present, else empty
+    // CMake / Ninja: the launcher's own copy under Toolchain/ when present, else one already on this machine that is new
+    // enough (CMake 3.24+, Ninja 1.10+: PATH, Visual Studio's bundled copies, Homebrew), else empty
+    QString cmake() const;
+    QString ninja() const;
+    static QString toolVersion(const QString& exe);   // "3.30.0" from `<exe> --version`, or empty
+    // Windows: winget installs Python 3.12. Returns false when unsupported.
+    bool promptPythonInstall(QString* error) const;
     QString portableCmakeDir() const;
     QString portableNinjaDir() const;
     static QString which(const QString& name);
     static QString runForOutput(const QString& program, const QStringList& args, int timeoutMs = 10000, int* exitCode = nullptr);
 
 private:
+    QString systemCmake() const;
+    QString systemNinja() const;
     const AppData* appData_;
+    mutable QString vsCache_, cmakeCache_, ninjaCache_;
+    mutable bool vsChecked_ = false, cmakeChecked_ = false, ninjaChecked_ = false;
 };
 
 }  // namespace ps2r::launcher

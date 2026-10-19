@@ -186,6 +186,23 @@ private slots:
         window_->showPage(0);
         const QString p = window_->screenshot(home_.path() + "/shot.png");
         QVERIFY(QFileInfo(p).size() > 1000);
+        // PS2R_SCREENS_OUT=DIR: one PNG per page and the first-run sheet, for checking the layout by eye (any scale factor)
+        const QString out = qEnvironmentVariable("PS2R_SCREENS_OUT");
+        if (out.isEmpty()) return;
+        QDir().mkpath(out);
+        window_->firstRunSheet()->close();
+        window_->detailsSheet()->closeSheet();
+        const char* names[] = {"games", "settings", "targets", "about"};
+        for (int i = 0; i < 4; ++i) {
+            window_->showPage(i);
+            QTest::qWait(150);
+            window_->screenshot(out + "/" + names[i] + ".png");
+        }
+        window_->showPage(0);
+        window_->firstRunSheet()->open();
+        QTest::qWait(400);
+        window_->screenshot(out + "/first-run.png");
+        window_->firstRunSheet()->close();
     }
     void darkFollowsTheme() {
         LauncherTheme::instance().setDark(true);

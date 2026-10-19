@@ -1,5 +1,6 @@
 // app/launcher/checklist_row.cpp -- the checklist step, painted.
 #include "checklist_row.h"
+#include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPainter>
@@ -18,13 +19,15 @@ ChecklistRow::ChecklistRow(const InstallStep& step, QWidget* parent) : QWidget(p
     const LauncherTheme& t = LauncherTheme::instance();
     name_ = new QLabel(step.name, this);
     name_->setFont(t.font(LauncherTheme::Label));
-    name_->setFixedWidth(200);
+    name_->setMinimumWidth(qMax(160, QFontMetrics(name_->font()).horizontalAdvance(QStringLiteral("PlayStation Vita tools")) + LauncherTheme::S3));
     detail_ = new QLabel(this);
     detail_->setFont(t.font(LauncherTheme::Body));
+    detail_->setMinimumWidth(80);
+    detail_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);   // a long detail is elided, never widens the row
     size_ = new QLabel(this);
     size_->setFont(t.font(LauncherTheme::Caption));
     size_->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    size_->setFixedWidth(72);
+    size_->setMinimumWidth(QFontMetrics(size_->font()).horizontalAdvance(QStringLiteral("9999 MB")) + LauncherTheme::S2);
     reason_ = new QLabel(this);
     reason_->setFont(t.font(LauncherTheme::Body));
     reason_->setWordWrap(true);
@@ -64,7 +67,7 @@ ChecklistRow::ChecklistRow(const InstallStep& step, QWidget* parent) : QWidget(p
 
 void ChecklistRow::setStep(const InstallStep& step) {
     step_ = step;
-    detail_->setText(step.detail);
+    elideDetail();
     size_->setText(Installer::bytesText(step.bytes));
     reason_->setText(step.reason);
     const bool failed = step.state == InstallStep::Failed;
@@ -73,6 +76,17 @@ void ChecklistRow::setStep(const InstallStep& step) {
     if (step.state == InstallStep::Running) pulse_->start(); else pulse_->stop();
     restyle();
     update();
+}
+
+void ChecklistRow::elideDetail() {
+    const QFontMetrics fm(detail_->font());
+    detail_->setText(fm.elidedText(step_.detail, Qt::ElideRight, qMax(40, detail_->width())));
+    detail_->setToolTip(step_.detail);
+}
+
+void ChecklistRow::resizeEvent(QResizeEvent* event) {
+    QWidget::resizeEvent(event);
+    elideDetail();
 }
 
 void ChecklistRow::restyle() {

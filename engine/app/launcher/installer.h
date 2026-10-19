@@ -56,6 +56,7 @@ public:
     void startVitaSdk();               // the optional step, on request from the Targets page
     void cancel();
     void promptCompilerInstall();      // the compiler step's system installer
+    void promptInstall(int stepIndex); // the step's own system installer (the compiler, Python on Windows)
 
     static qint64 folderBytes(const QString& dir);
     static QString bytesText(qint64 bytes);

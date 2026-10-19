@@ -25,7 +25,7 @@ constexpr int kArt = 148;
 
 GameCard::GameCard(LauncherApp* app, const QString& isoPath, QWidget* parent) : QWidget(parent), app_(app), iso_(isoPath) {
     const LauncherTheme& t = LauncherTheme::instance();
-    setFixedHeight(kCardHeight);
+    setMinimumHeight(kCardHeight);   // taller when the status text wraps
     setAccessibleName(QStringLiteral("%1 card").arg(app->manifest()->name()));
     auto* art = new GeneratedArtwork(app->manifest()->name(), app->manifest()->id() + isoPath, kArt, this);
     title_ = new QLabel(app->manifest()->name(), this);

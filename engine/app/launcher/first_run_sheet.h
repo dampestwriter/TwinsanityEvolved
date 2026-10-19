@@ -18,6 +18,7 @@ public:
     FirstRunSheet(Installer* installer, DetailsSheet* details, QWidget* host);
     void open();
     bool isOpen() const;
+    void close();
     ChecklistRow* row(int index) const { return rows_.value(index); }
     FlatButton* detailsButton() const { return details_; }
 
