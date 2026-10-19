@@ -1,0 +1,134 @@
+# .github/workflows/windows.yml -- the Windows BUILD lane of TwinsanityEvolved: its own
+# workflow and its own job, separate from release.yml's matrix, so a Windows break shows up here and nowhere else.
+#
+#   windows-clang-cl   windows-2022 runner: the pinned wasm32 toolchain through tools/fetch_toolchain.ps1 (sha256 against
+#                      tools/toolchain/PINS.sha256), vcpkg in manifest mode (vcpkg.json: sdl2, ffmpeg[avcodec,swscale]),
+#                      `cmake --preset windows-clang-cl-release` (CMakePresets.json -> cmake/windows-clang-cl.toolchain.cmake:
+#                      clang-cl + the engine's clang_cl_shim.py launcher + vcpkg chain-loaded), the build preset (the
+#                      runner, the unit tests, te_fiber_test, the two tool binaries), `ctest --preset` (-L nativeee: one
+#                      test per seam header + nativeee.te_fiber, the Win64 fiber arm's first RUN -- it was compiled, not
+#                      run, until a Windows machine executes this), the asset scan over the build dir's staged folder
+#                      (tools/ci/release_dist.ps1 -SkipBuild: twinsanityevolved.exe + the vcpkg DLLs + BUILD-ID + notices),
+#                      the zip uploaded as an artifact.
+#
+# What this lane does NOT do: run the game (no disc image on a runner; the user's Windows machine runs
+# `twinsanityevolved.exe --iso ...` from the artifact). It gates on: configure OK, build OK
+# (0 FAILED), every nativeee ctest green, asset scan zero findings. Build warnings are COUNTED and printed, not gated
+# (the Windows lane's -Wextra over the UCRT headers is not the macOS lane's; a count that grows is a finding to read).
+#
+# Local validation: `actionlint .github/workflows/windows.yml` (or python3 -c "import yaml; yaml.safe_load(open(...))").
+# This file is authored and run locally through its scripts when no GitHub remote exists (charter): the user's Windows
+# agent runs the SAME steps by hand first, before CI sees them.
+name: TwinsanityEvolved Windows
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['docs/**', '**.md']
+  pull_request:
+    paths-ignore: ['docs/**', '**.md']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-clang-cl:
+    name: windows-x64 (clang-cl, Ninja, vcpkg)
+    runs-on: windows-2022
+    timeout-minutes: 240
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg-cache
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Asset scan over the source tree (zero findings before anything builds)
+        shell: bash
+        run: tools/ci/asset_scan.sh
+
+      # --- prerequisites ---------------------------------------------
+      - name: Python 3.12 (the engine's clang-cl shim runs under `python`; the generators under the same)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: MSVC developer environment (clang-cl, lld-link, Ninja, the Windows SDK on PATH)
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Tool versions
+        shell: pwsh
+        run: |
+          cmake --version | Select-Object -First 1
+          ninja --version
+          clang-cl --version | Select-Object -First 1
+          python --version
+          git --version
+
+      - name: vcpkg checkout + bootstrap
+        shell: pwsh
+        run: |
+          git clone --depth 1 https://github.com/microsoft/vcpkg.git $env:VCPKG_ROOT
+          & "$env:VCPKG_ROOT/bootstrap-vcpkg.bat" -disableMetrics
+          New-Item -ItemType Directory -Force -Path $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+      - name: vcpkg binary cache (restore)
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+
+      # --- step 1: the pinned wasm32 toolchain -------------------------------------------------
+      - name: Toolchain cache (the pinned tarballs; the sha256 check runs on every fetch)
+        uses: actions/cache@v4
+        with:
+          path: |
+            tools/toolchain/*.tar.gz
+            tools/toolchain/*.whl
+          key: te-toolchain-windows-x64-${{ hashFiles('tools/toolchain/PINS.sha256') }}
+      - name: tools/fetch_toolchain.ps1 (wasi-sdk 24.0 + wabt 1.0.42 + libclang 18.1.1, sha256-pinned)
+        shell: pwsh
+        run: ./tools/fetch_toolchain.ps1
+
+      # --- step 2: configure through the preset ------------------------------------------------
+      - name: "cmake --preset windows-clang-cl-release"
+        shell: pwsh
+        run: cmake --preset windows-clang-cl-release 2>&1 | Tee-Object -FilePath configure.log
+      - name: vcpkg binary cache (save -- the FFmpeg port is most of a cold run; saved even when the build fails)
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+
+      # --- step 3: build (the runner + the tests + te_fiber_test + the tool binaries) -----------
+      - name: cmake --build --preset windows-clang-cl-release
+        shell: bash
+        run: |
+          set -o pipefail
+          cmake --build --preset windows-clang-cl-release -j 3 2>&1 | tee build.log
+          n_warn=$(grep -c 'warning' build.log || true)
+          echo "build: warnings $n_warn (counted, not gated)"
+          test -f build-windows-release/twinsanityevolved.exe
+
+      # --- step 4: the unit tests, the fiber arm's first run ------------------------------------
+      - name: "ctest --preset windows-clang-cl-release (-L nativeee: the seam tests + nativeee.te_fiber)"
+        shell: bash
+        run: ctest --preset windows-clang-cl-release -j 3 2>&1 | tee ctest.log
+
+      # --- step 5: the staged folder (DLLs beside the exe, BUILD-ID, notices), scanned, zipped ---
+      - name: tools/ci/release_dist.ps1 -SkipBuild (stage from the preset's build dir, asset scan, zip)
+        shell: pwsh
+        run: ./tools/ci/release_dist.ps1 -SkipBuild -BuildDir "$PWD/build-windows-release" 2>&1 | Tee-Object -FilePath release_dist.log
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: twinsanityevolved-windows-x64
+          path: |
+            dist/twinsanityevolved-windows-x64.zip
+            dist/twinsanityevolved-windows-x64.zip.sha256
+            configure.log
+            build.log
+            ctest.log
+            release_dist.log
+          if-no-files-found: warn

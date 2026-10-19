@@ -1,0 +1,11 @@
+{
+  "id": "level_select",
+  "name": "level select",
+  "version": "1.0.0",
+  "description": "Options > Mods > level select: one row that opens the list at once (no off / on switch; the mod counts as on for the session the moment the list opens). Every level, boss and area of the game (docs/COMPLETION_MAP.md's 26 rows by display name) started through the game's own saved-level path (GameController::WarpToChunk: the progress taken as a save would, the chunk and the character written over it, the level loaded as a save's would be). Saves made with it on go to the -mods card.",
+  "hooks": ["menu_build"],
+  "page": "level select",
+  "settings": {},
+  "api": "c",
+  "source": "platform/nativeee/host/mod_level_select.cpp"
+}

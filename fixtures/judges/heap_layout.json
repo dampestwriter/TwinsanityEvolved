@@ -1,0 +1,14 @@
+{
+  "padlog": "fixtures/padlogs/hub_walk_forward.padlog",
+  "disc": "PAL SLES-52568 (deterministic, headless: --deterministic --no-sdl-input --no-audio --skip-movies --trace-state, an empty --mc-dir, TE_GFX_HEADLESS=1 TE_GFX_NO_DRAW=1)",
+  "stop_at": 3300,
+  "run_seconds": 600,
+  "final_state": "Playing",
+  "image_start": "0x2D9D90",
+  "image_end": "0x3DB200",
+  "pool_start": "0x3F6490",
+  "pool_size": 7960912,
+  "pages": 963,
+  "why": "The game's replay depends on its heap addresses (a 16-byte shift of the pools' start desyncs jungle_bungle_walk.padlog at boundary 5893: uninitialised reads of reused heap memory and pointer-ordered sets, deterministic on the PS2 because its layout never moved). The pools therefore start at the frozen baseline's break (0x3F6480; dlmalloc's first chunk 0x3F6490), the C++'s data is linked BELOW the retail image (tools/link_wasm.py) so the module's data end is the image's end 0x3DB200 for good, and the heap pool's size and small-page count are the baseline's. Every pad log and judge recorded on 1952747 replays bit for bit on every later build.",
+  "frozen": "2026-10-16: bin/twinsanityevolved.1952747 has heap base = data end = 0x3F6480 (the C++'s data above the image) and no pool address in its heap line; the frozen-layout build has heap base 0x3DB200, pool 7960912 bytes at 0x3F6490, 963 pages, and padlog_smoke 6/6 (the build before the frozen layout, 16 bytes more data, failed jungle_bungle_walk and mecha_arena) | 2026-10-16: hub_walk_forward.padlog re-recorded on the drive model (Playing 2629, end 3310): stop_at 2600 -> 3300"
+}

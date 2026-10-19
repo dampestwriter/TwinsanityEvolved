@@ -1,0 +1,21 @@
+# RootDisplayRowsLive: title -> START -> main menu -> DOWN x2 (options) -> CROSS -> the
+# Options page -> DOWN x3 (the added 'display' link) -> CROSS -> the Display page (cursor on
+# 'fps overlay') -> DOWN (display mode) -> DOWN (internal scale, at 1x) -> RIGHT at 3420 steps
+# the scale to 2x (a ChoiceItem steps on LEFT/RIGHT; CROSS does not cycle it) -> DOWN (vsync)
+# -> CROSS at 3540 toggles vsync ON. The leg runs to --frames 3700 on the Display page.
+# Frames = the game frame (the title reads the pad once per boundary; clock=frame).
+# padlog v1 start_frame=1 clock=frame title=slus_20909_crash_twinsanity
+896-897:CROSS
+2773-2784:START
+2860-2864:DOWN
+2920-2924:DOWN
+2990-2994:CROSS
+3080-3084:DOWN
+3130-3134:DOWN
+3180-3184:DOWN
+3240-3244:CROSS
+3300-3304:DOWN
+3360-3364:DOWN
+3420-3424:RIGHT
+3480-3484:DOWN
+3540-3544:CROSS

@@ -1,0 +1,19 @@
+{
+  "disc": "PAL SLES-52568 (PLAY mode headless at --frame-rate 120 with the render thread on: TE_GFX_HEADLESS=1 TE_GFX_RENDER_THREAD=1 TE_GFX_INTERP_PROBE=1, the scene's pictures and their half-way frames dumped; --skip-movies --trace-state --config none --no-audio --no-sdl-input)",
+  "scenes": [
+    {"name": "hub", "padlog": "fixtures/padlogs/hub_entry.padlog", "stop_at": 3400, "card": "fresh", "pictures": [2500, 2700],
+     "exercises": "the hub walked: skins, shadows, placed models, particles, the camera following"},
+    {"name": "title_intro_idle", "padlog": "fixtures/padlogs/title_intro_idle.padlog", "stop_at": 1900, "card": "fresh", "pictures": [1300, 1700],
+     "exercises": "the intro cutscene: the camera over the ocean, the ice block, the sky"},
+    {"name": "cavern_entry", "padlog": "fixtures/padlogs/cavern_entry.padlog", "stop_at": 3300, "card": "warp:levels\\earth\\cavern\\cavent", "pictures": [2850, 3050],
+     "exercises": "Cavern Catastrophe: the screen-copy crystals, decals, the ball's roll"}
+  ],
+  "scene_rows": [0.12, 0.88],
+  "fraction_tolerance": 0.02,
+  "min_median_ssim": 0.95,
+  "min_ssim": 0.70,
+  "max_violation_rate": 0.0002,
+  "min_triplets": 150,
+  "verdict": "GREEN iff, per scene, the median SSIM (luma, 8x8 blocks, the standard constants) of the fraction-0.5 frame against the pixel mean of its two real neighbours over the scene region (rows 12 %..88 %: the HUD bands masked) is >= 0.95 (the minimum reported, >= 0.70: a skin whose batch was re-split by the clipper pairs a limb's vertices wrongly for one frame, docs/KNOWN_ISSUES.md) over at least 150 triplets; a second PACED leg per scene (windowed at 120, no dumps, the presenter's displacement check on) carries `displacement checks N violations V` with V / N <= 2e-4 (the residual: two instances of one model within 4 world units matched to each other's previous instance by the greedy 1:1 assignment -- 48 of 1.08 million on the hub, 0 on the intro; a wrong identity class shows as thousands); both runs exit 0 at the stop with no trap. A runner without --frame-rate is RED.",
+  "frozen": "2026-10-19 (the frame-rate lane): RED x2 on bin/twinsanityevolved.b630560 (exit 2: no --frame-rate), GREEN x2 on the lane's build (the per-scene figures in the lane's handoff)."
+}

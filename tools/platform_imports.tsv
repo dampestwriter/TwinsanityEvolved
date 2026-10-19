@@ -1,0 +1,15 @@
+# Host imports the wasm-side platform code (platform/nativeee/wasm/*.cpp) calls; not Platform:: functions. Declared in
+# ps2e_seam.h, listed in seam_imports.txt, thunked and weak-stubbed like the rest (tools/gen_seam.py).
+# name	ret	params (wasm type:name; u32 = guest address)	comment
+ps2e_gfx2_texture_loaded	s32	u32:texture,u32:header,u32:image,s32:size	graphics: a GameTexture read from its stream: header = te_gfx_texture_header, image = the GS upload packet bytes; returns the host texture handle
+ps2e_gfx2_texture_released	void	u32:texture	graphics: the GameTexture is deleted
+ps2e_gfx2_frame_reset	void	s32:movie	graphics: Platform::Graphics::ResetBuckets -- the frame's buckets start over empty
+ps2e_gfx2_text_quads	void	u32:material,u32:quads,s32:count	graphics: Font::Draw -- count te_gfx_text_quad glyph quads for the font page material
+ps2e_gfx2_text_item	void	u32:text,f32:x,f32:y,s32:alignment	graphics: Font::Draw -- the text item whose glyph quads follow (its string, screen fractions, alignment): the host's text-draw census names the strings it sees
+ps2e_gfx2_model_loaded	void	u32:model,s32:index,s32:count,u32:packet,s32:size,s32:vertices	graphics: a RigidModelData's submodel packet read from its stream (the VIF UNPACKs of its strips): the host decodes it once and keeps the geometry by the model's address
+ps2e_gfx2_model_released	void	u32:model	graphics: the RigidModelData is destroyed; its geometry is forgotten
+ps2e_gfx2_draw_sky	void	u32:sky,u32:view,u32:camera	graphics: DrawChunkSky -- the sky (te_gfx_sky) drawn around the camera's place (a Vector4) through the RenderView
+ps2e_gfx2_skin_loaded	void	u32:skin,s32:index,s32:count,u32:packet,s32:size,s32:vertices	graphics: a Skin's submodel packet read from its stream (the RET tag + VIF stream of skinned batches): the host keeps the bytes (the disk manager may move the game's block) and decodes them once by the skin's address
+ps2e_gfx2_skin_released	void	u32:skin	graphics: the Skin is destroyed; its geometry is forgotten
+ps2e_gfx2_blend_skin_released	void	u32:skin	graphics: the BlendSkin is destroyed; its parts' decoded geometry (read from the heap packets at the first draw) is forgotten
+ps2e_gfx2_platform_texts	s32	u32:out,s32:max	graphics: Platform::Graphics::QueuePlatformTexts -- the host fills up to max te_platform_text records (the fps counter, a mod's timer) into out; returns how many

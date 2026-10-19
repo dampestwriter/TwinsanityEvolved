@@ -1,0 +1,75 @@
+{
+  "padlog": "fixtures/padlogs/hub_entry.padlog",
+  "disc": "PAL SLES-52568 (deterministic, headless: --deterministic --no-sdl-input --no-audio --skip-movies --trace-state, an empty --mc-dir; TE_GFX_DUMP_EVERY=100)",
+  "stop_at": 4900,
+  "run_seconds": 900,
+  "dump_every": 100,
+  "presents": [
+    2700,
+    3200,
+    4200,
+    4700
+  ],
+  "require_state": "Playing",
+  "frame": [
+    512,
+    512
+  ],
+  "foot_box": [
+    248,
+    440,
+    264,
+    456
+  ],
+  "ring_boxes": [
+    [
+      190,
+      440,
+      220,
+      456
+    ],
+    [
+      300,
+      440,
+      330,
+      456
+    ]
+  ],
+  "foot_darker_min": 22.0,
+  "foot_darker_max": 70.0,
+  "body_box": [
+    236,
+    330,
+    276,
+    370
+  ],
+  "fur_red_min": 90.0,
+  "streak_from_row": 170,
+  "dark_max_channel": 40,
+  "dark_run_max": 60,
+  "white_min_channel": 230,
+  "white_run_max": 40,
+  "streak_centre_box": [
+    225,
+    180,
+    285,
+    300
+  ],
+  "streak_side_boxes": [
+    [
+      140,
+      180,
+      200,
+      300
+    ],
+    [
+      310,
+      180,
+      370,
+      300
+    ]
+  ],
+  "streak_max_darker": 45.0,
+  "why": "The engine's RootShadowLevelEntry criteria (games/slus_20909_crash_twinsanity/tests/app/root_shadow_level_entry.py) on the port's PAL 512x512 hub frame with Crash standing on the beach: the sand between his feet at least 22 below the ring beside him (the shadow), but no more than 70 (a quarter darkening -- the composite's Cd - 33 -- not a black stamp); his fur drawn over the footprint; no near-white vertical run >= 40 px; and the port's own symptoms: no near-black vertical run >= 60 px below row 170 (the stamped volume over Crash's body), and the column band above Crash no more than 45 darker than the bands beside it (the stamped volume's wall rising up the frame at present 2000)",
+  "frozen": "2026-10-16: on bin/twinsanityevolved.1952747 the volumes are stamped dark over the scene: feet - ring -137..-145 (black), near-black runs 127-141 px, the 2000 band 98 darker; with the stencil-counted volumes: feet - ring -35..-41, runs 38-42 (Crash's shoes), band 26.6 (the palm trunk, the same on both) | 2026-10-16: the hub pad log was re-recorded on the drive model (: Playing 2629..4910 instead of 1919..4200, every boundary ~+710) -- presents and stop_at shifted by +700/+710; thresholds unchanged; presents 2700 / 3200 / 4200 / 4700 (the idle pose at 3700 puts Crash's jeans over the body box: 'no fur' is the pose, not the shadow)"
+}

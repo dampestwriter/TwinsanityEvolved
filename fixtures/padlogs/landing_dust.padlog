@@ -1,0 +1,24 @@
+# twinsanityevolved padlog v1 -- pad 0 per frame boundary: BOUNDARY BUTTONS(wire order, hex) LX LY RX RY  # names
+# language-bank=0  -- recorded against the disc's slot-0 text bank (the replay pins it)
+# landing dust: the hub_entry menu prefix (Playing at 2629), then two standing jumps on the hub's grass --
+# CROSS at 2900 and 3100 -- each landing kicks up the dust particles the judge looks at. Hand-authored (no plan).
+1 0000 128 128 128 128  # NONE
+1273 0008 128 128 128 128  # START
+1278 0000 128 128 128 128  # NONE
+1406 4000 128 128 128 128  # CROSS
+1411 0000 128 128 128 128  # NONE
+1706 0010 128 128 128 128  # UP
+1709 0000 128 128 128 128  # NONE
+1806 4000 128 128 128 128  # CROSS
+1809 0000 128 128 128 128  # NONE
+2056 0040 128 128 128 128  # DOWN
+2059 0000 128 128 128 128  # NONE
+2126 4000 128 128 128 128  # CROSS
+2129 0000 128 128 128 128  # NONE
+2609 4000 128 128 128 128  # CROSS
+2612 0000 128 128 128 128  # NONE
+2900 4000 128 128 128 128  # CROSS
+2903 0000 128 128 128 128  # NONE
+3100 4000 128 128 128 128  # CROSS
+3103 0000 128 128 128 128  # NONE
+# end at boundary 3300

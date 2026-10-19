@@ -1,0 +1,1040 @@
+{
+  "schema": "retirement-reviewed-counters-v1",
+  "counters": {
+    "Movie.player.start": {
+      "field": "movie_start",
+      "member": "original_calls",
+      "scope": "actual generated Movie Start containing copied-stack priming",
+      "source": "games/slus_20909_crash_twinsanity/hle/fmv/movie_start.cpp",
+      "increment": "++original_calls_;",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/fmv/movie_start.cpp",
+      "publish": "meta.Set(\"movie_start\", Census());"
+    },
+    "Movie.player.step": {
+      "field": "movie_step",
+      "member": "original_calls",
+      "scope": "actual generated Movie forwarding Step with scratchpad relocation",
+      "source": "games/slus_20909_crash_twinsanity/hle/fmv/movie_step.cpp",
+      "increment": "++original_calls_;",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/fmv/movie_step.cpp",
+      "publish": "meta.Set(\"movie_step\", Census());"
+    },
+    "MathLibrary.generated.transform_point": {
+      "field": "math_library",
+      "member": "generated_body_transform_point",
+      "scope": "captured generated source operation: MathLibrary.transform_point",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/math_library_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"math_library\", math_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "MathLibrary.generated.rotate_vector": {
+      "field": "math_library",
+      "member": "generated_body_rotate_vector",
+      "scope": "captured generated source operation: MathLibrary.rotate_vector",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/math_library_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"math_library\", math_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "MathLibrary.generated.transform_vector": {
+      "field": "math_library",
+      "member": "generated_body_transform_vector",
+      "scope": "captured generated source operation: MathLibrary.transform_vector",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/math_library_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"math_library\", math_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "MathLibrary.generated.multiply_matrices": {
+      "field": "math_library",
+      "member": "generated_body_multiply_matrices",
+      "scope": "captured generated source operation: MathLibrary.multiply_matrices",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/math_library_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"math_library\", math_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "MathLibrary.generated.identity_matrix": {
+      "field": "math_library",
+      "member": "generated_body_identity_matrix",
+      "scope": "captured generated source operation: MathLibrary.identity_matrix",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/math_library_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"math_library\", math_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "MathLibrary.generated.multiply_rotations": {
+      "field": "math_library",
+      "member": "generated_body_multiply_rotations",
+      "scope": "captured generated source operation: MathLibrary.multiply_rotations",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/math_library_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"math_library\", math_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "MathLibrary.generated.rotation_matrix": {
+      "field": "math_library",
+      "member": "generated_body_rotation_matrix",
+      "scope": "captured generated source operation: MathLibrary.rotation_matrix",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/math_library_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"math_library\", math_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "MathLibrary.generated.transpose": {
+      "field": "math_library",
+      "member": "generated_body_transpose",
+      "scope": "captured generated source operation: MathLibrary.transpose",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/math_library_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"math_library\", math_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "MathLibrary.generated.transpose_in_place": {
+      "field": "math_library",
+      "member": "generated_body_transpose_in_place",
+      "scope": "captured generated source operation: MathLibrary.transpose_in_place",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/math_library_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"math_library\", math_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "MathLibrary.generated.transpose_rotation": {
+      "field": "math_library",
+      "member": "generated_body_transpose_rotation",
+      "scope": "captured generated source operation: MathLibrary.transpose_rotation",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/math_library_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"math_library\", math_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "MathLibrary.generated.invert_rigid": {
+      "field": "math_library",
+      "member": "generated_body_invert_rigid",
+      "scope": "captured generated source operation: MathLibrary.invert_rigid",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/math_library_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"math_library\", math_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "MathLibrary.generated.invert_rigid_in_place": {
+      "field": "math_library",
+      "member": "generated_body_invert_rigid_in_place",
+      "scope": "captured generated source operation: MathLibrary.invert_rigid_in_place",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/math_library_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"math_library\", math_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "MathLibrary.generated.triangle_plane": {
+      "field": "math_library",
+      "member": "generated_body_triangle_plane",
+      "scope": "captured generated source operation: MathLibrary.triangle_plane",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/math_library_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"math_library\", math_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "CollisionMath.generated.start_edges": {
+      "field": "collision_math",
+      "member": "generated_body_start_edges",
+      "scope": "captured generated source operation: CollisionMath.start_edges",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/collision_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"collision_math\", collision_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "CollisionMath.generated.finish_edges": {
+      "field": "collision_math",
+      "member": "generated_body_finish_edges",
+      "scope": "captured generated source operation: CollisionMath.finish_edges",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/collision_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"collision_math\", collision_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "CollisionMath.generated.vertex_differences": {
+      "field": "collision_math",
+      "member": "generated_body_vertex_differences",
+      "scope": "captured generated source operation: CollisionMath.vertex_differences",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/collision_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"collision_math\", collision_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "CollisionMath.generated.group_points": {
+      "field": "collision_math",
+      "member": "generated_body_group_points",
+      "scope": "captured generated source operation: CollisionMath.group_points",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/collision_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"collision_math\", collision_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "CollisionMath.generated.groups_range": {
+      "field": "collision_math",
+      "member": "generated_body_groups_range",
+      "scope": "captured generated source operation: CollisionMath.groups_range",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/collision_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"collision_math\", collision_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "CollisionMath.generated.sixteen_groups_range": {
+      "field": "collision_math",
+      "member": "generated_body_sixteen_groups_range",
+      "scope": "captured generated source operation: CollisionMath.sixteen_groups_range",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/collision_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"collision_math\", collision_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "CollisionMath.generated.load_support": {
+      "field": "collision_math",
+      "member": "generated_body_load_support",
+      "scope": "captured generated source operation: CollisionMath.load_support",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/collision_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"collision_math\", collision_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "CollisionMath.generated.support_range": {
+      "field": "collision_math",
+      "member": "generated_body_support_range",
+      "scope": "captured generated source operation: CollisionMath.support_range",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/collision_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"collision_math\", collision_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "TrigMath.generated.cos_sin16": {
+      "field": "trig_math",
+      "member": "generated_body_cos_sin16",
+      "scope": "captured generated source operation: TrigMath.cos_sin16",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/trig_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"trig_math\", trig_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "TrigMath.generated.sin_cos16": {
+      "field": "trig_math",
+      "member": "generated_body_sin_cos16",
+      "scope": "captured generated source operation: TrigMath.sin_cos16",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/trig_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"trig_math\", trig_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "TrigMath.generated.sin_cos16_pair": {
+      "field": "trig_math",
+      "member": "generated_body_sin_cos16_pair",
+      "scope": "captured generated source operation: TrigMath.sin_cos16_pair",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/trig_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"trig_math\", trig_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "TrigMath.generated.pitch": {
+      "field": "trig_math",
+      "member": "generated_body_pitch",
+      "scope": "captured generated source operation: TrigMath.pitch",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/trig_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"trig_math\", trig_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "TrigMath.generated.yaw": {
+      "field": "trig_math",
+      "member": "generated_body_yaw",
+      "scope": "captured generated source operation: TrigMath.yaw",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/trig_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"trig_math\", trig_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "TrigMath.generated.roll": {
+      "field": "trig_math",
+      "member": "generated_body_roll",
+      "scope": "captured generated source operation: TrigMath.roll",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/trig_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"trig_math\", trig_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "TrigMath.generated.rotation_xy": {
+      "field": "trig_math",
+      "member": "generated_body_rotation_xy",
+      "scope": "captured generated source operation: TrigMath.rotation_xy",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/trig_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"trig_math\", trig_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "TrigMath.generated.rotation_xz": {
+      "field": "trig_math",
+      "member": "generated_body_rotation_xz",
+      "scope": "captured generated source operation: TrigMath.rotation_xz",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/trig_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"trig_math\", trig_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "TrigMath.generated.rotation_yz": {
+      "field": "trig_math",
+      "member": "generated_body_rotation_yz",
+      "scope": "captured generated source operation: TrigMath.rotation_yz",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/trig_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"trig_math\", trig_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "AnimationMath.generated.angle_pairs": {
+      "field": "animation_math",
+      "member": "generated_body_angle_pairs",
+      "scope": "captured generated source operation: AnimationMath.angle_pairs",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/animation_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(kReadJointAngleAddress, captured, generated_body_calls_);",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"animation_math\", animation_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "TrigMath.generated.matrix_x": {
+      "field": "trig_math",
+      "member": "generated_body_matrix_x",
+      "scope": "captured generated source operation: TrigMath.matrix_x",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/trig_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"trig_math\", trig_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "TrigMath.generated.matrix_y": {
+      "field": "trig_math",
+      "member": "generated_body_matrix_y",
+      "scope": "captured generated source operation: TrigMath.matrix_y",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/trig_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"trig_math\", trig_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "TrigMath.generated.matrix_z": {
+      "field": "trig_math",
+      "member": "generated_body_matrix_z",
+      "scope": "captured generated source operation: TrigMath.matrix_z",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/trig_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"trig_math\", trig_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "TrigMath.generated.rotation_xyz": {
+      "field": "trig_math",
+      "member": "generated_body_rotation_xyz",
+      "scope": "captured generated source operation: TrigMath.rotation_xyz",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/trig_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"trig_math\", trig_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "TrigMath.generated.tangent": {
+      "field": "trig_math",
+      "member": "generated_body_tangent",
+      "scope": "captured generated source operation: TrigMath.tangent",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/trig_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"trig_math\", trig_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "TrigMath.generated.matrix_xy": {
+      "field": "trig_math",
+      "member": "generated_body_matrix_xy",
+      "scope": "captured generated source operation: TrigMath.matrix_xy",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/trig_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"trig_math\", trig_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "TrigMath.generated.matrix_xz": {
+      "field": "trig_math",
+      "member": "generated_body_matrix_xz",
+      "scope": "captured generated source operation: TrigMath.matrix_xz",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/trig_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"trig_math\", trig_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "TrigMath.generated.matrix_yz": {
+      "field": "trig_math",
+      "member": "generated_body_matrix_yz",
+      "scope": "captured generated source operation: TrigMath.matrix_yz",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/trig_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"trig_math\", trig_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "TrigMath.generated.matrix_xyz": {
+      "field": "trig_math",
+      "member": "generated_body_matrix_xyz",
+      "scope": "captured generated source operation: TrigMath.matrix_xyz",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/trig_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"trig_math\", trig_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "TrigMath.generated.turn_toward": {
+      "field": "trig_math",
+      "member": "generated_body_turn_toward",
+      "scope": "captured generated source operation: TrigMath.turn_toward",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/trig_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"trig_math\", trig_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "TrigMath.generated.turn_sine_cosine": {
+      "field": "trig_math",
+      "member": "generated_body_turn_sine_cosine",
+      "scope": "captured generated source operation: TrigMath.turn_sine_cosine",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/trig_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"trig_math\", trig_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "TrigMath.generated.turn_axis": {
+      "field": "trig_math",
+      "member": "generated_body_turn_axis",
+      "scope": "captured generated source operation: TrigMath.turn_axis",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/trig_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"trig_math\", trig_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "TrigMath.generated.rotation_axis_sine": {
+      "field": "trig_math",
+      "member": "generated_body_rotation_axis_sine",
+      "scope": "captured generated source operation: TrigMath.rotation_axis_sine",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/trig_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"trig_math\", trig_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "TrigMath.generated.rotation_axis": {
+      "field": "trig_math",
+      "member": "generated_body_rotation_axis",
+      "scope": "captured generated source operation: TrigMath.rotation_axis",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/trig_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"trig_math\", trig_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "TrigMath.generated.matrix_axis_sine": {
+      "field": "trig_math",
+      "member": "generated_body_matrix_axis_sine",
+      "scope": "captured generated source operation: TrigMath.matrix_axis_sine",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/trig_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"trig_math\", trig_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "TrigMath.generated.matrix_axis": {
+      "field": "trig_math",
+      "member": "generated_body_matrix_axis",
+      "scope": "captured generated source operation: TrigMath.matrix_axis",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/trig_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"trig_math\", trig_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "TrigMath.generated.inverse_length4": {
+      "field": "trig_math",
+      "member": "generated_body_inverse_length4",
+      "scope": "captured generated source operation: TrigMath.inverse_length4",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/trig_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"trig_math\", trig_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "TrigMath.generated.slerp": {
+      "field": "trig_math",
+      "member": "generated_body_slerp",
+      "scope": "captured generated source operation: TrigMath.slerp",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/trig_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"trig_math\", trig_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "TrigMath.generated.angle_from": {
+      "field": "trig_math",
+      "member": "generated_body_angle_from",
+      "scope": "captured generated source operation: TrigMath.angle_from",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/trig_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"trig_math\", trig_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "TrigMath.generated.angle_point": {
+      "field": "trig_math",
+      "member": "generated_body_angle_point",
+      "scope": "captured generated source operation: TrigMath.angle_point",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/trig_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"trig_math\", trig_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "TrigMath.generated.euler_angles": {
+      "field": "trig_math",
+      "member": "generated_body_euler_angles",
+      "scope": "captured generated source operation: TrigMath.euler_angles",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/trig_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"trig_math\", trig_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "TrigMath.generated.snap_yaw": {
+      "field": "trig_math",
+      "member": "generated_body_snap_yaw",
+      "scope": "captured generated source operation: TrigMath.snap_yaw",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/trig_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(bindings[i].first, captured[i],\n            std::shared_ptr<std::atomic<uint64_t>>(generated_body_calls_, &(*generated_body_calls_)[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"trig_math\", trig_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "CullingLibrary.generated.setup_chunk": {
+      "field": "culling_library",
+      "member": "generated_body_setup_chunk",
+      "scope": "captured generated source operation: CullingLibrary.setup_chunk",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/culling_library_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(entry.address, originals[i],\n            std::shared_ptr<std::atomic<uint64_t>>(counts, &counts->generated[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"culling_library\", culling_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "CullingLibrary.generated.setup_portal": {
+      "field": "culling_library",
+      "member": "generated_body_setup_portal",
+      "scope": "captured generated source operation: CullingLibrary.setup_portal",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/culling_library_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(entry.address, originals[i],\n            std::shared_ptr<std::atomic<uint64_t>>(counts, &counts->generated[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"culling_library\", culling_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "CullingLibrary.generated.load_view": {
+      "field": "culling_library",
+      "member": "generated_body_load_view",
+      "scope": "captured generated source operation: CullingLibrary.load_view",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/culling_library_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(entry.address, originals[i],\n            std::shared_ptr<std::atomic<uint64_t>>(counts, &counts->generated[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"culling_library\", culling_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "CullingLibrary.generated.construct_linked": {
+      "field": "culling_library",
+      "member": "generated_body_construct_linked",
+      "scope": "captured generated source operation: CullingLibrary.construct_linked",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/culling_library_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(entry.address, originals[i],\n            std::shared_ptr<std::atomic<uint64_t>>(counts, &counts->generated[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"culling_library\", culling_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "CullingLibrary.generated.load_model": {
+      "field": "culling_library",
+      "member": "generated_body_load_model",
+      "scope": "captured generated source operation: CullingLibrary.load_model",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/culling_library_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(entry.address, originals[i],\n            std::shared_ptr<std::atomic<uint64_t>>(counts, &counts->generated[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"culling_library\", culling_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "CullingLibrary.generated.test_cell": {
+      "field": "culling_library",
+      "member": "generated_body_test_cell",
+      "scope": "captured generated source operation: CullingLibrary.test_cell",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/culling_library_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(entry.address, originals[i],\n            std::shared_ptr<std::atomic<uint64_t>>(counts, &counts->generated[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"culling_library\", culling_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "CullingLibrary.generated.test_box_at": {
+      "field": "culling_library",
+      "member": "generated_body_test_box_at",
+      "scope": "captured generated source operation: CullingLibrary.test_box_at",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/culling_library_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(entry.address, originals[i],\n            std::shared_ptr<std::atomic<uint64_t>>(counts, &counts->generated[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"culling_library\", culling_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "CullingLibrary.generated.cell_result": {
+      "field": "culling_library",
+      "member": "generated_body_cell_result",
+      "scope": "captured generated source operation: CullingLibrary.cell_result",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/culling_library_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(entry.address, originals[i],\n            std::shared_ptr<std::atomic<uint64_t>>(counts, &counts->generated[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"culling_library\", culling_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "CullingLibrary.generated.drawn_model_result": {
+      "field": "culling_library",
+      "member": "generated_body_drawn_model_result",
+      "scope": "captured generated source operation: CullingLibrary.drawn_model_result",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/culling_library_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(entry.address, originals[i],\n            std::shared_ptr<std::atomic<uint64_t>>(counts, &counts->generated[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"culling_library\", culling_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "CullingLibrary.generated.mesh_result": {
+      "field": "culling_library",
+      "member": "generated_body_mesh_result",
+      "scope": "captured generated source operation: CullingLibrary.mesh_result",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/culling_library_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(entry.address, originals[i],\n            std::shared_ptr<std::atomic<uint64_t>>(counts, &counts->generated[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"culling_library\", culling_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "CullingLibrary.generated.instance_result": {
+      "field": "culling_library",
+      "member": "generated_body_instance_result",
+      "scope": "captured generated source operation: CullingLibrary.instance_result",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/culling_library_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(entry.address, originals[i],\n            std::shared_ptr<std::atomic<uint64_t>>(counts, &counts->generated[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"culling_library\", culling_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "BoundsMath.generated.triangle": {
+      "field": "bounds_math",
+      "member": "generated_body_triangle",
+      "scope": "captured generated source operation: BoundsMath.triangle",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/bounds_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(entry.address, originals[i],\n            std::shared_ptr<std::atomic<uint64_t>>(counts, &counts->generated[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"bounds_math\", bounds_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "BoundsMath.generated.points": {
+      "field": "bounds_math",
+      "member": "generated_body_points",
+      "scope": "captured generated source operation: BoundsMath.points",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/bounds_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(entry.address, originals[i],\n            std::shared_ptr<std::atomic<uint64_t>>(counts, &counts->generated[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"bounds_math\", bounds_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "BoundsMath.generated.transformed_points": {
+      "field": "bounds_math",
+      "member": "generated_body_transformed_points",
+      "scope": "captured generated source operation: BoundsMath.transformed_points",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/bounds_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(entry.address, originals[i],\n            std::shared_ptr<std::atomic<uint64_t>>(counts, &counts->generated[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"bounds_math\", bounds_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "ClippingMath.generated.box_at": {
+      "field": "clipping_math",
+      "member": "generated_body_box_at",
+      "scope": "actual captured NEW ClipBoxAt body at 2014d8; its tail has a separate body counter",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/clipping_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(entry.address, originals[i],\n            std::shared_ptr<std::atomic<uint64_t>>(counts, &counts->generated[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"clipping_math\", clipping_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "ClippingMath.generated.box_or_corners": {
+      "field": "clipping_math",
+      "member": "generated_body_box_or_corners",
+      "scope": "actual captured NEW ClipBox body at 20157c, including the source ClipCorners entry at 2015d0",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/clipping_math_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(entry.address, originals[i],\n            std::shared_ptr<std::atomic<uint64_t>>(counts, &counts->generated[i]));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"clipping_math\", clipping_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "JointLibrary.generated.rotate": {
+      "field": "joint_library",
+      "member": "generated_body_rotate",
+      "scope": "actual captured NEW RotateJoint body at 297b40, including delegated original interiors; does not cover AnimateJoint or the entire standard image",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/joint_library_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(kRotate, captured[0],\n        std::shared_ptr<std::atomic<uint64_t>>(counts, &counts->generated));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"joint_library\", joint_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "JointLibrary.generated.transform": {
+      "field": "joint_library",
+      "member": "generated_body_transform",
+      "scope": "actual captured NEW CreateJointTransform body at 294300, including delegated original interiors; does not cover AnimateJoint, DrawInstanceModel/DrawOgi parent composition or the entire standard image",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/joint_library_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(kTransform, captured[1],\n        std::shared_ptr<std::atomic<uint64_t>>(counts, &counts->generated_transform));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"joint_library\", joint_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "JointLibrary.generated.animate": {
+      "field": "joint_library",
+      "member": "generated_body_animate",
+      "scope": "actual captured NEW AnimateJoint body at 293ec0, including delegated original interiors; does not cover the delegated ReadJointAngle boundary (AnimationMath), the other callers of ScaleJoint/TranslateJoint, DoAnimation or the entire standard image",
+      "source": "games/slus_20909_crash_twinsanity/hle/math/joint_library_bindings.cpp",
+      "increment": "DispatchTable::CountCalls(kAnimate, captured[2],\n        std::shared_ptr<std::atomic<uint64_t>>(counts, &counts->generated_animate));",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"joint_library\", joint_.Census());",
+      "provider": "DispatchTable.CountCalls"
+    },
+    "Movie.player.wait": {
+      "field": "movie_wait",
+      "member": "original_calls",
+      "scope": "actual live NEW WaitFrame registration wrapper; not the dormant shard spin body",
+      "source": "games/slus_20909_crash_twinsanity/hle/fmv/movie_wait.cpp",
+      "increment": "++original_calls_;",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/fmv/movie_wait.cpp",
+      "publish": "meta.Set(\"movie_wait\", Census());"
+    },
+    "Movie.player.stop": {
+      "field": "movie_stop",
+      "member": "original_calls",
+      "scope": "complete actual captured NTSC MoviePlayer Stop body",
+      "source": "games/slus_20909_crash_twinsanity/hle/fmv/movie_stop.cpp",
+      "increment": "++original_calls_;",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/fmv/movie_stop.cpp",
+      "publish": "meta.Set(\"movie_stop\", Census());"
+    },
+    "Graphics.strip.plain.model_calls": {
+      "field": "graphics_strip_plain",
+      "member": "model_calls",
+      "scope": "generated flat Strip::Draw producer body executed (variant plain)",
+      "source": "games/slus_20909_crash_twinsanity/hle/graphics/graphics_service.cpp",
+      "increment": "++counts.model_calls;",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/graphics/graphics_report.cpp",
+      "publish": "meta.Set(kVariantKeys[i], Row(counts.variants[i]));"
+    },
+    "Graphics.strip.tinted.model_calls": {
+      "field": "graphics_strip_tinted",
+      "member": "model_calls",
+      "scope": "generated flat Strip::Draw producer body executed (variant tinted)",
+      "source": "games/slus_20909_crash_twinsanity/hle/graphics/graphics_service.cpp",
+      "increment": "++counts.model_calls;",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/graphics/graphics_report.cpp",
+      "publish": "meta.Set(kVariantKeys[i], Row(counts.variants[i]));"
+    },
+    "Graphics.strip.placed.model_calls": {
+      "field": "graphics_strip_placed",
+      "member": "model_calls",
+      "scope": "generated flat Strip::Draw producer body executed (variant placed)",
+      "source": "games/slus_20909_crash_twinsanity/hle/graphics/graphics_service.cpp",
+      "increment": "++counts.model_calls;",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/graphics/graphics_report.cpp",
+      "publish": "meta.Set(kVariantKeys[i], Row(counts.variants[i]));"
+    },
+    "Graphics.strip.placed_tinted.model_calls": {
+      "field": "graphics_strip_placed_tinted",
+      "member": "model_calls",
+      "scope": "generated flat Strip::Draw producer body executed (variant placed_tinted)",
+      "source": "games/slus_20909_crash_twinsanity/hle/graphics/graphics_service.cpp",
+      "increment": "++counts.model_calls;",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/graphics/graphics_report.cpp",
+      "publish": "meta.Set(kVariantKeys[i], Row(counts.variants[i]));"
+    },
+    "Graphics.sprites.model_calls": {
+      "field": "graphics_sprites",
+      "member": "model_calls",
+      "scope": "generated Sprite draw-entry body executed (unselected or disabled texture owner)",
+      "source": "games/slus_20909_crash_twinsanity/hle/graphics/primitives/sprite_service.cpp",
+      "increment": "++counts_.model_calls; original(c, entry);",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/graphics/graphics_report.cpp",
+      "publish": "meta.Set(\"graphics_sprites\", \"replaced=\" + std::to_string(counts.replaced) +"
+    },
+    "Graphics.text.model_calls": {
+      "field": "graphics_text",
+      "member": "model_calls",
+      "scope": "generated DrawFontTexts/Begin/Draw/End body executed (unselected font or disabled)",
+      "source": "games/slus_20909_crash_twinsanity/hle/graphics/text/text_service.cpp",
+      "increment": "++counts_.model_calls; original(c, entry);",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/graphics/graphics_report.cpp",
+      "publish": "meta.Set(\"graphics_text\", \"replaced=\" + std::to_string(counts.replaced) +"
+    },
+    "Graphics.sky.start.model_calls": {
+      "field": "graphics_sky_start",
+      "member": "model_calls",
+      "scope": "generated Sky StartSkyBuffer body executed",
+      "source": "games/slus_20909_crash_twinsanity/hle/graphics/sky_pass.cpp",
+      "increment": "if (counts) ++counts->model_calls;",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/graphics/graphics_report.cpp",
+      "publish": "meta.Set(\"graphics_sky_start\", Row(counts.start));"
+    },
+    "Graphics.sky.model.model_calls": {
+      "field": "graphics_sky_model",
+      "member": "model_calls",
+      "scope": "generated Sky sky model draw body executed",
+      "source": "games/slus_20909_crash_twinsanity/hle/graphics/sky_pass.cpp",
+      "increment": "if (counts) ++counts->model_calls;",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/graphics/graphics_report.cpp",
+      "publish": "meta.Set(\"graphics_sky_model\", Row(counts.model));"
+    },
+    "Graphics.sky.finish.model_calls": {
+      "field": "graphics_sky_finish",
+      "member": "model_calls",
+      "scope": "generated Sky FinishSky body executed",
+      "source": "games/slus_20909_crash_twinsanity/hle/graphics/sky_pass.cpp",
+      "increment": "if (counts) ++counts->model_calls;",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/graphics/graphics_report.cpp",
+      "publish": "meta.Set(\"graphics_sky_finish\", Row(counts.finish));"
+    },
+    "Graphics.frame.setup.model_calls": {
+      "field": "graphics_frame_setup",
+      "member": "model_calls",
+      "scope": "generated WriteFrameHead 0x0019aaa8 body executed",
+      "source": "games/slus_20909_crash_twinsanity/hle/graphics/frame_service.cpp",
+      "increment": "++count.model_calls;",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/graphics/graphics_report.cpp",
+      "publish": "meta.Set(\"graphics_frame_setup\", Row(counts.setup));"
+    },
+    "Graphics.frame.send.model_calls": {
+      "field": "graphics_frame_send",
+      "member": "model_calls",
+      "scope": "generated frame Send 0x00181968 for the source display object body executed",
+      "source": "games/slus_20909_crash_twinsanity/hle/graphics/frame_service.cpp",
+      "increment": "++count.model_calls;",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/graphics/graphics_report.cpp",
+      "publish": "meta.Set(\"graphics_frame_send\", Row(counts.send));"
+    },
+    "Graphics.frame.interrupt.model_calls": {
+      "field": "graphics_frame_interrupt",
+      "member": "model_calls",
+      "scope": "generated interrupt Send 0x001819e8 for the source display object body executed",
+      "source": "games/slus_20909_crash_twinsanity/hle/graphics/frame_service.cpp",
+      "increment": "++count.model_calls;",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/graphics/graphics_report.cpp",
+      "publish": "meta.Set(\"graphics_frame_interrupt\", Row(counts.interrupt));"
+    },
+    "Graphics.frame.clear.model_calls": {
+      "field": "graphics_frame_clear",
+      "member": "model_calls",
+      "scope": "generated SetUpFrame clear 0x0019f1c8 body executed",
+      "source": "games/slus_20909_crash_twinsanity/hle/graphics/frame_service.cpp",
+      "increment": "++count.model_calls;",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/graphics/graphics_report.cpp",
+      "publish": "meta.Set(\"graphics_frame_clear\", Row(counts.clear));"
+    },
+    "Graphics.frame.layout.model_calls": {
+      "field": "graphics_frame_layout",
+      "member": "model_calls",
+      "scope": "generated SetupPCRTC display layout body executed",
+      "source": "games/slus_20909_crash_twinsanity/hle/graphics/frame_service.cpp",
+      "increment": "++count.model_calls;",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/graphics/graphics_report.cpp",
+      "publish": "meta.Set(\"graphics_frame_layout\", Row(counts.layout));"
+    },
+    "Graphics.movie.queue_original": {
+      "field": "movie_graphics",
+      "member": "queue_original",
+      "scope": "generated Movie queue/advance picture body executed",
+      "source": "games/slus_20909_crash_twinsanity/hle/fmv/movie_graphics.cpp",
+      "increment": "++counts_.original_calls[index];",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/fmv/movie_graphics.cpp",
+      "publish": "\",queue_original=\" + std::to_string(counts_.original_calls[1])"
+    },
+    "Graphics.movie.draw_original": {
+      "field": "movie_graphics",
+      "member": "draw_original",
+      "scope": "generated Movie movie draw production body executed",
+      "source": "games/slus_20909_crash_twinsanity/hle/fmv/movie_graphics.cpp",
+      "increment": "++counts_.original_calls[index];",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/fmv/movie_graphics.cpp",
+      "publish": "\",draw_original=\" + std::to_string(counts_.original_calls[2])"
+    },
+    "Graphics.shadow.begin.model_calls": {
+      "field": "graphics_shadow_begin",
+      "member": "model_calls",
+      "scope": "generated shadow pass Begin body executed (bucket 21, source shadows.cpp)",
+      "source": "games/slus_20909_crash_twinsanity/hle/graphics/effects/shadow_pass.cpp",
+      "increment": "if (count) ++count->model_calls;",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/graphics/effects/effects_report.cpp",
+      "publish": "meta.Set(\"graphics_shadow_begin\", Row(counts.passes.begin));"
+    },
+    "Graphics.shadow.mesh.model_calls": {
+      "field": "graphics_shadow_mesh",
+      "member": "model_calls",
+      "scope": "generated shadow mesh/strip body executed (bucket 21 default-mesh drawing)",
+      "source": "games/slus_20909_crash_twinsanity/hle/graphics/effects/shadow_pass.cpp",
+      "increment": "if (count) ++count->model_calls;",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/graphics/effects/effects_report.cpp",
+      "publish": "meta.Set(\"graphics_shadow_mesh\", Row(counts.passes.mesh));"
+    },
+    "Graphics.shadow.end.model_calls": {
+      "field": "graphics_shadow_end",
+      "member": "model_calls",
+      "scope": "generated shadow pass End body executed (bucket 21 composite)",
+      "source": "games/slus_20909_crash_twinsanity/hle/graphics/effects/shadow_pass.cpp",
+      "increment": "if (count) ++count->model_calls;",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/graphics/effects/effects_report.cpp",
+      "publish": "meta.Set(\"graphics_shadow_end\", Row(counts.passes.end));"
+    },
+    "Graphics.distortion.draw.model_calls": {
+      "field": "graphics_distortion_draw",
+      "member": "model_calls",
+      "scope": "generated DrawHexagonParticleBlock body (0x1b03f0) executed for bucket 23",
+      "source": "games/slus_20909_crash_twinsanity/hle/graphics/effects/distortion_pass.cpp",
+      "increment": "if (draw) ++counts_.model_calls;",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/graphics/effects/effects_report.cpp",
+      "publish": "meta.Set(\"graphics_distortion_draw\", \"calls=\" + std::to_string(counts.pass.calls) +"
+    },
+    "Graphics.screen.effects.model_calls": {
+      "field": "graphics_screen_effects",
+      "member": "model_calls",
+      "scope": "generated DrawScreenEffects body (0x1b92d8) executed for bucket 4 (TR effects.cpp:268)",
+      "source": "games/slus_20909_crash_twinsanity/hle/graphics/effects/screen_pass.cpp",
+      "increment": "++counts_.model_calls;",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/graphics/effects/effects_report.cpp",
+      "publish": "meta.Set(\"graphics_screen_effects\", \"calls=\" + std::to_string(counts.calls) +"
+    },
+    "StreamLibrary.original.start_read_declined": {
+      "field": "stream_library_fallbacks",
+      "member": "start_read_declined",
+      "scope": "captured generated FileStream StartRead 0x2ad9a8 executed at the binding for an ordinary request the file owner holds (the file-jobs model; zero under hle.stream_files)",
+      "source": "games/slus_20909_crash_twinsanity/hle/stream/stream_library.cpp",
+      "increment": "++g_declined[i];",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"stream_library_fallbacks\","
+    },
+    "StreamLibrary.original.start_read_unowned": {
+      "field": "stream_library_fallbacks",
+      "member": "start_read_unowned",
+      "scope": "captured generated FileStream StartRead 0x2ad9a8 executed at the binding for a request on a file the owner does not hold (a sound bank under hle.sound_samples=off, an audio-registered fs); the bank path, retired with hle.sound_samples",
+      "source": "games/slus_20909_crash_twinsanity/hle/stream/stream_library.cpp",
+      "increment": "++g_unowned[i];",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"stream_library_fallbacks\","
+    },
+    "StreamLibrary.original.is_reading_declined": {
+      "field": "stream_library_fallbacks",
+      "member": "is_reading_declined",
+      "scope": "captured generated FileStream IsReading 0x2adaf0 executed at the binding for an ordinary request the file owner holds (the file-jobs model; zero under hle.stream_files)",
+      "source": "games/slus_20909_crash_twinsanity/hle/stream/stream_library.cpp",
+      "increment": "++g_declined[i];",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"stream_library_fallbacks\","
+    },
+    "StreamLibrary.original.is_reading_unowned": {
+      "field": "stream_library_fallbacks",
+      "member": "is_reading_unowned",
+      "scope": "captured generated FileStream IsReading 0x2adaf0 executed at the binding for a request on a file the owner does not hold (a sound bank under hle.sound_samples=off, an audio-registered fs); the bank path, retired with hle.sound_samples",
+      "source": "games/slus_20909_crash_twinsanity/hle/stream/stream_library.cpp",
+      "increment": "++g_unowned[i];",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"stream_library_fallbacks\","
+    },
+    "StreamLibrary.original.wait_declined": {
+      "field": "stream_library_fallbacks",
+      "member": "wait_declined",
+      "scope": "captured generated FileStream WaitRead 0x2ada30 executed at the binding for an ordinary request the file owner holds (the file-jobs model; zero under hle.stream_files)",
+      "source": "games/slus_20909_crash_twinsanity/hle/stream/stream_library.cpp",
+      "increment": "++g_declined[i];",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"stream_library_fallbacks\","
+    },
+    "StreamLibrary.original.wait_unowned": {
+      "field": "stream_library_fallbacks",
+      "member": "wait_unowned",
+      "scope": "captured generated FileStream WaitRead 0x2ada30 executed at the binding for a request on a file the owner does not hold (a sound bank under hle.sound_samples=off, an audio-registered fs); the bank path, retired with hle.sound_samples",
+      "source": "games/slus_20909_crash_twinsanity/hle/stream/stream_library.cpp",
+      "increment": "++g_unowned[i];",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"stream_library_fallbacks\","
+    },
+    "StreamLibrary.original.bank_start": {
+      "field": "stream_library_fallbacks",
+      "member": "bank_start",
+      "scope": "captured generated FileStream StartSoundBankRead 0x2ada68 executed at the binding after PrepareAudioRead (always, by construction); the bank path, retired with hle.sound_samples",
+      "source": "games/slus_20909_crash_twinsanity/hle/stream/stream_library.cpp",
+      "increment": "++g_bank_start;",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/game_libraries.cpp",
+      "publish": "meta.Set(\"stream_library_fallbacks\","
+    },
+    "Graphics.meshes.rigid.model_calls": {
+      "field": "graphics_meshes",
+      "member": "rigid_model_calls",
+      "scope": "generated SetRigidModelDma_ (0x1bd000) body executed",
+      "source": "games/slus_20909_crash_twinsanity/hle/graphics/mesh_pass.cpp",
+      "increment": "if (counter) ++counter->model_calls;",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/graphics/graphics_report.cpp",
+      "publish": "meta.Set(\"graphics_meshes\", \"selected=\" + std::to_string(selected) +"
+    },
+    "Graphics.meshes.placed.model_calls": {
+      "field": "graphics_meshes",
+      "member": "placed_model_calls",
+      "scope": "generated SetPlacedModelDMA (0x1be7f0) body executed",
+      "source": "games/slus_20909_crash_twinsanity/hle/graphics/mesh_pass.cpp",
+      "increment": "if (counter) ++counter->model_calls;",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/graphics/graphics_report.cpp",
+      "publish": "meta.Set(\"graphics_meshes\", \"selected=\" + std::to_string(selected) +"
+    },
+    "Graphics.meshes.flush.model_calls": {
+      "field": "graphics_meshes",
+      "member": "flush_model_calls",
+      "scope": "generated FlushMaterial (0x1ba3a8) body executed for a material the owned mesh pass did not take",
+      "source": "games/slus_20909_crash_twinsanity/hle/graphics/mesh_pass.cpp",
+      "increment": "if (counter) ++counter->model_calls;",
+      "publisher": "games/slus_20909_crash_twinsanity/hle/graphics/graphics_report.cpp",
+      "publish": "meta.Set(\"graphics_meshes\", \"selected=\" + std::to_string(selected) +"
+    }
+  }
+}

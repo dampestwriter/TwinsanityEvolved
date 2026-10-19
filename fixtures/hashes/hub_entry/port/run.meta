@@ -1,0 +1,30 @@
+build_id=twinsanityevolved c73fda2f
+gl_renderer=ps2e_draw/gl
+tree=new
+profile=deterministic
+env_ps2=profile=deterministic
+env_hash=0x346edd53161f21b0
+frames=4140
+wall_ms=36763
+finalized=1
+port=twinsanityevolved
+mem_lane=off
+harness=port
+disc=~/Downloads/Crash Twinsanity (Europe).iso
+elf=SLES_525.68
+field_hz=60
+skip_movies=on
+language=1
+play_pad=~/TwinsanityEvolved/fixtures/padlogs/hub_entry.padlog
+pad_script=
+load_state=
+clock=boundaries=4200,fields=4200,parks=0,late=0,timeouts=0,deterministic,60hz
+audio_ring=pushed=0,pulled=0,dropped=0,underruns=0,overruns=0,padded=0,device=0
+exit_status=0
+watchdog=1
+heap=pool=7960912,used=2316672,peak=2316672,free=5644240,pages_used=736,pages=963
+boundaries=4200
+presents=4140
+frame_size=512x512
+state_trace=WaitingForLoader@61;Starting@62;WaitingForPad@98;CheckingCard@99;VivendiLogo@344;TravellersTalesLogo@387;LoadingTitle@400;Title@559;MainMenu@572;NewGame@1671;Movie@1704;StartingPlay@1747;Playing@1749;Paused@1751;Waiting@1903;Playing@1919
+state_trace_lines=16

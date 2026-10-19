@@ -1,0 +1,6 @@
+# twinsanityevolved padlog v1 -- the title to the main menu, held: START once the title is up (the language judge; no
+# language-bank header: the judge's arms name the language themselves)
+1 0000 128 128 128 128  # NONE
+1273 0008 128 128 128 128  # START
+1278 0000 128 128 128 128  # NONE
+# end at boundary 1600

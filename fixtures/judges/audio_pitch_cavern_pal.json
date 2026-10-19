@@ -1,0 +1,20 @@
+{
+  "disc": "PAL SLES-52568 (PLAY mode: windowed, the audio device open, the pacer at 60 Hz; --skip-movies --trace-state; TE_STREAM_TRACE=1; the device-side audio tap tools/audio_tap)",
+  "padlog": "fixtures/padlogs/cavern_entry.padlog",
+  "chunk": "levels\\earth\\cavern\\cavent",
+  "place": "0xFFFF",
+  "stop_at": 3700,
+  "run_seconds": 240,
+  "from_boundary": 2700,
+  "min_speech_clips": 1,
+  "max_speech_clips": 4,
+  "tolerance": 0.03,
+  "speed_tolerance": 0.05,
+  "speed_min": 0.5,
+  "speed_max": 1.6,
+  "min_match": 0.2,
+  "search_window_s": 6.0,
+  "device_lead_s": 0.05,
+  "why": "LOAD GAME on the hub card warped to Cavern Catastrophe's first chunk (the cavern_entry log: Playing 2820); the opening line DRC356-25_09 (Cortex, Crash6\\English.mb +0xB30000 on the PAL disc, an MSVp clip at 48000 Hz while the bank's .mh table says 32000) streams at Playing + 2. The reference is the clip decoded at its header's rate (STREAM.IRX 0x4c14 keys the voice on at that rate); GREEN iff the clip is located in the host mix at speed 1.00 +/- 0.05 and the median per-hop f0 ratio host/reference over the voiced hops is within 1 +/- 0.03, with the audio census dropped=0 underruns=0.",
+  "frozen": "2026-10-18: RED on bin/twinsanityevolved.310b6f0 (speed 0.67, f0 ratio ~0.67: the line keyed on at the .mh table's 32 kHz pitch), GREEN on the voice-pitch fix build; frozen; run x2."
+}

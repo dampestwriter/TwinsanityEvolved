@@ -1,0 +1,19 @@
+# data_symbols.tsv -- the title's well-known DATA words (not functions) named by this tree's tools and records.
+# Columns: address<TAB>name<TAB>size<TAB>source. Addresses are EE guest addresses (RAM or the scratchpad window).
+# These never appear in symbols.tsv (functions only); the harness reads the two scene words from the leg's
+# SCENE_KEYS.tsv and the allocator roots from verify/attribution/classes.tsv -- this file is the index of them.
+address	name	size	source
+0x002e7ff0	sceGsGParam	20	games/<t>/hle/title_profile.cpp (t.gs.gparam_addr: {interlace, mode, ffmode, syncv_fn, syncv_id})
+0x002ea844	sbrk_break_word	4	games/<t>/hle/title_profile.cpp (t.boot.sbrk_break_word)
+0x00309508	pad_ctrl_object_ptr	4	games/<t>/hle/title_profile.cpp (t.pad.ctrl_object_ptr; case = (word(obj+4) >> 12) & 0x3f)
+0x0030a458	piracy_check_failed_flag	4	hook reclassification (the flag the 0x181490 bypass wrote 0 to)
+0x0031afb8	title_heap_header	0x1c	verify/attribution/classes.tsv @heap (relocate_compare.py: free head, arena, counts, bytes)
+0x0031aff8	slab_pool_header	-	verify/attribution/classes.tsv @slabpool (63 classes; slab_walk.py)
+0x0031b138	record_pool_header	0x54	verify/attribution/classes.tsv @pool (relocate_compare.py: free-list heads +0xc..+0x48, free count +0x4c, list +0x50)
+0x00323278	record_pool_used_count	4	verify/attribution/classes.tsv @pool-used (the live-record counter)
+0x00323534	title_clock_word	4	games/<t>/verify/baseline/coldboot_attract/SCENE_KEYS.tsv clock_word (+149 per EE boundary; DT-6)
+0x0098c140	boot_sm_word	8	games/<t>/verify/baseline/coldboot_attract/SCENE_KEYS.tsv boot_sm_word (case = bits 44..49, bit 63 = cutscene flag)
+0x00b97668	budget_anchor	4	frame budget (steps +0x2580 = 9600 per frame)
+0x003d4ae0	display_config_struct	-	hook reclassification (the tile/display config FUN_0019aff0 reads)
+0x00f59ac0	asset_heap_base	0x10a0000	relocate_compare (the compacting handle heap, 16.6 MiB)
+0x70000000	scratchpad_window	0x4000	engine map (the 16 KB scratchpad; the main thread's stack per spad_stack.py)

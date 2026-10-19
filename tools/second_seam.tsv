@@ -1,0 +1,27 @@
+# The IMPLICIT second seam: functions the game declares in include/game/*.h
+# (or extern "C" in src/game) whose PS2 bodies were VU0 macro-mode asm or renderer internals in src/platform/ps2/. The wasm
+# module forwards each to an import (tools/gen_seam.py); the host owner implements ps2e_* in platform/nativeee/<module>.cpp.
+# symbol	import	ret	params (kind:name, kinds: ptr s32 u32 f32)	group	declaration (where)
+FUN_0018d830	ps2e_vu0_plane_through_triangle	u32	ptr:plane,ptr:first,ptr:second,ptr:third	graphics/math	u32 PlaneThroughTriangle(Vector4* plane, const Vector4* first, const Vector4* second, const Vector4* third) [include/game/collision.h; PS2 src/platform/ps2/collisionmaths.cpp]
+# The four renderer resources shadows.cpp calls by retail name (MeshConstruct FUN_001c1e70, ModelConstruct InitGameModel, ModelRead
+# ReadGameModel, MeshRead ReadRigidModel2) are wasm-side bodies in platform/nativeee/wasm/graphics_models.cpp.
+FUN_0018ecc0	ps2e_vu0_transform_by_rows	void	ptr:rows,ptr:point,ptr:out	graphics/math	void VuTransformByRows(const Matrix4x4* rows, const Vector4* point, Vector4* out) [include/game/math.h; PS2 matrices.cpp]
+FUN_0018ef18	ps2e_vu0_invert_rigid	void	ptr:out,ptr:matrix	graphics/math	void VuInvertRigid(Matrix4x4* out, const Matrix4x4* matrix) [include/game/math.h; PS2 matrices.cpp]
+FUN_0018ef98	ps2e_vu0_invert_rigid_in_place	void	ptr:matrix	graphics/math	void VuInvertRigidInPlace(Matrix4x4* matrix) [include/game/math.h; PS2 matrices.cpp]
+FUN_00201b90	ps2e_vu0_triangle_bounds	void	ptr:box,ptr:first,ptr:second,ptr:third	graphics/math	void TriangleBounds(Box* box, const Vector4* first, const Vector4* second, const Vector4* third) [include/game/collision.h; PS2 bounds.cpp]
+FUN_00201bb8	ps2e_vu0_points_box	void	ptr:points,s32:count,ptr:box	graphics/math	void PointsBox(const Vector4* points, s32 count, Box* box) [include/game/hull.h; PS2 bounds.cpp]
+FUN_00293340	ps2e_vu0_start_triangle_edge_tests	void	ptr:start,ptr:end,ptr:triangle,ptr:values	graphics/math	void StartTriangleEdgeTests(const Vector4* start, const Vector4* end, const CollisionHit* triangle, f32* values) [include/game/collision.h; PS2 collisionmaths.cpp]
+FUN_002933e4	ps2e_vu0_finish_triangle_edge_tests	void	ptr:values	graphics/math	void FinishTriangleEdgeTests(f32* values) [include/game/collision.h; PS2 collisionmaths.cpp]
+FUN_0029345c	ps2e_vu0_make_vertex_differences	void	ptr:request	graphics/math	void MakeVertexDifferences(const VertexDifferences* request) [include/game/physics.h; PS2 collisionmaths.cpp]
+FUN_00293540	ps2e_vu0_group_points	void	ptr:points,s32:groups	graphics/math	void GroupPoints(Vector4* points, s32 groups) [include/game/physics.h; PS2 collisionmaths.cpp]
+FUN_0029359c	ps2e_vu0_groups_range	void	ptr:groups,s32:count,ptr:axis,ptr:range	graphics/math	void GroupsRange(const Vector4* groups, s32 count, const Vector4* axis, f32* range) [include/game/physics.h; PS2 collisionmaths.cpp]
+FUN_00293624	ps2e_vu0_sixteen_groups_range	void	ptr:groups,ptr:axis,ptr:range	graphics/math	void SixteenGroupsRange(const Vector4* groups, const Vector4* axis, f32* range) [include/game/physics.h; PS2 collisionmaths.cpp]
+FUN_002936d8	ps2e_vu0_load_triangle_hull_support	void	ptr:triangle,ptr:hullVertices	graphics/math	void LoadTriangleHullSupport(const CollisionHit* triangle, const Vector4* hullVertices) [include/game/physics.h; PS2 collisionmaths.cpp]
+FUN_002938bc	ps2e_vu0_triangle_hull_support_range	void	ptr:axis,ptr:range	graphics/math	void TriangleHullSupportRange(const Vector4* axis, f32* range) [include/game/physics.h; PS2 collisionmaths.cpp]
+GetBbox	ps2e_vu0_get_bbox	void	ptr:points,s32:count,ptr:box,ptr:matrix	graphics/math	void GetBbox(const Vector4* points, s32 count, Box* box, const Matrix4x4* matrix) [include/game/hull.h; PS2 bounds.cpp]
+InitIdentityMatrix	ps2e_vu0_init_identity_matrix	void	ptr:matrix	graphics/math	void InitIdentityMatrix(Matrix4x4* matrix) [include/game/math.h; PS2 matrices.cpp]
+MultiplyMatrices	ps2e_vu0_multiply_matrices	void	ptr:a,ptr:b,ptr:out	graphics/math	void VuMultiplyMatrices(const Matrix4x4* a, const Matrix4x4* b, Matrix4x4* out) [include/game/math.h; PS2 matrices.cpp]
+MultiplyMatrixByVector	ps2e_vu0_transform_point	void	ptr:matrix,ptr:point,ptr:out	graphics/math	void VuTransformPoint(const Matrix4x4* matrix, const Vector4* point, Vector4* out) [include/game/math.h; PS2 matrices.cpp]
+Rotate_	ps2e_vu0_matrix_from_rotation	void	ptr:matrix,ptr:rotation	graphics/math	void MatrixFromRotation(Matrix4x4* matrix, const Vector4* rotation) [include/game/math.h; PS2 matrices.cpp]
+RotateVecByVec	ps2e_vu0_multiply_rotations	void	ptr:out,ptr:a,ptr:b	graphics/math	void MultiplyRotations(Vector4* out, const Vector4* a, const Vector4* b) [include/game/math.h; PS2 matrices.cpp]
+TransformVector_	ps2e_vu0_rotate_vector	void	ptr:matrix,ptr:vector,ptr:out	graphics/math	void VuRotateVector(const Matrix4x4* matrix, const Vector4* vector, Vector4* out) [include/game/math.h; PS2 matrices.cpp]

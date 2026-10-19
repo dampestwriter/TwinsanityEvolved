@@ -1,0 +1,20 @@
+# NEW stage11 model run.meta, stream_rpc_cmds_head boundary 113.
+# Read-only evidence: int_work/m_wave/sound-output-comparison-stage11/model/run.meta
+# Only complete adjacent bank allocation/read intents in the bounded head are included.
+# Same file: CRASH6/CRASH.BD. Decimal values; offsets are bytes.
+# bank_id	file_offset	bytes
+32768	3878226	5168
+32769	3883394	3072
+32770	3886466	3072
+14	3018936	6096
+19	3025032	8224
+20	3033256	6432
+21	3039688	10208
+22	3049896	17648
+23	3067544	13904
+26	3081448	11696
+27	3093144	8608
+28	3101752	3024
+51	3104776	12304
+52	3117080	16160
+98	3133240	5072

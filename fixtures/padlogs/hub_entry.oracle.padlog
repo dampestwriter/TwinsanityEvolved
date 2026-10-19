@@ -1,0 +1,11 @@
+# padlog v1 start_frame=1 clock=frame title=slus_20909_crash_twinsanity
+# fixtures/padlogs/hub_entry.padlog (PAL port, --skip-movies: Title 559, START 570 in the first recording; Title 1262, START 1273 since the drive-model re-recording -- the oracle inputs are unchanged) transposed to the NTSC oracle whose
+# boot movies play (title ~1300): START at 1350, every later press at the port's offset from its START (+130 CROSS new game,
+# +430 UP, +530 CROSS create file, +780 DOWN, +850 CROSS, +1330 CROSS continue), each held 6 frames.
+1350-1356:START
+1480-1486:CROSS
+1780-1786:UP
+1880-1886:CROSS
+2130-2136:DOWN
+2200-2206:CROSS
+2680-2686:CROSS

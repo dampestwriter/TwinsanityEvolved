@@ -1,0 +1,30 @@
+{
+  "padlog": "fixtures/padlogs/level_select_row3.padlog",
+  "chunk": "levels\\earth\\cavern\\cavent",
+  "disc": "PAL SLES-52568; deterministic headless: --deterministic --no-sdl-input --no-audio --skip-movies --trace-state --mod level_select; TE_GFX_DUMP_EVERY=100, TE_GFX_DIAG_TEXT=1",
+  "stop_at": 3000,
+  "run_seconds": 600,
+  "dump_every": 100,
+  "present": 2700,
+  "region": [
+    0.3,
+    0.02,
+    0.7,
+    0.12
+  ],
+  "rest": [
+    0.0,
+    0.15,
+    1.0,
+    1.0
+  ],
+  "region_min_diff": 2.0,
+  "region_min_sd_gain": 6.0,
+  "rest_max_diff": 0.5,
+  "min_timer_lines": 100,
+  "save_at": 2500,
+  "load_at": 2800,
+  "ring_seconds": 15,
+  "why": "the one-click row-3 pad log warps to cavent at ~2374 (StartingPlay) -- the speedrun mod's first level entry starts the run and writes '# split enter levels\\\\earth\\\\cavern\\\\cavent rta=0.000 igt=0.000 boundary=2374' into the recording; the timer (one line 'mm:ss.cc', TopCentre at (0.5, 0.05), half the menu size, the game's font) sits in the top band over the cavern's rock, the rows below it are the scene (identical with and without the mod); the practice ring: F9 at 2500 saves slot 0 (~48 MB), F10 at 2800 loads it in place -- the probe's boundaries go 2792 -> 2501 (the injected keys re-fire after the rewind, so run C loops until its 15 s watchdog: exit 0)",
+  "frozen": "2026-10-17 product: RED on bin/twinsanityevolved.0f92911 (no --mod: the runner exits 2), GREEN on the speedrun-mod build; 2026-10-18: the region moved to the top band with the timer, the timer line is 'mm:ss.cc';: the one-click level select pad log"
+}

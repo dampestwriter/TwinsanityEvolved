@@ -1,0 +1,6 @@
+# Post-map patches the original runtime applied after the data map (memory.cpp:310-312).
+# Same grammar as ram_data_map_v50.txt. Retirement: the 3A RAM-image probe decides
+# whether the retail ELF already holds these values .
+0x002E6F40:0x10008000
+0x002E6F44:0x10009000
+0x002E804C:0x00000000

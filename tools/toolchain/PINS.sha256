@@ -1,0 +1,21 @@
+# sha256  file   (verified with `shasum -a 256` / `sha256sum`; the wabt digests match upstream's .sha256 assets)
+# --- macOS arm64 (the dev host) ---
+aeae999396d5f5caa5ce419f52e83c35869d5fd21d40af80acba2c80f51b0b3a  wasi-sdk-24.0-arm64-macos.tar.gz
+3f654779b436c628db3ca4323c51538815f5fbc887a6d5f3bb1c18d36281e240  wabt-1.0.42-macos-arm64.tar.gz
+0b2e143f0fac830156feb56f9231ff8338c20aecfe72b4ffe96f19e5a1dbb69a  libclang-18.1.1-1-py2.py3-none-macosx_11_0_arm64.whl
+# --- macOS x86_64 (wabt from the pinned source: no 1.0.42 Intel binary upstream) ---
+4bfc274ae8b68c771dd93e32ad4bd695336ca46b585beb3b1260e5602dbc11a2  wasi-sdk-24.0-x86_64-macos.tar.gz
+a76cda3c174a43097863a07fc0b0c202f770f53e21806ea2636f167d1ffb1e30  wabt-1.0.42.tar.xz
+6f14c3f194704e5d09769108f03185fce7acaf1d1ae4bbb2f30a72c2400cb7c5  libclang-18.1.1-py2.py3-none-macosx_10_9_x86_64.whl
+# --- Linux x86_64 ---
+c6c38aab56e5de88adf6c1ebc9c3ae8da72f88ec2b656fb024eda8d4167a0bc5  wasi-sdk-24.0-x86_64-linux.tar.gz
+84895407a6bbb80e918f33b16b2fb2206021c150b6bc9ff6f761263a745ab131  wabt-1.0.42-linux-x64.tar.gz
+c533091d8a3bbf7460a00cb6c1a71da93bffe148f172c7d03b1c31fbf8aa2a0b  libclang-18.1.1-py2.py3-none-manylinux2010_x86_64.whl
+# --- Linux aarch64 ---
+ae6c1417ea161e54bc54c0a168976af57a0c6e53078857886057a71a0d928646  wasi-sdk-24.0-arm64-linux.tar.gz
+a7632c1cc66f70886441842ecf5a2ffa91a98c79e026059458451234ad013ea8  wabt-1.0.42-linux-arm64.tar.gz
+54dda940a4a0491a9d1532bf071ea3ef26e6dbaf03b5000ed94dd7174e8f9592  libclang-18.1.1-py2.py3-none-manylinux2014_aarch64.whl
+# --- Windows x86_64 (Git Bash / MSYS2) ---
+0f934c6e7e171b5627c81b697a9e57e96d65cd889f56ce6077350de48978afd3  wasi-sdk-24.0-x86_64-windows.tar.gz
+62f1eb2b51aa57cf0f0b8ba333bf2c72a049930aa9c5de01dcad271c4fe48c88  wabt-1.0.42-windows-x64.tar.gz
+4dd2d3b82fab35e2bf9ca717d7b63ac990a3519c7e312f19fa8e86dcc712f7fb  libclang-18.1.1-py2.py3-none-win_amd64.whl

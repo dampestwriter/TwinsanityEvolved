@@ -1,0 +1,24 @@
+{
+  "disc": "PAL SLES-52568 (PLAY mode: paced, windowed, scale 1; --skip-movies --trace-state; TE_GFX_SUMMARY_EVERY=10)",
+  "summary_every": 10,
+  "load_states": [
+    "LoadingLevel",
+    "StartingPlay",
+    "Waiting"
+  ],
+  "load_margin_boundaries": 30,
+  "min_render_fps_p50": 55.0,
+  "max_ms_per_frame": 16.7,
+  "max_slow_windows_outside_load": 0,
+  "padlog": "fixtures/padlogs/cavern_cryscave.padlog",
+  "stop_at": 6700,
+  "run_seconds": 300,
+  "playing_from": 2820,
+  "min_windows": 300,
+  "mc_from": "$ROOT/build/padlog_smoke/mc_warp",
+  "extra_args": [
+    "--trace-player",
+    "30"
+  ],
+  "frozen": "2026-10-17: the render-rate check on cavern_cryscave.padlog (the cavent warp card as cavern_entry; cavent -> tunnel01 -> cryscave 4426 -> the trapdoor crossed 5355 -> tunnel02 6569) in PLAY mode: Playing 2820 to 6700; the chunk loads inside Playing are not excluded (as the jungle fixture). Hub thresholds. Measured on bin/twinsanityevolved.966caf5 by the reviewer (review/REVIEW_UV_<HEAD>.md); frozen; run x2."
+}

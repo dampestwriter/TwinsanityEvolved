@@ -1,0 +1,10 @@
+{
+  "padlog": "fixtures/padlogs/hub_entry.padlog",
+  "disc": "PAL SLES-52568; deterministic headless, no draws: --deterministic --no-sdl-input --no-audio --skip-movies --trace-state; TE_GFX_HEADLESS=1 TE_GFX_NO_DRAW=1",
+  "stop_at": 2700,
+  "run_seconds": 600,
+  "mod": "level_select",
+  "save_file": "Bank0.bin",
+  "why": "the hub entry log creates the new game's save file on the card and autosaves slot 1 (Bank0.bin) before boundary 2700 (level_entries.sh builds its hub card the same way); with a mod on the card the game writes is <mc_dir>-mods -- on an empty folder the vanilla folder stays empty and the -mods folder gets the save; over a copy of the vanilla card every vanilla byte stays as it was (sha256 per file) while the -mods card (seeded from it) is written",
+  "frozen": "2026-10-17 product (the mod framework): RED on bin/twinsanityevolved.0f92911 (no --mod: the runner exits 2), GREEN on the mods build"
+}

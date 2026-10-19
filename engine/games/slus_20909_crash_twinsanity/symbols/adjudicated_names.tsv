@@ -1,0 +1,38 @@
+# adjudicated_names.tsv -- hand-curated function names at generated-function addresses of SLUS_209.09,
+# each taken from a record in THIS tree (the HLE sources' comments, the title READMEs, the DECISIONS_LOG /
+# HOOK_RECLASSIFICATION rows). Columns: address<TAB>name<TAB>source (file or record the name comes from).
+# A row names what the TITLE's own code does at that address; the generated body stays the implementation.
+# Rows are merged into symbols.tsv by build_symbols.py (source column `curated`); the sce manifest's names
+# win over these where both exist.
+address	name	source
+0x00100008	entry	games/<t>/hle/title_profile.cpp (t.entry; the ELF entry point, crt0)
+0x00177168	pad_ctrl_state_machine	games/<t>/hle/title_profile.cpp (t.pad.ctrl_sm_entry; case = ((*(*0x309508+4))>>12)&0x3f)
+0x0017d6b8	load_poll_spin	loader_sync (the load-poll spin over the headroom query; ra 0x17d724/0x17d75c/0x17d87c)
+0x00181490	piracy_check	hook reclassification (FUN_00181490: the disc piracy check, flag @0x0030a458; workaround-class, never a binding)
+0x00181560	meta_alloc_small	games/<t>/hle/workarounds/free_list_0x181560.h (FUN_00181560(size): small metadata allocation routed by the hook)
+0x00181590	meta_free_small	games/<t>/hle/workarounds/free_list_0x181560.h (FUN_00181590 -> FUN_002045a8(pool, ptr): the matching free)
+0x00191920	t0_count_read	loader_sync (FUN_00191920 -> T0 COUNT, BUSCLK/256)
+0x00191bd0	headroom_query	games/<t>/hle/glue/headroom_query_glue.h (FUN_00191bd0(timer, seconds): the frame-headroom predicate; DP-8 (1), row 4.13)
+0x0019aff0	setup_display_registers	hook reclassification (FUN_0019aff0: the title's display-register setup; hle_SetupDisplayRegisters seam)
+0x001e1500	stream_record_stage	loader_sync (FUN_001e1500: a STREAM record staged for the module)
+0x001e1f48	stream_reply_processor	loader_sync (FUN_001e1f48: the STREAM module's reply processor; retires/ages slots)
+0x001e3308	stream_slot_state_read	loader_sync (FUN_001e3308 reads the slot's state byte: 0 or 3 = done, 2 = queued)
+0x00202458	slab_alloc	slab_walk (FUN_00202458 alloc -- the title's page-pool allocator)
+0x00204c38	slab_free	slab_walk (FUN_00204c38 free)
+0x00204d48	slab_init	slab_walk (FUN_00204d48 init)
+0x00204dc0	slab_list_op_a	slab_walk (list primitive)
+0x00204df0	slab_list_op_b	slab_walk (list primitive)
+0x00205670	slab_list_op_c	slab_walk (list primitive)
+0x002057e0	slab_list_op_d	slab_walk (list primitive)
+0x002aa8d0	stream_mgr_poll	loader_sync (FUN_002aa8d0(mgr, 0, &out): the loader's completion poll)
+0x002aac80	stream_ring_fill	docs/phases (P8.29-A: FUN_002aac80(fs, off, size, dest, ...) -- the Default.rm2 stream ring's five-step fill rule)
+0x002ad110	async_read_issue	loader_sync (FUN_002ad110 -> FUN_002adaf0 -> FUN_001e3308: the asynchronous read issue)
+0x002ad1a0	wait_for_read_complete	games/<t>/recomp/recompiled.cpp seam label "WaitForReadComplete" + loader_sync (FUN_002ad1a0(fs) wait)
+0x002ad8f0	loader_open	games/<t>/recomp/recompiled.cpp seam ("Intitialize Graphics" label is OLD's misnomer) + loader_sync (FUN_002ad8f0(path) open)
+0x002adb40	loader_close_handle	games/<t>/recomp/recompiled.cpp seam label "Close Handle"
+0x002ae318	fmv_prime_pictures	FMV integration (FUN_002ae318: the two priming sceMpegGetPicture serves before the playing state)
+0x002ae860	fmv_opener	FMV integration (FUN_002ae860: the FMV opener -- sceCdSearchFile then sceCdStInit/StStart)
+0x002af0d8	scene_updater	games/<t>/hle/workarounds/fmv_abort_hold.h (the scene updater 0x2af0d8 the hold wraps; OLD main.cpp:12768-12796)
+0x002af8f0	fmv_frame_advance	games/<t>/recomp/recompiled.cpp seam label "FMV/IPU per-frame advance"
+0x002b0ae0	fmv_load_loop	FMV integration (FUN_002b0ae0 @0x2b0bc4/0x2b0bd4: the title's FMV load loop; latches gctx+0x15c)
+0x002d69a0	__do_global_ctors	games/<t>/recomp/recompiled.cpp seam label "Global Constructors (__do_global_ctors)"

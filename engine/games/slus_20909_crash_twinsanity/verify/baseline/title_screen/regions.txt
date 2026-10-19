@@ -1,0 +1,12 @@
+pcsx2_start_screen_shot.ppm
+  ORB   mean=(147.5,114.7, 67.2) bright=0.417 yellow=(232,172, 22) n=7241  light=5602  hash=3bf57407a90ee51e
+  LOGO  mean=(199.7,173.4, 72.4) bright=0.605 yellow=(238,216, 16) n=20501 light=25984 hash=6e8b9f1eb26bc692
+  OCEAN mean=( 66.0,120.4,204.1) bright=0.659 yellow=(224,135, 19) n=3827  light=2261  hash=9a2c29c859315074
+old_coldboot_vf3000.ppm
+  ORB   mean=(160.3,123.7, 72.7) bright=0.488 yellow=(232,168, 23) n=8035  light=6041  hash=50fdc3f64c890d0d
+  LOGO  mean=(201.0,176.7, 70.7) bright=0.635 yellow=(238,216, 14) n=21174 light=26122 hash=d630111831c5048d
+  OCEAN mean=( 35.2,103.3,224.1) bright=0.640 yellow=(219,149, 35) n=1399  light=866   hash=99b321757a22a435
+new_coldboot_f2519_bcd30c2.ppm (flipped: stored bottom-up)
+  ORB   mean=(141.9,110.9, 84.9) bright=0.098 yellow=(206,153, 57) n=8258  light=5455  hash=6355f9b3e8afc97d
+  LOGO  mean=(192.2,159.8,100.2) bright=0.182 yellow=(213,177, 65) n=23255 light=26587 hash=71aa69def1ab9da5
+  OCEAN mean=( 40.6, 97.4,215.1) bright=0.472 yellow=(206,132, 50) n=2615  light=1127  hash=e68b778dbd4a7165

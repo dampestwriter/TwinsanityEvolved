@@ -1,0 +1,87 @@
+{
+  "archive_header_sha256": "27fe74b6f1253954dc9c2bede794a8528df0b035852ce4e8213d8d08ad42f6a7",
+  "archive_data_sha256": "eeedcae83d4e0c3ff483fe9f8afa8d3822bd734027434a7a1abbb84273dd17d7",
+  "models_manifest_sha256": "b46f478e06838ec9dbf79df78ab17cd4a6148f79cf1662dc0479061fbe5dee9c",
+  "geometry_qualified": 5292,
+  "appearances": {
+    "1": 19258,
+    "2": 20090,
+    "3": 11711,
+    "4": 721,
+    "6": 8026,
+    "8": 93,
+    "5": 207,
+    "7": 1149
+  },
+  "material_ids": 9404,
+  "material_variants": 9438,
+  "model_ids": 5382,
+  "model_variants": 5292,
+  "draw_appearances": 19737,
+  "type01_candidates": 5342,
+  "accepted_draw_appearances": {
+    "placed": 4019
+  },
+  "accepted_draw_ids": {
+    "rigid": 0,
+    "placed": 2089
+  },
+  "reason_counts": {
+    "material-envelope": 4062,
+    "font": 4,
+    "no-rigid-or-placed-consumer": 2756,
+    "sprite": 2578,
+    "particle": 1,
+    "potential-borrowed-hud": 728,
+    "skin": 143,
+    "texture-identity-varies": 192,
+    "shadow-default": 1,
+    "sky": 141,
+    "blend-skin": 17,
+    "shared-with-unowned-model": 1436,
+    "model-not-qualified": 98,
+    "opaque-reference": 29
+  },
+  "scope": "Known retail files and source consumer graph; unknown/replaced records are unowned. No renderer/environment/readiness or texture retirement is implied.",
+  "material_record_entries": 3517,
+  "accepted_texture_ids": 835,
+  "mesh_geometry_cpp_sha256": "b431ac16102d9bee82f5fd501eb40910dc493e21eca1ef7d15ce1e8cdd79ba9b",
+  "geometry_parts_checked": 13726,
+  "boundaries": {
+    "direct_callers": {
+      "001ab060": [
+        "0015bdb0"
+      ],
+      "001be9f8": [
+        "001ca8b8"
+      ],
+      "001ba3a8": [
+        "001a6298",
+        "001c0490"
+      ],
+      "001711a8": [
+        "00121138",
+        "00176d40",
+        "00176e30"
+      ],
+      "001ab1a8": [],
+      "001abe20": [],
+      "001ca580": [
+        "001c8ed8"
+      ]
+    },
+    "body_sha256": {
+      "0015bdb0": "024244ba988331b7723a624676e6d69361e125dd2857754cd61f03dbf2d1f257",
+      "001711a8": "733b600c2fefefb7273b047ff8db0741c5b8a7f3fc923fb8ecf51ac35dcdf8d4",
+      "001a6ac0": "694c54207d99e0a93ca911028f0718dac9fb8611c494a733a30650f191218fd3",
+      "001ab060": "62cc1dc28cbdf2cafbda37d8266fe44f8dacdeac7c62bf0329f028bc8c212214",
+      "001ab1a8": "2201bcdfd7f33dbef35b39aa59489199d7fbf048646b34f2d21c210d8d7e98ff",
+      "001abe20": "21c73555716c448282b37df8dc6dc4a843939c61b92ba0e288dafd117e8e4669",
+      "001ba3a8": "0bd8804db07fd04726d0efd7eb29a25bd99072a86a0f4d2f2de5fe989d83f0d1",
+      "001be9f8": "04c1aa49441a9dd43d4229f08f4d13a38855688983ddcbb84ba28661fe6824c6",
+      "001c0670": "78bfb01c634f0c84b7564d4ea9dd015b3a96a91ad24fb628ff60bae1de593359",
+      "001ca580": "f50cfcafc68c50209b3dd62104102e71c2177a43be169dcde264ed4106b91c49"
+    },
+    "limits": "Generated direct calls and startup data words, paired with TR source consumer analysis. Computed pointer injection, foreign assets and changed source are not authorized."
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "judge": "tools/judges/movie_judge.py",
+  "what": "the two boot movies (VIVENDI.PSS 640x480, TTIDENT.PSS 512x512; 25 fps) play through the game's Player on the PAL disc: deterministic headless boot, TE_GFX_DUMP_AT = frame_number (mid-Vivendi: the logo over its white field)",
+  "run": "TE_GFX_HEADLESS=1 TE_GFX_DUMP_DIR=<dir> TE_GFX_DUMP_AT=400 build/twinsanityevolved --iso <PAL> --deterministic --no-sdl-input --trace-state --run-seconds 60",
+  "thresholds": {
+    "min_opens": 2,
+    "min_pictures": 400,
+    "min_pcm": 100000,
+    "min_luminance": 150.0,
+    "max_top": 0.97,
+    "frame_number": 400
+  },
+  "frozen": "2026-10-15 the audio owner: red on the movie stub (no census match) and on --skip-movies (green census absent, frame black lum 0.0); green on the movie player's first build (470 pictures decoded=queued=uploaded=presented, 466 drawn, 896000 PCM frames, 0 silence; frame 400 luminance_mean 229.8, dark_share 0.047, top_colour_share 0.10)"
+}

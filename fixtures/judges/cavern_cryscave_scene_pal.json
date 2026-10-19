@@ -1,0 +1,21 @@
+{
+  "padlog": "fixtures/padlogs/cavern_cryscave.padlog",
+  "disc": "PAL SLES-52568 (deterministic, headless: --deterministic --no-sdl-input --no-audio --skip-movies --trace-state; the hub card warped to levels\\earth\\cavern\\cavent by tools/warp_save.py --place 0xFFFF; TE_GFX_DUMP_EVERY=10)",
+  "card": "warp:levels\\earth\\cavern\\cavent",
+  "stop_at": 5520,
+  "run_seconds": 900,
+  "dump_every": 10,
+  "preset": "cryscave",
+  "frames_from": 4280,
+  "frames_to": 5330,
+  "skip_states": [
+    "Watching",
+    "LoadingLevel",
+    "StartingPlay",
+    "Waiting",
+    "Paused"
+  ],
+  "windows": [],
+  "why": "Cavern Catastrophe's cryscave on foot (the pen with the totem gate, the wooden track up to act_CAVERN_TRAPDOOR12): every dumped Playing frame from the ball's arrival (present ~4280, boundary 4460) to the track's top (~5330) is a DRAWN dim cave -- upper/lower region means 20-45 on the fixed build (min 19.7 / 22.4 over 208 frames at stride 5 and 10, graphics-owner/s_uv_9/{fixB,cam}_scan), most-common colour under 2 %, 130-250 draws, 11k-25k triangles. The mis-culled particle quads took the regions to 0.5-10 with black over 0.24-0.89 of the frame on presents 4290/4310/4320/4330/4495/4595/...: RED there. The wooden-track frames 5080-5130 (the reviewer's 'camera inside the cave wall') are the pen's rail camera at (6.5 34.5 -7.7) looking down at Crash on the track with the cave wall rising behind it -- lit rock detail, the track and Crash drawn (graphics-owner/s_uv_9/cam_5040_5130.png); judged like the rest, to compare with the re-frozen oracle at the same spot.",
+  "frozen": "2026-10-17: RED expected on bin/twinsanityevolved.966caf5 (the dark particle frames), GREEN on the particle-view fix; frozen; run x2 each."
+}

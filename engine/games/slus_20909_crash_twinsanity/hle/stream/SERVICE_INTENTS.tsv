@@ -1,0 +1,52 @@
+service	intent	specification	status	remaining_model	next_owner
+stream	Initialise	TR:src/platform/ps2/stream.cpp:34	unretired; compiled source init remains	IOP startup/priorities; fast-load transport and channel registry	StreamLibrary/Scheduler
+stream	Update	TR:src/platform/ps2/stream.cpp:55	unretired; per-frame send/status and recovery remain	STREAM send/reply; disc error and restart; IOP progress	StreamLibrary/Scheduler
+stream	GetState	TR:src/platform/ps2/stream.cpp:113	pure compiled client read retained	state producer Update still uses STREAM errors/replies	StreamLibrary/Scheduler
+stream	AttachBuffer	TR:src/platform/ps2/stream.cpp:118	opt-in MusicBuffers owns ordinary and music storage	default allocation; file-only selection still allocates through IOP	StreamLibrary/Scheduler
+stream	DetachBuffer	TR:src/platform/ps2/stream.cpp:127	opt-in MusicBuffers cancels music before releasing storage	default close; file-only selection still closes IOP buffers	StreamLibrary/Scheduler
+stream	FreeBufferMemory	TR:src/platform/ps2/stream.cpp:132	opt-in owned capacity query at accepted send	shared send; default IOP heap-capacity query	StreamLibrary/Scheduler
+stream	OpenFile	TR:src/platform/ps2/stream.cpp:141	opt-in ordinary files owned; selected music owns .mb registration	unselected .mb and legacy registrations; startup	StreamLibrary/Scheduler
+stream	FileSize	TR:src/platform/ps2/stream.cpp:173	opt-in selected file identity supplies size	unselected .mb Ship/reply	StreamLibrary/Scheduler
+stream	CloseFile	TR:src/platform/ps2/stream.cpp:182	opt-in owned generation invalidated before cancellation callbacks	unselected .mb and legacy unregister/Ship	StreamLibrary/Scheduler
+stream	Read	TR:src/platform/ps2/stream.cpp:188	opt-in typed pending bytes/deadlines/rings; model byte oracle passes	unknown/interior entries; global error/status and caller closure	StreamLibrary/Scheduler
+stream	ReadSoundBank	TR:src/platform/ps2/stream.cpp:197	opt-in SoundBanks + FileSchedule; immutable bank tickets	shared acceptance; whole-game timing regression; default IOP bank reads	StreamLibrary/Scheduler
+stream	IsReading	TR:src/platform/ps2/stream.cpp:205	opt-in owned file/bank request state and finite callback draining	remaining audio/status consumers; default STREAM status	StreamLibrary/Scheduler
+stream	Wait	TR:src/platform/ps2/stream.cpp:212	opt-in ordered file/bank waits on logical clock	unselected music/audio still pumps module; remaining service waits	StreamLibrary/Scheduler
+audio	Reset	TR:src/platform/ps2/audio.cpp:17	opt-in Audio controls composed with original shared command	original global command and remaining IOP/SpuCore owners	Audio/StreamLibrary/Scheduler
+audio	PauseAll	TR:src/platform/ps2/audio.cpp:22	opt-in Audio controls composed with original shared command	original global command and remaining IOP/SpuCore owners	Audio/StreamLibrary/Scheduler
+audio	ResumeAll	TR:src/platform/ps2/audio.cpp:27	opt-in Audio controls composed with original shared command	original global command and remaining IOP/SpuCore owners	Audio/StreamLibrary/Scheduler
+audio	LendToMovie	TR:src/platform/ps2/audio.cpp:32	two opt-in Movie storage loans implemented; lifecycle provider composition	direct STREAM callback controls and shared output ownership; active Movie restore	Audio/StreamLibrary/Scheduler
+audio	ReclaimFromMovie	TR:src/platform/ps2/audio.cpp:38	two opt-in Movie storage loans implemented; lifecycle provider composition	direct STREAM callback controls and shared output ownership; active Movie restore	Audio/StreamLibrary/Scheduler
+audio	CompactSoundMemory	TR:src/platform/ps2/audio.cpp:44	unretired	STREAM/libsd effects or compaction; SpuCore remains output owner	Audio/StreamLibrary/Scheduler
+audio	SetGroupVolume	TR:src/platform/ps2/audio.cpp:49	opt-in SoundControls production ABI and common Mixer VoiceSource	shared controls/remaining music; common mixer still calls SpuCore	Audio/StreamLibrary/Scheduler
+audio	SetVoiceVolume	TR:src/platform/ps2/audio.cpp:54	opt-in SoundControls production ABI and common Mixer VoiceSource	shared controls/remaining music; common mixer still calls SpuCore	Audio/StreamLibrary/Scheduler
+audio	SetVoicePitch	TR:src/platform/ps2/audio.cpp:59	opt-in SoundControls production ABI and common Mixer VoiceSource	shared controls/remaining music; common mixer still calls SpuCore	Audio/StreamLibrary/Scheduler
+audio	SetVoiceReverb	TR:src/platform/ps2/audio.cpp:64	unretired	STREAM/libsd effects or compaction; SpuCore remains output owner	Audio/StreamLibrary/Scheduler
+audio	ReleaseVoice	TR:src/platform/ps2/audio.cpp:76	opt-in SoundControls production ABI and common Mixer VoiceSource	shared controls/remaining music; common mixer still calls SpuCore	Audio/StreamLibrary/Scheduler
+audio	IsVoiceFree	TR:src/platform/ps2/audio.cpp:82	opt-in SoundControls production ABI and common Mixer VoiceSource	shared controls/remaining music; common mixer still calls SpuCore	Audio/StreamLibrary/Scheduler
+audio	SetReverb	TR:src/platform/ps2/audio.cpp:87	unretired	STREAM/libsd effects or compaction; SpuCore remains output owner	Audio/StreamLibrary/Scheduler
+audio	ClearReverb	TR:src/platform/ps2/audio.cpp:92	unretired	STREAM/libsd effects or compaction; SpuCore remains output owner	Audio/StreamLibrary/Scheduler
+audio	SetReverbVolume	TR:src/platform/ps2/audio.cpp:97	unretired	STREAM/libsd effects or compaction; SpuCore remains output owner	Audio/StreamLibrary/Scheduler
+audio	ReserveSoundMemory	TR:src/platform/ps2/audio.cpp:102	pure compiled allocation-cursor arithmetic retained	cursor reply/compaction and remaining sound-memory consumers	Audio/StreamLibrary/Scheduler
+audio	SoundBankLoaded	TR:src/platform/ps2/audio.cpp:109	opt-in SoundBanks production registry/readiness/leases	default IOP sample registry; selected game acceptance pending	Audio/StreamLibrary/Scheduler
+audio	ReserveSounds	TR:src/platform/ps2/audio.cpp:114	opt-in SoundBanks production registry/readiness/leases	default IOP sample registry; selected game acceptance pending	Audio/StreamLibrary/Scheduler
+audio	ReleaseSound	TR:src/platform/ps2/audio.cpp:119	opt-in SoundBanks production registry/readiness/leases	default IOP sample registry; selected game acceptance pending	Audio/StreamLibrary/Scheduler
+audio	PlaySound	TR:src/platform/ps2/audio.cpp:124	opt-in immutable sample lease -> ordered play -> common Mixer provider	default STREAM/libsd voices; positive selected game play not yet reached	Audio/StreamLibrary/Scheduler
+audio	PitchOfRate	TR:src/platform/ps2/audio.cpp:129	pure compiled pitch arithmetic retained; owned Audio equivalent pinned	none in arithmetic itself; playback consumers tracked separately	Audio/StreamLibrary/Scheduler
+audio	ChannelBufferAddress	TR:src/platform/ps2/audio.cpp:134	opt-in MusicBuffers publishes opaque handle; Movie resolves both parts	shared send/status; default IOP address consumer	Audio/StreamLibrary/Scheduler
+audio	ReadMusic	TR:src/platform/ps2/audio.cpp:142	opt-in MusicLibrary production ABI; paired owned voices and portable state	shared send/reply; whole-window vs preload timing; default STREAM/libsd music	Audio/StreamLibrary/Scheduler
+audio	StreamMusic	TR:src/platform/ps2/audio.cpp:147	opt-in MusicLibrary production ABI; paired owned voices and portable state	shared send/reply; whole-window vs preload timing; default STREAM/libsd music	Audio/StreamLibrary/Scheduler
+audio	InterleaveMusic	TR:src/platform/ps2/audio.cpp:152	opt-in MusicLibrary production ABI; paired owned voices and portable state	shared send/reply; whole-window vs preload timing; default STREAM/libsd music	Audio/StreamLibrary/Scheduler
+audio	AddMusicChannel	TR:src/platform/ps2/audio.cpp:157	opt-in MusicLibrary production ABI; paired owned voices and portable state	shared send/reply; whole-window vs preload timing; default STREAM/libsd music	Audio/StreamLibrary/Scheduler
+audio	SetMusicEnd	TR:src/platform/ps2/audio.cpp:162	opt-in MusicLibrary production ABI; paired owned voices and portable state	shared send/reply; whole-window vs preload timing; default STREAM/libsd music	Audio/StreamLibrary/Scheduler
+audio	PrepareMusic	TR:src/platform/ps2/audio.cpp:168	opt-in MusicLibrary production ABI; paired owned voices and portable state	shared send/reply; whole-window vs preload timing; default STREAM/libsd music	Audio/StreamLibrary/Scheduler
+audio	IsMusicReady	TR:src/platform/ps2/audio.cpp:173	opt-in MusicLibrary production ABI; paired owned voices and portable state	shared send/reply; whole-window vs preload timing; default STREAM/libsd music	Audio/StreamLibrary/Scheduler
+audio	PlayMusic	TR:src/platform/ps2/audio.cpp:180	opt-in MusicLibrary production ABI; paired owned voices and portable state	shared send/reply; whole-window vs preload timing; default STREAM/libsd music	Audio/StreamLibrary/Scheduler
+audio	IsMusicPlaying	TR:src/platform/ps2/audio.cpp:185	opt-in MusicLibrary production ABI; paired owned voices and portable state	shared send/reply; whole-window vs preload timing; default STREAM/libsd music	Audio/StreamLibrary/Scheduler
+audio	StopMusic	TR:src/platform/ps2/audio.cpp:192	opt-in MusicLibrary production ABI; paired owned voices and portable state	shared send/reply; whole-window vs preload timing; default STREAM/libsd music	Audio/StreamLibrary/Scheduler
+files	Reset	TR:src/platform/ps2/files.cpp:10	opt-in Files SDK boundary; mounted ISO and owned descriptors/cursors; required FILS	default fileio adapter; legacy descriptor migration and game acceptance	Files
+files	Open	TR:src/platform/ps2/files.cpp:16	opt-in Files SDK boundary; mounted ISO and owned descriptors/cursors; required FILS	default fileio adapter; legacy descriptor migration and game acceptance	Files
+files	Close	TR:src/platform/ps2/files.cpp:53	opt-in Files SDK boundary; mounted ISO and owned descriptors/cursors; required FILS	default fileio adapter; legacy descriptor migration and game acceptance	Files
+files	Read	TR:src/platform/ps2/files.cpp:58	opt-in Files SDK boundary; mounted ISO and owned descriptors/cursors; required FILS	default fileio adapter; legacy descriptor migration and game acceptance	Files
+files	Write	TR:src/platform/ps2/files.cpp:63	opt-in Files SDK boundary; mounted ISO and owned descriptors/cursors; required FILS	default fileio adapter; legacy descriptor migration and game acceptance	Files
+files	Seek	TR:src/platform/ps2/files.cpp:68	opt-in Files SDK boundary; mounted ISO and owned descriptors/cursors; required FILS	default fileio adapter; legacy descriptor migration and game acceptance	Files

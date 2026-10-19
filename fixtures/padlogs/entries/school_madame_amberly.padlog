@@ -1,0 +1,18 @@
+# level entry fixture (S-UV assume-playable coverage): LOAD GAME on the hub card warped to this chunk (tools/warp_save.py; tools/ci/level_entries.sh)
+# language-bank=0  -- recorded against the disc's slot-0 text bank (the replay pins it)
+# chunk=levels\school\madame\amberly
+# twinsanityevolved padlog v1 -- pad 0 per frame boundary: BOUNDARY BUTTONS(wire order, hex) LX LY RX RY  # names
+1 0000 128 128 128 128  # NONE
+1273 0008 128 128 128 128  # START
+1278 0000 128 128 128 128  # NONE
+1353 0040 128 128 128 128  # DOWN
+1356 0000 128 128 128 128  # NONE
+1403 4000 128 128 128 128  # CROSS
+1408 0000 128 128 128 128  # NONE
+1803 0040 128 128 128 128  # DOWN
+1806 0000 128 128 128 128  # NONE
+1903 4000 128 128 128 128  # CROSS
+1906 0000 128 128 128 128  # NONE
+2640 4000 128 128 128 128  # CROSS
+2643 0000 128 128 128 128  # NONE
+# end at boundary 4200

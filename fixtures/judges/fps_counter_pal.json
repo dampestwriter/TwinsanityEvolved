@@ -1,0 +1,15 @@
+{
+  "padlog": "fixtures/padlogs/title_main_menu.padlog",
+  "disc": "PAL SLES-52568; deterministic headless: --deterministic --no-sdl-input --no-audio --skip-movies --trace-state, an empty --mc-dir; TE_GFX_DUMP_EVERY=100",
+  "stop_at": 1600,
+  "run_seconds": 600,
+  "dump_every": 100,
+  "present": 1400,
+  "region": [0.74, 0.02, 0.99, 0.16],
+  "rest": [0.0, 0.25, 1.0, 1.0],
+  "region_min_diff": 3.0,
+  "region_min_sd_gain": 8.0,
+  "rest_max_diff": 0.5,
+  "why": "the counter is two lines of the game's menu font ('N fps' over 'N hz', TopRight at (0.97, 0.04), half the menu size) over the title's sky in the top-right corner; the main menu's top-right is static sky (the orb and the menu sit below row 0.25), so with the counter off the region is identical to the previous dump and to the frame without the counter, and with it on the glyphs raise the region's luminance spread by 20+ while the rest of the frame is byte-identical",
+  "frozen": "2026-10-17 product: RED on bin/twinsanityevolved.0f92911 (no --fps-counter: the runner exits 2), GREEN on the fps-counter build"
+}

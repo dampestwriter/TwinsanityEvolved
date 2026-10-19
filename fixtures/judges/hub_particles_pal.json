@@ -1,0 +1,18 @@
+{
+  "padlog": "fixtures/padlogs/hub_entry.padlog",
+  "disc": "PAL SLES-52568 (deterministic, headless with draws: --deterministic --no-sdl-input --no-audio --skip-movies --trace-state, an empty --mc-dir, TE_GFX_HEADLESS=1 TE_GFX_DIAG_PRESENT=2200)",
+  "stop_at": 3000,
+  "run_seconds": 900,
+  "final_state": "Playing",
+  "frame": [
+    512,
+    512
+  ],
+  "diag_present": 2700,
+  "min_blocks": 800,
+  "min_triangles": 10000,
+  "min_particle_draws": 3,
+  "min_scrolling_draws": 1,
+  "why": "The particle blocks (particles.cpp's 32-particle blocks and render tables, written into guest memory as the PS2 renderer wrote them) are drawn by running the VU1 library's own particle program bodies (vs_zero_kick class C: the dispatcher stub then the 0x1820 quad emitter) over a host VU data image, and the kicked GIF packets are lowered to triangles in the material's bucket; the material shaders' UV scroll is stepped on the wasm side (shadertypes.cpp UpdateShader as values) and added to every vertex's ST. The hub's first 300 Playing frames draw ~1700 blocks (the sparkles / dust); at present 2200 their boxes lie inside the frame and the sea's water (type-01 shader, scroll modes) scrolls.",
+  "frozen": "2026-10-16: bin/twinsanityevolved.1952747 has no particle counters (every particle entry a no-op, StepAnimations a no-op); the particle-path build reports 1739 blocks / 26698 triangles / 0 refused at 2240 and 5 particle draws in the frame at 2200 | 2026-10-16: the hub pad log was re-recorded on the drive model (: Playing 2629..4910 instead of 1919..4200, every boundary ~+710) -- diag_present 2200 -> 2700 (presents lag boundaries ~180 after the loads: Playing 2629 is present ~2450), stop_at 2300 -> 3000; thresholds unchanged"
+}

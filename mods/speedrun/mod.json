@@ -1,0 +1,11 @@
+{
+  "id": "speedrun",
+  "name": "speedrun mode",
+  "version": "1.0.0",
+  "description": "An in-game timer in the game's font: real time (RTA) and in-game time (IGT: the frames the game is Playing or Watching -- loads, menus and the pause stop it), splits on every level entry and exit written into the pad-log recording (`# split` lines) so a run is verifiable; practice save states on a ring of 8 slots (F9 save, F10 load the newest, F11 the one before; separate from the engine's F5/F8), F12 = reset to run start.",
+  "hooks": ["frame", "level_enter", "level_exit", "save", "load"],
+  "page": "speedrun",
+  "settings": {"slots": 8, "keys": {"save": "F9", "load": "F10", "older": "F11", "reset": "F12"}},
+  "api": "c",
+  "source": "platform/nativeee/host/mod_speedrun.cpp"
+}

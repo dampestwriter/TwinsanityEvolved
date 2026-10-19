@@ -1,0 +1,29 @@
+{
+  "padlog": "fixtures/padlogs/cavern_cryscave.padlog",
+  "disc": "PAL SLES-52568 (deterministic, headless: --deterministic --no-sdl-input --no-audio --skip-movies --trace-state; the hub card warped to levels\\earth\\cavern\\cavent by tools/warp_save.py --place 0xFFFF; TE_GFX_DUMP_EVERY=20)",
+  "card": "warp:levels\\earth\\cavern\\cavent",
+  "stop_at": 6150,
+  "run_seconds": 900,
+  "dump_every": 20,
+  "frame": [512, 512],
+  "v_floor": 0.35,
+  "vivid_s": 0.6,
+  "oracle_tol": 0.15,
+  "crystals": [
+    {"name": "red (pen)", "present": 4500, "box": [90, 263, 118, 299], "min_bright": 100, "min_mean_s": 0.55, "min_vivid_share": 0.35,
+     "note": "Crash on foot in the cryscave pen, the camera behind him: the red puzzle crystal left of the fence (model 0xd5c8e0; the other two are behind the fence here)"},
+    {"name": "yellow (spiral)", "present": 5900, "box": [433, 125, 512, 285], "min_bright": 2000, "min_mean_s": 0.55, "min_vivid_share": 0.35,
+     "note": "the crystal spiral: the yellow puzzle crystal at the right edge (model 0xd5cd40)"},
+    {"name": "green (spiral)", "present": 5900, "box": [0, 293, 48, 456], "min_bright": 1000, "min_mean_s": 0.0, "min_vivid_share": 0.0, "judged": false,
+     "note": "the green puzzle crystal at the left edge (model 0xd5cc7c): its band texture is a pale green mixed over the refraction -- reported, not gated (its saturation rises only from 0.42 to 0.48)"}
+  ],
+  "oracle": {
+    "frame": "oracle/cavern_crystals/frames/f5200.ppm",
+    "flipped": true,
+    "box": [120, 236, 141, 266],
+    "crystal": "red (pen)",
+    "note": "the recomp oracle ps2recomp_release.2b14dc5b (the frozen NTSC oracle; the re-frozen nativeee.ff178f8e's unsteered ball dies on tunnel01's nitro line and never reaches the pen) on services-owner/uv2/oracle_cav's card (autosaved at tunnel01) with cavern.oracle.padlog, unsteered: the pen from ~4800, its fixed camera; frame 5200 (512x448, bottom-up), the red puzzle crystal left of the fence at (120 236)-(141 266): 138 bright pixels, mean S 0.727, vivid 0.942. A PCSX2 frame dump replaces it with --oracle-frame PATH --oracle-box x0,y0,x1,y1 (top-down, no --oracle-flipped). Outside the repo (int_work: no game data in fixtures); when the file is missing the oracle check is skipped and the floors alone gate"
+  },
+  "why": "The cryscave's three 'touch the crystals in order' puzzle crystals lacked colour. Their material is [type 0x10 screen copy] [type 0x02 lit, MIX-blended, U-scrolled colour-band texture]; the port drew the first shader only (the lights' lavender on white vertices), so the three looked alike and pale. The fix: a material's shaders are drawn as passes, the screen-copy pass over the engine's frame copy (ps2e_draw_copy_frame). The judge: the crystals' bright pixels (HSV V >= 0.35 against the dark cave) in fixed boxes of fixed presents reach a mean saturation of 0.55 and a vivid share (S >= 0.6) of 0.35, and the pen's red one lies within 0.15 of the oracle's mean saturation when an oracle frame is given.",
+  "frozen": "2026-10-17: RED x2 on bin/twinsanityevolved.0f92911 (red (pen) mean S 0.388 vivid 0.018 vs the oracle's 0.726 / 0.942; yellow 0.433 / 0.071; green 0.416 / 0.023), GREEN x2 on the material-pass fix build with engine e81955bb (red 0.648 / 0.634; yellow 0.643 / 0.680; green 0.485 / 0.002, reported); r1 == r2 both; frozen; run"
+}

@@ -1,0 +1,12 @@
+{
+  "disc": "PAL SLES-52568 (deterministic, headless: --deterministic --no-sdl-input --no-audio --skip-movies --trace-state, an empty --mc-dir; TE_GFX_PRESENT_CT16=1, TE_GFX_DUMP_AT=1500)",
+  "stop_at": 1700,
+  "run_seconds": 300,
+  "present": 1500,
+  "frame": [512, 512],
+  "min_on_level_share": 0.995,
+  "max_levels": 32,
+  "min_levels": 8,
+  "why": "The retail present. Crash Twinsanity drew its frame in 24-bit colour and copied it into the 16-bit buffer the CRTC showed, dithering with the GS's default DIMX (TR renderer/frame.cpp: DTHE on, DIMX 0x6071243571603524 for the copy). The port's present is 32-bit; --present-ct16 / TE_GFX_PRESENT_CT16=1 shows the frame as that copy -- the engine's CT16 scanout (ps2e_draw_set_present_ct16; ScanoutDesc::dither16): each channel plus the frame pixel's DIMX cell (-4..3), the top five bits kept, expanded to full range. The title frame at present 1500 (the island world after the legal screen) under the option: every channel of every pixel on one of PSMCT16's 32 levels, at most 32 distinct values a channel, and not flat.",
+  "frozen": "2026-10-17: RED x2 on bin/twinsanityevolved.32e1174 (the option unknown: 256 distinct values a channel, 0.336 of the pixels on a level), GREEN x2 on the CT16-present fix build with engine 4cb1356c (32 / 32 / 32 levels, share 1.000)"
+}

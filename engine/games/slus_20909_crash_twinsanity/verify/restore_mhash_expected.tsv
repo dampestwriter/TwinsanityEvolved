@@ -1,0 +1,18 @@
+# restore.mhash oracle table -- verify/state_hash.py over the 11 frozen anchors (OLD/save_states, read-only).
+# Columns: anchor\tfnv1a64(RAM0+SPAD+META raw payloads)\tram_len\tspad_len\tmeta_len\tfile_version\tvsync_frame
+# Regenerate: python3 verify/state_hash.py <anchors...>  (the RestoreMhashAnchors test compares NEW's restored-memory hash to column 2).
+artdet_f37152.ps2st	0x8de41106ac4dad95	33554432	16384	2097152	4	37156
+ps2state_slot0_f36935.ps2st	0xb8e09d48ba19fc73	33554432	16384	2097152	4	36935
+ps2state_slot0_f39807.ps2st	0x277121d6d0d6a983	33554432	16384	2097152	4	39807
+ps2state_slot0_f40391.ps2st	0x06c41ff2a4a6c009	33554432	16384	2097152	4	40391
+ps2state_slot0_f44111.ps2st	0x5403edb668ca8e60	33554432	16384	2097152	4	44111
+ps2state_slot0_f46203_red_crystal.ps2st	0x7f2b0d91a8ec07b0	33554432	16384	2097152	4	46203
+ps2state_slot0_f46949_yellow_crystal.ps2st	0x334679dbee909b7b	33554432	16384	2097152	4	46949
+ps2state_slot0_f57292.ps2st	0xfc8deca68213dc9c	33554432	16384	2097152	4	57292
+ps2state_slot0_f59991.ps2st	0x9d674482db08223c	33554432	16384	2097152	4	59991
+slowspot_f37092_s1789428268.ps2st	0xd5ff7161f930509e	33554432	16384	2097152	4	37096
+slowspot_f40298_s1789693059.ps2st	0x6f74f07f86f2ef4a	33554432	16384	2097152	4	40304
+# coldboot probe approval (Movie boot import, MovieCheckpoint::RegisterBoot): one row, authorised by the orchestrator
+# 2026-10-07 citing baseline/coldboot/probe/PROOF.txt (old_b120: PROOF-OK) and baseline/coldboot/mem.mhash line
+# `120,0x74bacf01b589b5a6`; the probe lives in baseline/coldboot/probe/, not OLD/save_states (RootColdbootProbeResumes).
+old_b120.ps2st	0x74bacf01b589b5a6	33554432	16384	2097152	4	121

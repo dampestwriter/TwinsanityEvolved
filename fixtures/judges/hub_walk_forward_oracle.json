@@ -1,0 +1,15 @@
+{
+  "padlog": "fixtures/padlogs/hub_walk_forward.padlog",
+  "disc": "PAL SLES-52568, --deterministic --skip-movies --trace-state --trace-player 1, an empty --mc-dir, headless",
+  "stop_at": 2810,
+  "oracle_trace": "fixtures/oracle/hub_walk_forward.oracle_trace.tsv",
+  "offset": 70,
+  "window": [
+    2662,
+    2717
+  ],
+  "min_compared": 50,
+  "max_position_delta": 0.02,
+  "frozen": "2026-10-15 the toolchain owner : the oracle's positions per frame (fixtures/oracle/hub_walk_forward.oracle_trace.tsv, frames 2699..2798 of ps2recomp_release.2b14dc5b; port boundary = frame - 780); the window 1952..2007 is the straight run before the deck-chair obstacle at (0.4, 0, -33.5) (the collision slide differs by a frame on either side) and before the oracle's own clock leap at 2798/2799 (hub_walk_forward_oracle_clock.json). RED on the port as built: the game clock stepping 150 a frame (TimeClockAdvanceBy under IEEE round-to-nearest: 150.00002 -> 150; retail's EE round-toward-zero: 149.99998 -> 149), the position drift 0.040 at 2000 (one frame in 150 ahead). GREEN with TE_EE_ROUNDING=1 (runner/main.cpp: the game thread's FPU rounding toward zero): the clock stepping 149, positions within 0.001 | 2026-10-16: the pad log's menu prefix is state-anchored under the drive model (Playing 2629, the stick forward from 2660 = Playing + 31 as before); port boundary = oracle frame - 70 (the oracle leg is the same instant-drive leg: its frames 2699..2798); the window 2662..2717 is the same 56 straight-run frames. GREEN as built now (TE_EE_ROUNDING defaults on); RED with TE_EE_ROUNDING=0 (--host-rounding).",
+  "clock_step": 149
+}

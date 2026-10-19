@@ -1,0 +1,200 @@
+# .github/workflows/release.yml -- TwinsanityEvolved release artifacts: on a version tag (or by hand), one zip per
+# platform -- macOS arm64, macOS x86_64, Linux x86_64, Linux aarch64, Windows x64 -- built by the SAME scripts a
+# developer runs locally (charter: CI workflows are authored and run locally through their scripts):
+#
+#   tools/ci/release_dist.sh          macOS / Linux: pinned wasm32 toolchain (tools/fetch_toolchain.sh), the engine's
+#                                     static LGPL FFmpeg + static SDL2 (TE_DIST), configure + build, stage
+#                                     dist/<platform>/, asset scan, zip + sha256
+#   tools/ci/release_dist.ps1         Windows: clang-cl + Ninja through the engine's clang-cl shim, SDL2 + FFmpeg from
+#                                     the vcpkg manifest (vcpkg.json), the same staging
+#   tools/ci/linux.Dockerfile         the Linux lane's toolchain image for an offline reproduction:
+#                                     docker build -f tools/ci/linux.Dockerfile -t te-linux . && \
+#                                     docker run --rm -v "$PWD:/src" te-linux tools/ci/release_dist.sh --jobs 3
+#
+# Every artifact is the port's code + the engine + the decompilation compiled: NO game data (tools/ci/asset_scan.sh
+# over every staged folder; the user supplies their own disc image at run time). The engine (engine/) and the
+# decompilation (game/) are vendored trees in this repository
+# so a plain checkout holds everything the build needs.
+#
+# WINDOWS: the lane configures and builds through the engine's clang-cl shape; the port's runner has its Win32 arm
+# (runner/te_fiber.c VirtualAlloc, runner/te_fiber_win64.c inline-asm switch, runner/te_savestate.cpp /DYNAMICBASE:NO +
+# the adopted /GS cookie) compiled for x86_64-pc-windows-msvc on the dev host but NOT yet run on
+# Windows. Until a Windows run passes te_fiber_test and a save/load round trip the Windows job is `continue-on-error`
+# and the release job attaches the zips it finds (a missing Windows zip is named in the notes, never silently dropped).
+#
+# Local validation: `actionlint .github/workflows/release.yml`; the scripts: `bash -n tools/ci/release_dist.sh`.
+name: TwinsanityEvolved release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  TE_MIN_FREE_GB: 3
+
+jobs:
+  guard:
+    name: asset scan (tree) + no-codenames lint + script syntax
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Asset scan over the tree (zero findings)
+        run: tools/ci/asset_scan.sh
+      - name: Script syntax
+        run: |
+          bash -n tools/ci/release_dist.sh tools/ci/build_all.sh tools/ci/judges.sh tools/fetch_toolchain.sh tools/ci/asset_scan.sh
+          python3 -m py_compile tools/oracle/diff.py tools/judges/hub_fps_judge.py
+
+  build:
+    name: ${{ matrix.target }}
+    needs: guard
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-14,         target: macos-arm64,   platform: macos,   jobs: 3 }
+          - { os: macos-15-intel,   target: macos-x86_64,  platform: macos,   jobs: 3 }
+          - { os: ubuntu-24.04,     target: linux-x86_64,  platform: linux,   jobs: 3 }
+          - { os: ubuntu-24.04-arm, target: linux-aarch64, platform: linux,   jobs: 3 }
+          - { os: windows-2022,     target: windows-x64,   platform: windows, jobs: 3 }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 240
+    continue-on-error: ${{ matrix.platform == 'windows' }}
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg-cache
+    steps:
+      - uses: actions/checkout@v4
+
+      # --- dependencies per host --------------------------------------------------------------
+      - name: Dependencies (macOS -- Homebrew; FFmpeg and SDL2 are built statically by the script)
+        if: matrix.platform == 'macos'
+        run: brew install cmake ninja nasm pkg-config
+
+      - name: Dependencies (Linux -- the engine's package list + the toolchain fetch)
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          # shellcheck disable=SC2046
+          sudo apt-get install -y --no-install-recommends $(grep -v '^#' engine/tools/ci/linux_packages.txt | xargs) curl unzip nasm
+      - name: Toolchain cache (wasi-sdk, wabt, libclang -- pinned tarballs)
+        if: matrix.platform != 'windows'
+        uses: actions/cache@v4
+        with:
+          path: |
+            tools/toolchain/*.tar.gz
+            tools/toolchain/*.tar.xz
+            tools/toolchain/*.whl
+          key: te-toolchain-${{ matrix.target }}-${{ hashFiles('tools/toolchain/PINS.sha256') }}
+
+      - name: Dependencies (Windows -- Python for the shim)
+        if: matrix.platform == 'windows'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: vcpkg checkout
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          git clone --depth 1 https://github.com/microsoft/vcpkg.git $env:VCPKG_ROOT
+          & "$env:VCPKG_ROOT/bootstrap-vcpkg.bat" -disableMetrics
+          New-Item -ItemType Directory -Force -Path $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+      - name: vcpkg binary cache (restore)
+        if: matrix.platform == 'windows'
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+      - name: MSVC developer environment (clang-cl, Ninja, the Windows SDK on PATH)
+        if: matrix.platform == 'windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      # --- build + stage through the scripts --------------------------------------------------
+      - name: release_dist.sh (toolchain, static deps, build, stage, scan, zip)
+        if: matrix.platform != 'windows'
+        shell: bash
+        run: tools/ci/release_dist.sh --jobs ${{ matrix.jobs }} 2>&1 | tee release_dist.log
+
+      - name: release_dist.ps1 (toolchain, vcpkg deps, build, stage, scan, zip)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: ./tools/ci/release_dist.ps1 -Jobs ${{ matrix.jobs }} 2>&1 | Tee-Object -FilePath release_dist.log
+      - name: vcpkg binary cache (save)
+        if: matrix.platform == 'windows' && always()
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+
+      - name: Asset scan over the staged folder (again, on the runner)
+        if: matrix.platform != 'windows'
+        shell: bash
+        run: tools/ci/asset_scan.sh dist/${{ matrix.target }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: twinsanityevolved-${{ matrix.target }}
+          path: |
+            dist/twinsanityevolved-${{ matrix.target }}.zip
+            dist/twinsanityevolved-${{ matrix.target }}.zip.sha256
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-log-${{ matrix.target }}
+          path: release_dist.log
+          if-no-files-found: ignore
+
+  release:
+    name: SHA256SUMS + GitHub release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: twinsanityevolved-*
+          path: artifacts
+          merge-multiple: true
+      - name: SHA256SUMS over the zips; the notes name every platform, present or missing
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          mkdir -p release
+          expected="macos-arm64 macos-x86_64 linux-x86_64 linux-aarch64 windows-x64"
+          missing=""
+          for t in $expected; do
+            z="artifacts/twinsanityevolved-$t.zip"
+            if [ -f "$z" ]; then mv "$z" "release/twinsanityevolved-${tag}-$t.zip"; else missing="$missing $t"; fi
+          done
+          (cd release && sha256sum ./*.zip > SHA256SUMS && cat SHA256SUMS)
+          {
+            echo "TwinsanityEvolved ${tag} -- native PC Crash Twinsanity (the twinsanity-reversed decompilation on the NativeEE engine)."
+            echo
+            echo "One folder per platform; unzip, run twinsanityevolved --iso <your disc image>. This release contains NO game data:"
+            echo "you must own the game. README.md inside the zip."
+            echo
+            echo "| zip | sha256 |"
+            echo "|---|---|"
+            while read -r sha file; do echo "| ${file#./} | \`$sha\` |"; done < release/SHA256SUMS
+            if [ -n "$missing" ]; then echo; echo "Not in this release (the lane did not produce an artifact):$missing -- see the build logs."; fi
+          } > release/NOTES.md
+          cat release/NOTES.md
+      - uses: softprops/action-gh-release@v2
+        with:
+          body_path: release/NOTES.md
+          files: |
+            release/*.zip
+            release/SHA256SUMS
+          fail_on_unmatched_files: false
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}

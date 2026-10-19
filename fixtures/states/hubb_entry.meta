@@ -1,0 +1,7 @@
+name=hubb_entry
+level=Jungle Bungle, second chunk (hubb: the training glade; the swinging and falling logs)
+padlog=fixtures/padlogs/jungle_bungle_walk.padlog
+boundary=8347
+chunk=levels\earth\hub\hubb
+chunk_entered_at=8281
+notes=Crash stands at the load wall (-125.5 0.0 -21.5) in hubb's frame (re-recorded on the drive model)

@@ -1,0 +1,17 @@
+{
+  "padlog": "fixtures/padlogs/hub_entry.padlog",
+  "disc": "PAL SLES-52568 (PLAY mode: paced, windowed, scale 1; --frame-rate <setting> --skip-movies --trace-state --config none --harness-out, an empty --mc-dir; TE_GFX_SUMMARY_EVERY per setting, TE_TICK_LOG_MS=0)",
+  "stop_at": 6230,
+  "run_seconds": 300,
+  "playing_from": 2600,
+  "settings": {"30": 30, "60": 60, "120": 120, "144": 144, "240": 240, "uncapped": "uncapped"},
+  "summary_every": {"30": 5, "60": 10, "120": 20, "144": 24, "240": 40, "uncapped": 20},
+  "fps_tolerance": 0.03,
+  "uncapped_min_fps": 120,
+  "game_hz_tolerance": 0.1,
+  "min_windows": 30,
+  "cap_by_uncapped": true,
+  "hash_fields": [1000, 2000, 3000],
+  "verdict": "GREEN iff, per setting, the shown fps (the median of the summary windows over the Playing span, 2600 .. 6230 = 60 s of the hub) is within 3 % of the setting (uncapped: >= 120 on this Mac, reported as measured; a setting above the uncapped run's own shown fps -- this host's renderer ceiling -- is judged against that ceiling, as a display's refresh caps it with vsync on), game_hz (boundaries per wall second over the span) is 60.0 +-0.1, the clock census has catch-up 0 / dropped 0 / timeouts 0, the audio census dropped=0 underruns=0, the run exits 0 at the stop; and the REAL pictures' hashes at fields 1000 / 2000 / 3000 (the harness leg's frames.fhash, keyed by the boundary each picture precedes) are identical across every setting. A runner without --frame-rate is RED.",
+  "frozen": "2026-10-19 (the frame-rate lane): RED x2 on bin/twinsanityevolved.b630560 (exit 2: no --frame-rate -- the row does not exist), GREEN x2 on the lane's build; the per-setting table in the lane's handoff."
+}

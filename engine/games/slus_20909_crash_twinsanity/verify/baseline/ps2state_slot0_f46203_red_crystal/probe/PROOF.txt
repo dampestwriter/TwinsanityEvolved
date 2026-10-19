@@ -1,0 +1,7 @@
+# PROOF for the frozen OLD probe images of leg ps2state_slot0_f46203_red_crystal (verify/probe_images.py --old)
+# OLD state_b<N> = boundary N+1 (OLD requests the save at boundary n != 0, lands it one boundary later;
+#   OLD host_app/verify/verify_boundary.cpp OnEeBoundary, proved I8.5-G). NEW state_b<N> = boundary N.
+# hash = verify/state_hash.py chained FNV-1a64 over RAM0 -> SPAD -> META (= the mem.mhash lane's hash).
+# anchor: $PS2R_OLD_ROOT/save_states/ps2state_slot0_f46203_red_crystal.ps2st (header vsync_frame 46203)
+old_b60: OLD --frames 62 --state-every 59 -> state_b59; hash 0x5295939c8540f121 vsync_frame 46264; baseline mem.mhash line `60,0x5295939c8540f121` -> PROOF-OK
+old_b2: OLD --frames 4 --state-every 1 -> state_b1; hash 0x4559e95cd465dcf9 vsync_frame 46206; no baseline mem.mhash line at boundary 2 (lane writes every 60); header vsync_frame 46206 == hash-proved old_b60 vsync_frame 46264 - 58 -> PROOF-OK

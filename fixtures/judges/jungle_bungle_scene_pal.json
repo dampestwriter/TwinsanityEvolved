@@ -1,0 +1,35 @@
+{
+  "padlog": "fixtures/padlogs/jungle_bungle_walk.padlog",
+  "disc": "PAL SLES-52568 (deterministic, headless: --deterministic --no-sdl-input --no-audio --skip-movies --trace-state, an empty --mc-dir; TE_GFX_DUMP_EVERY=50)",
+  "stop_at": 8400,
+  "run_seconds": 900,
+  "dump_every": 50,
+  "preset": "jungle_entry",
+  "frames_from": 3700,
+  "frames_to": 8300,
+  "skip_states": [
+    "Watching",
+    "LoadingLevel",
+    "StartingPlay",
+    "Waiting",
+    "Paused"
+  ],
+  "windows": [
+    {
+      "name": "hubb cave mouth",
+      "from": 7775,
+      "to": 7875,
+      "preset": "jungle_cave_mouth",
+      "evidence_present": 7800,
+      "evidence": {
+        "kind": "placed",
+        "clipped": true,
+        "min_dark_share": 0.4,
+        "min_box_right": 480,
+        "max_mean_lum": 16
+      },
+      "why": "Acceptable: the chase camera follows Crash through the tunnel between the totem gate (model 0xd95344) and the lit interior of the hubb cave; the tunnel's walls are AUTHORED black (model 0xd95360 submodel 1: 89 of 189 vertex colours under 16, one unblended type-01 shader, texture 83) and drawn under the material's own state, clipped; the camera's place is the game's (its standoff at Playing is the oracle's; the retail-exact ray casts leave its path unchanged). The frame shows the lit tunnel ahead-left and a black wall on the right -- as the GS draws texture x vertex colour (2,2,3)."
+    }
+  ],
+  "frozen": "2026-10-15: the RED at presents 7200 / 7250 (clear share 0.388 / 0.577, canopy 9.2, floor 6.6) attributed to the authored dark cave-mouth geometry under the game's own camera -- no port defect; the window above is documented with its cause and still judged (a drawn scene, the lit tunnel ahead, the dark geometry's draw as evidence); every other dumped Playing frame 3000-7600 jungle_entry GREEN | 2026-10-16: jungle_bungle_walk.padlog re-recorded on the drive model (huba 3746, hubb 8281 instead of 3040 / 7574: +707): frames 3700..8300, the cave-mouth window 7775..7875 (evidence present 7800: the dark presents are 7800 / 7850 on the re-recorded route), stop_at 8400; thresholds unchanged"
+}

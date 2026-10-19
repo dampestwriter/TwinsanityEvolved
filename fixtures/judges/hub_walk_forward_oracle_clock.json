@@ -1,0 +1,8 @@
+{
+  "oracle_padlog": "fixtures/padlogs/hub_walk_forward.oracle.padlog",
+  "disc": "NTSC SLUS-20909 on the oracle ps2recomp_release.2b14dc5b (--profile deterministic --headless)",
+  "window": [2699, 3320],
+  "units_per_frame": 149,
+  "leap_extra_units": 1024,
+  "frozen": "2026-10-15 the toolchain owner: Playing from 2699 (the port's 1919 + 780), the stick held forward from 2731; clock(2699) = 610656 on 2b14dc5b and clock(3320) = 707281 = 610656 + 149 * 621 + 4096: two leaps (frames 2798/2799 and 3310/3311, each 1174 units). RED on 2b14dc5b; GREEN = exactly 149 a boundary. The window is inside Playing with no load (the beach; Crash dies into the sea after ~3000 only on the leap-shifted path -- the clock keeps counting)"
+}

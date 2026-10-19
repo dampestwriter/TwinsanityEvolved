@@ -1,0 +1,12 @@
+{
+  "disc": "PAL SLES-52568 (deterministic boot, headless: --deterministic --no-sdl-input --no-audio --skip-movies --trace-state; TE_GFX_DUMP_EVERY=50)",
+  "stop_at": 1750,
+  "dump_every": 50,
+  "present": 1500,
+  "box": [258, 155, 424, 383],
+  "min_sd": 45.0,
+  "min_colours": 360,
+  "max_mean": 210.0,
+  "why": "The title's ice block (rigid model 0xc5f7e4) is [0x01 textured] [0x0C env map]; the env-map second pass (the sphere map of the half vector, additive) is the glassy glint -- the title 'orb'. The port drew the first shader only (a flat cyan translucent block). With the material pass loop and the instance's eye the pass is drawn; the block box's luminance SD and 4-bit colour count rise above what the textured pass alone reaches.",
+  "frozen": "2026-10-18: RED on bin/twinsanityevolved.0f92911 (SD 36.1, 318 colours), GREEN on the env-map pass fix (SD 59.5, 406 colours); frozen; run x2 each"
+}

@@ -1,0 +1,7 @@
+# PROOF for the frozen OLD probe images of leg slowspot_f40298_s1789693059 (verify/probe_images.py --old)
+# OLD state_b<N> = boundary N+1 (OLD requests the save at boundary n != 0, lands it one boundary later;
+#   OLD host_app/verify/verify_boundary.cpp OnEeBoundary, proved I8.5-G). NEW state_b<N> = boundary N.
+# hash = verify/state_hash.py chained FNV-1a64 over RAM0 -> SPAD -> META (= the mem.mhash lane's hash).
+# anchor: $PS2R_OLD_ROOT/save_states/slowspot_f40298_s1789693059.ps2st (header vsync_frame 40304)
+old_b60: OLD --frames 62 --state-every 59 -> state_b59; hash 0x9c5bc5a468ab066c vsync_frame 40365; baseline mem.mhash line `60,0x9c5bc5a468ab066c` -> PROOF-OK
+old_b2: OLD --frames 4 --state-every 1 -> state_b1; hash 0x057aa853871eabc6 vsync_frame 40307; no baseline mem.mhash line at boundary 2 (lane writes every 60); header vsync_frame 40307 == hash-proved old_b60 vsync_frame 40365 - 58 -> PROOF-OK

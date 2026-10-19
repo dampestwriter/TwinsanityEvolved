@@ -1,0 +1,28 @@
+# language_tuple.plan: the autopilot plan the language_tuple_judge drives -- title -> START -> main menu -> NEW GAME ->
+# create the save (slot 1) -> the intro movie H01_A opens (the Player logs its sound track) -> skipped at once -> StartingPlay ->
+# the hub, Playing (the level's voices and the hub's title card read) -> a short wait -> stop. The menu prefix is
+# hub_entry.plan's, anchored on the GameController states (the drive model moves the loads). A plan, not a pad log: it holds
+# under every language (the text and speech banks differ in size per language, so a recorded log's boundaries would not).
+until-gstate 7 3000
+idle 11
+hold START 5
+until-gstate 8 300
+idle 128
+hold CROSS 5
+idle 295
+hold UP 3
+idle 97
+hold CROSS 3
+idle 247
+hold DOWN 3
+idle 67
+hold CROSS 3
+until-gstate 14 3000
+idle 150
+hold CROSS 5
+until-gstate 12 3000
+idle 151
+hold CROSS 3
+until-gstate 12 200
+idle 60
+stop

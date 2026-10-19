@@ -1,0 +1,16 @@
+# twinsanityevolved padlog v1 -- pad 0 per frame boundary: BOUNDARY BUTTONS(wire order, hex) LX LY RX RY  # names
+# language-bank=0  -- recorded against the disc's slot-0 text bank (the replay pins it)
+# hub_quit: from a state saved at boundary 2635 of hub_entry.padlog (Playing in the hub, 6 boundaries in): START pauses (cursor on
+# Resume), UP to "Quit", CROSS, UP to "Yes", CROSS -> Paused 2972 -> RestartingTitle 2973 -> LoadingTitle 2974 -> Title 3704 (the title load takes the drive's time)
+2636 0000 128 128 128 128  # NONE
+2711 0008 128 128 128 128  # START
+2715 0000 128 128 128 128  # NONE
+2771 0010 128 128 128 128  # UP
+2774 0000 128 128 128 128  # NONE
+2871 4000 128 128 128 128  # CROSS
+2874 0000 128 128 128 128  # NONE
+2941 0010 128 128 128 128  # UP
+2944 0000 128 128 128 128  # NONE
+2971 4000 128 128 128 128  # CROSS
+2974 0000 128 128 128 128  # NONE
+# end at boundary 3780

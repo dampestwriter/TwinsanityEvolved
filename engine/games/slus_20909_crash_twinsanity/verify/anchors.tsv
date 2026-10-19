@@ -1,0 +1,22 @@
+# anchors.tsv -- the title's 13 regression legs (the battery of verify/battery.py / gate_run.py), one row per leg.
+# Derived from each leg's frozen `baseline/<leg>/{run.meta,frames.fhash,probe/,LEG.tsv}` (P8.36-D); the runners
+# still enumerate `baseline/` directly -- this file is the human index and the cross-check (ctest VerifyAnchorsTable).
+# Columns: name | kind (coldboot / anchor / slowspot / attract) | anchor (the savestate the leg restores, relative to
+# the OLD root `--repo`, or `coldboot`) | frames (the frozen lane length = the leg's run length; coldboot_attract's
+# LEG.tsv `frames` 6000 presented 5993 lines) | probes (the frozen OLD probe boundaries under baseline/<leg>/probe/) |
+# probe_dir | pad_script (`-`: every leg replays the harness's neutral pad; no leg has a script) |
+# source (old = frozen from the OLD binary 2026-09-25/26 and 2026-10-05; new = frozen from NEW, policy 2026-10-06 item 3).
+name	kind	anchor	frames	probes	probe_dir	pad_script	source
+coldboot	coldboot	coldboot	1494	60,120	baseline/coldboot/probe	-	old
+coldboot_attract	attract	coldboot	6000	1500,2700,3780,4200,5400	baseline/coldboot_attract/probe	-	old
+artdet_f37152	anchor	save_states/artdet_f37152.ps2st	600	2,60	baseline/artdet_f37152/probe	-	old
+ps2state_slot0_f36935	anchor	save_states/ps2state_slot0_f36935.ps2st	600	2,60	baseline/ps2state_slot0_f36935/probe	-	old
+ps2state_slot0_f39807	anchor	save_states/ps2state_slot0_f39807.ps2st	600	2,60	baseline/ps2state_slot0_f39807/probe	-	old
+ps2state_slot0_f40391	anchor	save_states/ps2state_slot0_f40391.ps2st	600	2,60	baseline/ps2state_slot0_f40391/probe	-	old
+ps2state_slot0_f44111	anchor	save_states/ps2state_slot0_f44111.ps2st	600	2,60	baseline/ps2state_slot0_f44111/probe	-	old
+ps2state_slot0_f46203_red_crystal	anchor	save_states/ps2state_slot0_f46203_red_crystal.ps2st	600	2,60	baseline/ps2state_slot0_f46203_red_crystal/probe	-	old
+ps2state_slot0_f46949_yellow_crystal	anchor	save_states/ps2state_slot0_f46949_yellow_crystal.ps2st	600	2,60	baseline/ps2state_slot0_f46949_yellow_crystal/probe	-	old
+ps2state_slot0_f57292	anchor	save_states/ps2state_slot0_f57292.ps2st	600	2,60	baseline/ps2state_slot0_f57292/probe	-	old
+ps2state_slot0_f59991	anchor	save_states/ps2state_slot0_f59991.ps2st	600	2,60	baseline/ps2state_slot0_f59991/probe	-	old
+slowspot_f37092_s1789428268	slowspot	save_states/slowspot_f37092_s1789428268.ps2st	600	2,60	baseline/slowspot_f37092_s1789428268/probe	-	old
+slowspot_f40298_s1789693059	slowspot	save_states/slowspot_f40298_s1789693059.ps2st	600	2,60	baseline/slowspot_f40298_s1789693059/probe	-	old

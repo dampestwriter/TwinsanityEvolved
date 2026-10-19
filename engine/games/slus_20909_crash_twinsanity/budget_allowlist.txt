@@ -1,0 +1,14 @@
+# games/slus_20909_crash_twinsanity/budget_allowlist.txt -- this title's rows for LintSizeBudget
+# (tests/lint/lint_size_budget.py; same grammar as tests/lint/budget_allowlist.txt: <relpath>:<kind>:<measured>,
+# a dated reason above each entry; an allowlisted offender that grows fails again). The engine's own
+# allowlist names no title path; the offenders under games/<title>/ are listed here.
+
+# 2026-10-13: the tick census install (TickProfile stack view / bind /
+# frame reader, 19 lines) is a file-local InstallTickCensus(); its ONE call line takes the
+# phase to 411. Same queue item: the phase split is the fix, not this row. (Was app/host/ee_bootstrap_image.cpp
+# before the re-home onto the generalised engine.)
+games/slus_20909_crash_twinsanity/composition/ee_bootstrap_image.cpp:func-lines:EeBootstrap::InstallDispatch:411
+
+# The class-renderer suite names its own session tag in six expectation strings (the OLD test's grammar
+# pin); the row moved here with the suite (was tests/gs/classrdr/test_classrdr.cpp).
+games/slus_20909_crash_twinsanity/tests/gs/classrdr/test_classrdr.cpp:session-tag:[GS-S9RDR]:6

@@ -1,0 +1,5 @@
+# twinsanityevolved padlog v1 -- the title left alone: the intro scene ("Three years ago..." -- the ice block on the ocean,
+# the game's title chunk under GameController::Title from boundary 1262 with --skip-movies) plays to the title card
+# language-bank=0
+1 0000 128 128 128 128  # NONE
+# end at boundary 2000

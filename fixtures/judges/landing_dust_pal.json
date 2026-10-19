@@ -1,0 +1,25 @@
+{
+  "padlog": "fixtures/padlogs/landing_dust.padlog",
+  "disc": "PAL SLES-52568 (deterministic, headless: --deterministic --no-sdl-input --no-audio --skip-movies --trace-state, an empty --mc-dir; TE_GFX_DUMP_EVERY=5)",
+  "stop_at": 3200,
+  "run_seconds": 900,
+  "dump_every": 5,
+  "require_state": "Playing",
+  "frame": [
+    512,
+    512
+  ],
+  "landings": [
+    {"present": 2770, "reference": 2755, "note": "the first standing jump (CROSS at boundary 2900): the dust's first dumped present; at 2755 Crash is in the air over bare sand"},
+    {"present": 2970, "reference": 2955, "note": "the second jump (CROSS at 3100)"}
+  ],
+  "ring_boxes": {
+    "left": [0.3223, 0.7715, 0.459, 0.918],
+    "right": [0.5664, 0.7715, 0.6934, 0.918]
+  },
+  "min_floor_ratio": 0.4,
+  "max_dark_share": 0.05,
+  "max_present_ratio": 0.99,
+  "why": "The landing dust is a mode-2 particle system (ParticleBlendMode::BlendPageMaterial: the page material's own alpha blend, MIX (Cs - Cd) * As + Cd with the texture's alpha, TCC = RGBA). The port's wasm arm (graphics_models.cpp ReadParticlePageData) had its own permuted enum -- page material 0 / additive 1 / subtractive 2 -- against the game's additive 0 / subtractive 1 / page 2 that DrawParticles indexes page->materials with, so every mode-2 system drew with the SUBTRACTIVE material ((0 - Cs) * As + Cd: a dark blob) and the additive ones with the alpha blend. The judge: the ring boxes left and right of Crash (the cloud without his body; frame fractions of 512x512: x 165..235 / 290..355, y 395..470) on the landing's first dumped present against the same boxes a few dumps earlier (Crash in the air, the ground bare): the darkest 5 % of the dust keep >= 40 % of the ground's luminance (a mean alpha contribution under 60 %), under 5 % of the pixels fall below that, and the mean is lower than the bare ground's (something IS drawn).",
+  "frozen": "2026-10-17: RED x2 on bin/twinsanityevolved.c85ae9e.HELD (landing 2770: left p05 6 of 143 (0.04), dark share 0.309, right p05 0, dark 0.171; landing 2970: p05 0 / 10, dark 0.31 / 0.14), GREEN x2 on the landing-dust fix build (2770: left p05 114 (0.80) dark 0.030 mean 0.95, right p05 114 (0.79) dark 0.008 mean 0.96; 2970: p05 108 / 119, means 0.95 / 0.96)"
+}

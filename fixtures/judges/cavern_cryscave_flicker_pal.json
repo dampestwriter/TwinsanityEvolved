@@ -1,0 +1,19 @@
+{
+  "padlog": "fixtures/padlogs/cavern_cryscave.padlog",
+  "disc": "PAL SLES-52568 (deterministic, headless: --deterministic --no-sdl-input --no-audio --skip-movies --trace-state; the hub card warped to levels\\earth\\cavern\\cavent by tools/warp_save.py --place 0xFFFF; TE_GFX_DUMP_EVERY=5)",
+  "card": "warp:levels\\earth\\cavern\\cavent",
+  "stop_at": 4820,
+  "run_seconds": 900,
+  "dump_every": 5,
+  "presents_from": 4280,
+  "presents_to": 4800,
+  "require_state": "Playing",
+  "skip_rows": 120,
+  "min_luminance": 15.0,
+  "dip_ratio": 0.6,
+  "draws_tolerance": 6,
+  "max_dips": 0,
+  "min_frames": 60,
+  "why": "The cryscave dark flicker (2026-10-17): in Cavern Catastrophe's cryscave (Crash on foot in the pen and on the wooden track, the camera inside the cave) the WHOLE 3D scene darkens on one presented frame in ~10-15 at the shadow composite's scale (Cd - 33 twice over: mean luminance 36 -> 2..10 on presents 4290/4310/4320/4330/4495/4595/4630/4645/4685/5100/5110/5650) while the draw list is the same (diag 4315 vs 4325: the same models, shaders, textures, the same 34 stencil shadow volumes with stencil 1; the only differing numbers are each draw's mean colour) -- a flicker a player sees; the HUD rows are not affected (skip_rows 120). bin/twinsanityevolved.1952747 (before the stencil shadows and the frozen heap layout) renders the same presents at 23..56 with no dip. The hub, the jungle and the mecha logs show no dip at stride 50/100.",
+  "frozen": "2026-10-17: RED on bin/twinsanityevolved.966caf5 (12 dips in 4280..4800 at stride 5), GREEN expected on 1952747 and on the fix; frozen; run x2 each."
+}

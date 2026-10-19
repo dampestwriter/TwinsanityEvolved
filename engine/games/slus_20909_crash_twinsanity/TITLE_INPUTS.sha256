@@ -1,0 +1,7 @@
+# TITLE_INPUTS.sha256 -- the disc files this title's generated code is made from (shasum -a 256 format).
+# The build (cmake/TitleInputs.cmake) extracts each path from the user's disc image (NATIVEEE_DISC)
+# or takes the loose file (NATIVEEE_TITLE_ELF / NATIVEEE_STREAM_IRX) and REFUSES any other bytes.
+# Path = the file's path on the ISO9660 volume (root = the ELF). The ELF hash is the one the
+# launcher checks at first run (TitleProfile::elf_sha256, app/host/disc_verify.cpp).
+8d114879fb704d328394771aec6276136bdb4ecf4c5f8de06139b7b42974038f  SLUS_209.09
+96ef95beac5173873c93073ea394b9dd245f1fae06cf18615dcb8d20efef6760  CRASH6/SYS/STREAM.IRX

@@ -1,0 +1,24 @@
+{
+  "disc": "PAL SLES-52568 (PLAY mode: paced, windowed, scale 1; --skip-movies --trace-state; TE_GFX_SUMMARY_EVERY=10)",
+  "summary_every": 10,
+  "load_states": [
+    "LoadingLevel",
+    "StartingPlay",
+    "Waiting"
+  ],
+  "load_margin_boundaries": 30,
+  "min_render_fps_p50": 55.0,
+  "max_ms_per_frame": 16.7,
+  "max_slow_windows_outside_load": 0,
+  "padlog": "fixtures/padlogs/cavern_entry.padlog",
+  "stop_at": 3300,
+  "run_seconds": 180,
+  "playing_from": 2820,
+  "min_windows": 30,
+  "mc_from": "$ROOT/build/padlog_smoke/mc_warp",
+  "extra_args": [
+    "--trace-player",
+    "30"
+  ],
+  "frozen": "2026-10-17: the render-rate check on cavern_entry.padlog (LOAD GAME on the hub card warped to levels\\earth\\cavern\\cavent by tools/warp_save.py --place 0xFFFF: the card padlog_smoke's warp rows build at $ROOT/build/padlog_smoke/mc_warp -- regenerate it from mc_hub before the run, the cryscave row's auto-saves may have moved it) in PLAY mode: Playing 2820 to 3300 (the ball's roll starts). Hub thresholds. Measured on bin/twinsanityevolved.966caf5 by the reviewer (review/REVIEW_UV_<HEAD>.md); frozen; run x2."
+}

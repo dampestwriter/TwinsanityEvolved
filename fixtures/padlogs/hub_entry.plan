@@ -1,0 +1,22 @@
+# hub_entry authoring plan (re-recorded on the drive model): the menu prefix anchored on the GameController states (the drive model moves
+# the loads): title (7) -> START -> main menu (8) -> NEW GAME -> create the save file -> slot 1 -> the hub, Playing (12) ->
+# the "auto-save on" notice dismissed. Records as fixtures/padlogs/hub_entry.padlog (--stop-at 4910: Playing 2629 + 2281,
+# the old 4200's offset from its Playing 1919).
+until-gstate 7 3000
+idle 11
+hold START 5
+until-gstate 8 300
+idle 128
+hold CROSS 5
+idle 295
+hold UP 3
+idle 97
+hold CROSS 3
+idle 247
+hold DOWN 3
+idle 67
+hold CROSS 3
+until-gstate 12 2000
+idle 151
+hold CROSS 3
+stop

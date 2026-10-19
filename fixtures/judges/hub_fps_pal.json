@@ -1,0 +1,19 @@
+{
+  "padlog": "fixtures/padlogs/hub_entry.padlog",
+  "disc": "PAL SLES-52568 (PLAY mode: paced, windowed, scale 1; --skip-movies --trace-state, an empty --mc-dir; TE_GFX_SUMMARY_EVERY=10)",
+  "stop_at": 4910,
+  "run_seconds": 240,
+  "summary_every": 10,
+  "playing_from": 2629,
+  "load_states": [
+    "LoadingLevel",
+    "StartingPlay",
+    "Waiting"
+  ],
+  "load_margin_boundaries": 30,
+  "min_render_fps_p50": 55.0,
+  "max_ms_per_frame": 16.7,
+  "max_slow_windows_outside_load": 0,
+  "min_windows": 150,
+  "frozen": "2026-10-15: RED on main 6cd7dc0 -- render_fps p50 42.7 in Playing (23.5 ms a presented frame; every placed/rigid model rebuilt and re-projected through MeshGeometry::Build per frame), GREEN on the prepared-mesh-builder fix (prepared meshes, merged submodel draws) | 2026-10-16: the pad log re-recorded from its plan under the drive model, the EE rounding and the retail rays (the menu prefix anchored on the GameController states; the title appears at 1262 instead of 559, the hub is Playing at 2629 instead of 1919); stop/playing_from moved by the same offsets, thresholds unchanged"
+}

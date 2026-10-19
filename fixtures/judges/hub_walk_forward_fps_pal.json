@@ -1,0 +1,23 @@
+{
+  "disc": "PAL SLES-52568 (PLAY mode: paced, windowed, scale 1; --skip-movies --trace-state; TE_GFX_SUMMARY_EVERY=10)",
+  "summary_every": 10,
+  "load_states": [
+    "LoadingLevel",
+    "StartingPlay",
+    "Waiting"
+  ],
+  "load_margin_boundaries": 30,
+  "min_render_fps_p50": 55.0,
+  "max_ms_per_frame": 16.7,
+  "max_slow_windows_outside_load": 0,
+  "padlog": "fixtures/padlogs/hub_walk_forward.padlog",
+  "stop_at": 3310,
+  "run_seconds": 180,
+  "playing_from": 2629,
+  "min_windows": 50,
+  "extra_args": [
+    "--trace-player",
+    "30"
+  ],
+  "frozen": "2026-10-17: the render-rate check on hub_walk_forward.padlog (the menu prefix, the left stick full forward from 2629: the oracle walk) in PLAY mode on an empty card; the hub thresholds (render_fps p50 >= 55, no tick > 16.7 ms outside the load windows, late <= 5 %, timeouts 0). Numbers measured on bin/twinsanityevolved.966caf5 by the reviewer: see review/REVIEW_UV_<HEAD>.md; frozen; run x2."
+}

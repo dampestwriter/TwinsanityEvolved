@@ -1,0 +1,42 @@
+# games/slus_20909_crash_twinsanity/lint_denylist.txt -- the tokens LintEnginePurity treats as THIS
+# title's (tests/lint/lint_engine_purity.py: engine/ and verify/ must name no game). The generic
+# half of the denylist lives in the lint (serial shapes, FUN_/func_ naming); this is the title half.
+#
+# The ELF's single PT_LOAD: [p_vaddr, p_vaddr + p_memsz) -- a hex literal in the range is a game
+# address (covers .text, .vutext, .data, .vudata, .rodata, .sdata AND .bss).
+text_lo = 0x00100000
+text_hi = 0x003DAE80
+# The title's VRAM / data base constants (A6 section 3.3).
+0x230000
+0x280000
+0x268000
+0x150000
+0x370000
+0x375400
+0x380000
+0x380C00
+0x3C0000
+0x3D0000
+0x3F0000
+0x2F0000
+0x2F5400
+0x70000
+0x3B3000
+0x30A980
+0x3D4AE0
+0x3098C4
+0x3723AC
+# The title's strings: name, disc directories, its custom IOP module and its RPC protocol prefix,
+# the ELF CRC, the save-game product code, its asset archives.
+20909
+Twinsanity
+CRASH6SYS
+STREAM\.IRX
+\blti_
+8CFAB4EA
+BASLUS
+CRASH\.B[HD]
+# The VU1-HLE program stamps the library registers, the family dispatcher constant, the variant base.
+\bvs_(?:family|crys|ttx|pcs|lit|skn|idx|zk|spr)_\w*
+\b0[xX]090E0003\b
+\bkVariantBase\b

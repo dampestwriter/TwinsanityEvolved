@@ -1,0 +1,17 @@
+{
+  "disc": "PAL SLES-52568, deterministic headless with the picture DRAWN and the harness leg armed: TE_GFX_HEADLESS=1 BIN --iso ISO --deterministic --no-sdl-input --no-audio --skip-movies --trace-state --play-pad PADLOG --mc-dir CARD --stop-at N --run-seconds 600 --harness-out DIR (never TE_GFX_NO_DRAW: the hashes are of the presented frames)",
+  "padlogs": [
+    {"name": "title_intro_idle", "padlog": "fixtures/padlogs/title_intro_idle.padlog", "stop_at": 1900, "card": "fresh",
+     "exercises": "the title chunk's intro cutscene (the ocean: perspective-correct S,T,Q, the MIX-blended sheen), the title card"},
+    {"name": "hub_entry", "padlog": "fixtures/padlogs/hub_entry.padlog", "stop_at": 4200, "card": "fresh",
+     "exercises": "title -> menus -> new game -> the hub: skins, the shadow-volume stencil counter (clear, caster mask, count up / down, composite), particles"},
+    {"name": "hub_walk_forward", "padlog": "fixtures/padlogs/hub_walk_forward.padlog", "stop_at": 3310, "card": "fresh",
+     "exercises": "the hub walked forward: moving shadows and skins over the terrain, landing dust"},
+    {"name": "cavern_entry", "padlog": "fixtures/padlogs/cavern_entry.padlog", "stop_at": 3300, "card": "warp:levels\\earth\\cavern\\cavent",
+     "exercises": "LOAD GAME warped to Cavern Catastrophe: the screen-copy crystals (the frame copy as a texture), decals, a second level's materials"}
+  ],
+  "card_note": "fresh = an empty --mc-dir; warp:<chunk> = the card the hub_entry run wrote (run it first) with its save's chunk rewritten by tools/warp_save.py --place 0xFFFF, as tools/ci/padlog_smoke.sh prepares it",
+  "verdict": "GREEN iff, for every pad log, the two legs' frames.fhash are IDENTICAL: the same number of presents and the same <key>,0x<fnv1a64> on every line (a renderer change that moves one pixel of one presented frame is RED)",
+  "why": "The typed-draw surface decoupled from the GL device (engine): engine/platform/ps2e/ps2e_draw.cpp reached past render::Backend into GlDevice (the stencil target, the run brackets, the state cache, the constant VAO, a shader of its own, raw GL stencil calls). What it needed was lifted onto render::Backend (StencilState.depth_fail_op applied by a register-program draw, MarkStencilWhereOpaque, ReadbackStencil, BeginDrawRun / EndDrawRun, SetWindowSize) and the surface now speaks the abstract interface only, through an arm (ps2e_draw_backend_{gl,null}.cpp) CMake selects. The GL arm's picture must not move: this judge is GREEN before and GREEN after BY DESIGN -- it freezes that the refactor is a refactor.",
+  "frozen": "2026-10-18 (the decoupling of the typed-draw surface): the pinned engine 2d064027 vs te-engine-decouple 35130fea on the same port tree; the hashes recorded beside the judge logs (the engine owner's records, then the integrator's). RED demonstrated against a TE_GFX_NO_DRAW=1 leg of title_intro_idle (every present differs)"
+}

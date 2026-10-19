@@ -1,0 +1,31 @@
+{
+  "padlog": "fixtures/padlogs/hub_entry.padlog",
+  "disc": "PAL SLES-52568 (deterministic, headless: --deterministic --no-sdl-input --no-audio --skip-movies --trace-state, an empty --mc-dir; TE_GFX_DUMP_EVERY=100)",
+  "stop_at": 4900,
+  "run_seconds": 900,
+  "dump_every": 100,
+  "presents": [
+    3000,
+    3500,
+    4200,
+    4700
+  ],
+  "require_state": "Playing",
+  "region": {
+    "name": "crash",
+    "box": [
+      0.42,
+      0.58,
+      0.6,
+      0.78
+    ],
+    "why": "Crash standing on the hub beach seen from behind by the chase camera (the log stands still from Playing 1919 to 4200): his head and upper body fill this box; the sand around and the shadow volume's stamp below"
+  },
+  "dark_luminance": 24,
+  "quantise_bits": 4,
+  "min_colours": 40,
+  "min_lit_luminance_sd": 33.0,
+  "min_saturation": 120,
+  "min_saturated_share": 0.03,
+  "frozen": "2026-10-16: on bin/twinsanityevolved.1952747 (DrawSkin / DrawBlendSkin no-ops) the box holds sand and the shadow stamp: 18-21 colours (4-bit quantised), luminance SD of the non-dark pixels 35.1-37.5, saturated share 0.000; with the skins drawn through the engine's SkinGeometry: 75-81 colours, SD 45.1-47.4, saturated (fur) share 0.064-0.080 | 2026-10-16: the hub pad log was re-recorded on the drive model (: Playing 2629..4910 instead of 1919..4200, every boundary ~+710) -- presents and stop_at shifted by +700/+710; thresholds unchanged; presents 3000 / 3500 / 4200 / 4700 (presents, not boundaries: the run presents ~4750 frames by boundary 4900), skipping the idle-animation presents where Crash turns sideways (3700 / 4000 / 4500 read lit SD 35-39 with 110-165 colours: a pose, not a defect); lit SD floor 41 -> 33 (the RED build stays RED on colours 18-21 and saturated share 0)"
+}

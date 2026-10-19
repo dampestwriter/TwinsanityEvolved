@@ -1,0 +1,25 @@
+{
+  "padlog": "fixtures/padlogs/decal_footprints.padlog",
+  "disc": "PAL SLES-52568 (deterministic, headless: --deterministic --no-sdl-input --no-audio --skip-movies --trace-state, an empty --mc-dir; TE_GFX_DUMP_EVERY=10; the reference arm adds TE_GFX_NO_DECALS=1)",
+  "stop_at": 3200,
+  "run_seconds": 900,
+  "dump_every": 10,
+  "require_state": "Playing",
+  "frame": [
+    512,
+    512
+  ],
+  "box": [0.46, 0.855, 0.505, 0.91],
+  "visible": 2600,
+  "fading": 2760,
+  "gone": 2800,
+  "changed_delta": 6,
+  "min_changed": 50,
+  "min_max_delta": 12,
+  "min_mean_delta": 1.5,
+  "min_reference_mean": 80,
+  "max_fading_ratio": 0.8,
+  "max_gone_changed": 5,
+  "why": "The decals (decals.cpp -- footfalls, ripples, scorches) go through Platform::Graphics::LoadDecalView / LoadDecalType / AgeDecal / DrawDecals. The port had every one of them as a no-op: nothing aged, nothing drawn. The fix (graphics_decals.cpp) runs the retail decal set's VU0 microprogram (0x1C0 / 0x360) for AgeDecal and the VU1 library's class-A billboard emitter for DrawDecals over the game's own block arrays. The judge: Crash takes a few steps on the hub's sand (footprint decals: type 0 variant 1, 5 s life, the subtractive key -- a soft darkening of the sand) and stops; the camera settles behind him with one footprint in view under his heels (x 236..259, y 438..466 of 512x512). The decal arm's box is darker than the reference arm's (the same binary with the decal pass off) at 2600, fainter at 2760 (the colour keys' fade over the last ~140 frames) and identical again at 2800 (the decal's life over).",
+  "frozen": "2026-10-17: RED x2 on bin/twinsanityevolved.32e1174 (both arms identical: 0 changed pixels, delta 0 at every present), GREEN x2 on the decal fix build (visible 2600: 117 changed of 644, max delta 22, mean 3.61, reference mean 116; fading 2760: max 13 = 0.59 of 22; gone 2800: 0 changed)"
+}

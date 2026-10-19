@@ -1,0 +1,19 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "twinsanityevolved",
+  "version-string": "0.0.0",
+  "builtin-baseline": "bf19794383e8fb95eba5aa553235bc8ec2271688",
+  "description": "Windows dependency manifest (CMakePresets.json windows-clang-cl-* through cmake/windows-clang-cl.toolchain.cmake; tools/ci/release_dist.ps1): the two runtime libraries the binary links -- the same two the engine's manifest names; LGPL FFmpeg features only (avcodec + swscale) -- plus the Khronos GL registry headers the engine's Windows GL loader includes (opengl-registry). builtin-baseline = the vcpkg commit the port versions are resolved against (github.com/microsoft/vcpkg master HEAD on 2026-10-17, `git ls-remote https://github.com/microsoft/vcpkg HEAD`; the VCPKG_ROOT checkout must contain it -- docs/WINDOWS.md section 2). KEEP IDENTICAL to engine/vcpkg.json (the same baseline): the engine's ExternalProject shares this manifest's installed tree (CMakeLists.txt,). macOS and Linux build SDL2/FFmpeg statically from the engine's recipes (tools/ci/release_dist.sh).",
+  "dependencies": [
+    "sdl2",
+    "opengl-registry",
+    {
+      "name": "ffmpeg",
+      "default-features": false,
+      "features": [
+        "avcodec",
+        "swscale"
+      ]
+    }
+  ]
+}

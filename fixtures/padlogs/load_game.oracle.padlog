@@ -1,0 +1,7 @@
+# padlog v1 start_frame=1 clock=frame title=slus_20909_crash_twinsanity
+# fixtures/padlogs/load_game.padlog transposed by +780 (the first recording; the drive-model re-recording moved the port's presses by +703, the oracle inputs are unchanged) boundaries for the NTSC oracle (boot movies playing: START at 1350). LOAD GAME needs a card with the hub save in the oracle user data (the hub_entry.oracle.padlog run writes it first); menu-only, no analog
+1350-1354:START
+1430-1432:DOWN
+1480-1484:CROSS
+1880-1882:DOWN
+1980-1982:CROSS

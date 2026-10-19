@@ -1,0 +1,9 @@
+{
+  "padlog": "fixtures/padlogs/hub_entry.padlog",
+  "disc": "PAL SLES-52568 (--deterministic --no-sdl-input --skip-movies --trace-state, an empty --mc-dir)",
+  "states": ["Title", "MainMenu", "NewGame", "Movie", "StartingPlay", "Playing", "Paused", "Waiting", "Playing"],
+  "final_state": "Playing",
+  "stop_at": 4200,
+  "min_free_pages": 40,
+  "frozen": "2026-10-15: RED on main 2d31e23 -- wasm trap Out-of-bounds at boundary 1702 (CollectCellInstances over NULL pool arrays; the small pages exhausted by AllocFrameMemory's leaking fallback), GREEN on the fix (SubmitBuckets recycles the frame memory): 4200 boundaries, Playing held from 1919, pages free > 40"
+}

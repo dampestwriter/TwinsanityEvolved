@@ -1,0 +1,56 @@
+# Platform::X::Y functions of an IMPORTED header that are implemented INSIDE the game module (platform/nativeee/wasm/*.cpp)
+# because their bodies must call game code: the virtual Stream they read from, the game's heap and disk manager, the
+# graphics tables they take references through (the renderer's "reverse leak"). gen_seam.py emits
+# no import, forwarder or stub for them; the wasm-side body hands the host TYPED data through tools/platform_imports.tsv.
+# graphics: platform/nativeee/wasm/graphics_resources.cpp
+Graphics::NewTexture
+Graphics::DeleteTexture
+Graphics::ReadTexture
+Graphics::NewMaterial
+Graphics::DeleteMaterial
+Graphics::ReadMaterial
+Graphics::ConstructMaterial
+Graphics::DestroyMaterial
+Graphics::MakeFlatMaterial
+Graphics::FlatMaterial
+Graphics::SetFontPage
+Graphics::MakeParticleMaterial
+Graphics::MakeDistortionMaterial
+Graphics::MakeSkidMaterial
+Graphics::AllocFrameMemory
+Graphics::ResetBuckets
+Graphics::SubmitBuckets
+# graphics: platform/nativeee/wasm/graphics_models.cpp -- the model resources read their Stream, the camera's
+# frustum planes use the game's plane maths, the sky needs the camera's place (game code), the animations the game's
+Graphics::NewModel
+Graphics::DeleteModel
+Graphics::ReadModel
+Graphics::NewRigidModel
+Graphics::DeleteRigidModel
+Graphics::ReadRigidModel
+Graphics::NewSkin
+Graphics::DeleteSkin
+Graphics::ReadSkin
+Graphics::NewBlendSkin
+Graphics::DeleteBlendSkin
+Graphics::ReadBlendSkin
+Graphics::NewMesh
+Graphics::DeleteMesh
+Graphics::ReadMesh
+Graphics::NewLod
+Graphics::DeleteLod
+Graphics::ReadLod
+Graphics::NewSky
+Graphics::DeleteSky
+Graphics::ReadSky
+Graphics::LodModelAt
+Graphics::FirstMaterial
+Graphics::RestartAnimations
+Graphics::LoadParticlePage
+Graphics::ReadParticlePage
+Graphics::SetViewFrustum
+Graphics::ViewPlanes
+Graphics::DrawChunkSky
+Graphics::StepAnimations
+# platform/nativeee/wasm/graphics_text.cpp -- the platform's texts queued through the game's QueueText
+Graphics::QueuePlatformTexts

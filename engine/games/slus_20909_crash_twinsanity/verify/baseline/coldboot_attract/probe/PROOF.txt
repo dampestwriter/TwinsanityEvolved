@@ -1,0 +1,11 @@
+# PROOF for the frozen OLD probe images of leg coldboot_attract (verify/probe_images.py --old)
+# OLD state_b<N> = boundary N+1 (OLD requests the save at boundary n != 0, lands it one boundary later;
+#   OLD host_app/verify/verify_boundary.cpp OnEeBoundary, proved I8.5-G). NEW state_b<N> = boundary N.
+# hash = verify/state_hash.py chained FNV-1a64 over RAM0 -> SPAD -> META (= the mem.mhash lane's hash).
+# anchor: coldboot
+# plan from LEG.tsv: probes 1500@2100,2700@3300,3780@4400,4200@4800,5400@6000 (B@F: OLD --frames F --state-every B-1 -> state_b<B-1> = boundary B); timeout_s 3000 stall_s 600
+old_b1500: OLD --frames 2100 --state-every 1499 -> state_b1499; hash 0x45120fe78aff16d1 vsync_frame 2030; baseline mem.mhash line `1500,0x45120fe78aff16d1` -> PROOF-OK
+old_b2700: OLD --frames 3300 --state-every 2699 -> state_b2699; hash 0xfc4c17fe536601cf vsync_frame 3230; baseline mem.mhash line `2700,0xfc4c17fe536601cf` -> PROOF-OK
+old_b3780: OLD --frames 4400 --state-every 3779 -> state_b3779; hash 0xae4d0e09ab1ff345 vsync_frame 4310; baseline mem.mhash line `3780,0xae4d0e09ab1ff345` -> PROOF-OK
+old_b4200: OLD --frames 4800 --state-every 4199 -> state_b4199; hash 0xe0af742536fbecb0 vsync_frame 4730; baseline mem.mhash line `4200,0xe0af742536fbecb0` -> PROOF-OK
+old_b5400: OLD --frames 6000 --state-every 5399 -> state_b5399; hash 0x908113fbaa741e74 vsync_frame 5930; baseline mem.mhash line `5400,0x908113fbaa741e74` -> PROOF-OK

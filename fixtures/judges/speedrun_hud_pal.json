@@ -1,0 +1,18 @@
+{
+  "padlog": "fixtures/padlogs/hub_entry.padlog",
+  "disc": "PAL SLES-52568; deterministic headless, no scene draws: --deterministic --no-sdl-input --no-audio --skip-movies --trace-state; TE_GFX_HEADLESS=1 TE_GFX_NO_DRAW=1 TE_GFX_DIAG_TEXT=1; an empty --mc-dir; B adds --mod speedrun --record-pad",
+  "stop_at": 3400,
+  "run_seconds": 600,
+  "presents": [
+    2700,
+    3000
+  ],
+  "frame": [
+    512,
+    512
+  ],
+  "centre_tolerance": 0.02,
+  "top_band": 0.15,
+  "why": "the hub log starts a NEW GAME (the speedrun run starts there, boundary ~2379) and stands in the hub from Playing on (presents run ~180 behind the boundaries); at presents 2700 and 3000 the frame's text draws are the HUD's (identical with and without the mod) plus, with the mod on, the speedrun mod's: GREEN iff that is exactly ONE string reading mm:ss.cc (its glyphs come from three font pages = three quad draws of the one string), its glyph box centred within 2 % of the 512-wide frame's middle and wholly inside the top 15 % of the frame, no platform text of the run says rta / igt / speedrun / split, the string differs between the two presents (the timer runs), the run started and a recording was written; the splits themselves are speedrun_judge.py's (the hub log never changes chunk)",
+  "frozen": "2026-10-18 product: RED on bin/twinsanityevolved.310b6f0 (one platform text 'rta M:SS.cc~igt M:SS.cc' drawn as two lines bottom-left at (0.03, 0.78): not a bare timer, off centre, below the top band), GREEN on the single-timer build"
+}

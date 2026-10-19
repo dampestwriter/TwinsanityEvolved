@@ -1,0 +1,15 @@
+{
+  "padlog": "fixtures/padlogs/title_main_menu.padlog",
+  "disc": "PAL SLES-52568; deterministic headless: --deterministic --no-sdl-input --no-audio --skip-movies --trace-state, an empty --mc-dir; TE_GFX_DUMP_EVERY=100",
+  "stop_at": 1600,
+  "run_seconds": 600,
+  "dump_every": 100,
+  "present": 1400,
+  "aspect": "16:9",
+  "bars": [[0.0, 0.2], [0.8, 1.0]],
+  "picture": [0.3, 0.7],
+  "bar_max_luminance": 1.0,
+  "picture_min_luminance": 20.0,
+  "why": "the 512x512 PAL frame letterboxed to 16:9 in the 512x512 headless capture is a 512x288 picture at rows 112..400: the rows 0..102 and 410..512 are the bars (black); with the default shape (auto = the frame's pixels when headless) the same rows show the title's sky (top) and sea (bottom)",
+  "frozen": "2026-10-17: RED on bin/twinsanityevolved.32e1174 (no --aspect: the runner exits 2), GREEN on the display-settings build (bars 0.0 / 0.0, A's rows 40-70, picture 60+)"
+}

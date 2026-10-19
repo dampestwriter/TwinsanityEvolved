@@ -1,0 +1,13 @@
+# padlog v1 start_frame=1 clock=frame title=slus_20909_crash_twinsanity
+# fixtures/padlogs/hub_walk_forward.padlog transposed for the NTSC oracle: +77 boundaries before port boundary 2629 (boot movies playing: START at 647); from it, by GAME TIME:
+# port 149 units a frame from 2629 vs oracle 149 units from 2699, oracle leap frames (1174 units) at 2798,2799,3310,3311
+# port 3310 -> oracle 3353
+# the menu presses are the FROZEN oracle inputs of the first transposition (START 1350 ... CROSS 2680: the oracle leg is unchanged, its Playing at 2699); the port's drive-model re-recording moved its own menu by +703 (title load on the drive) so the constant offset is 77; play mapped by game time with the port at 149 units a frame (the default) -- the two clocks agree, only the oracle's leaps remain
+1350-1356:START
+1480-1486:CROSS
+1780-1786:UP
+1880-1886:CROSS
+2130-2136:DOWN
+2200-2206:CROSS
+2680-2686:CROSS
+2730-3309:LY=1

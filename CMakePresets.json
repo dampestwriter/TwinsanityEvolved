@@ -1,0 +1,66 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 24, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "windows-clang-cl-base",
+      "hidden": true,
+      "description": "The Windows lane: clang-cl + Ninja through cmake/windows-clang-cl.toolchain.cmake (the engine's clang-cl shim as the compiler launcher, vcpkg chain-loaded: SDL2 + FFmpeg from vcpkg.json; VCPKG_ROOT must point at a vcpkg checkout). Windows hosts only -- on macOS/Linux these presets do not exist (`cmake --list-presets` shows none) and the plain configure in README is the build. Nothing here touches the macOS/Linux defaults.",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" },
+      "generator": "Ninja",
+      "toolchainFile": "${sourceDir}/cmake/windows-clang-cl.toolchain.cmake",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "VCPKG_TARGET_TRIPLET": "x64-windows",
+        "VCPKG_APPLOCAL_DEPS": "ON",
+        "TE_DIST": "OFF"
+      }
+    },
+    {
+      "name": "windows-clang-cl-release",
+      "displayName": "Windows release (clang-cl, Ninja, Release)",
+      "description": "The shipped Windows shape: Release, the vcpkg DLLs beside twinsanityevolved.exe (tools/ci/release_dist.ps1 -SkipBuild -BuildDir build-windows-release stages it). The CI job .github/workflows/windows.yml builds this preset.",
+      "inherits": "windows-clang-cl-base",
+      "binaryDir": "${sourceDir}/build-windows-release",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+    {
+      "name": "windows-clang-cl-dev",
+      "displayName": "Windows dev (clang-cl, Ninja, RelWithDebInfo)",
+      "description": "The development configuration: optimised code with PDBs (crash dumps and a debugger read the frames; the 39 MB of wasm2c C is impractical at /Od), the same dependencies as the release preset.",
+      "inherits": "windows-clang-cl-base",
+      "binaryDir": "${sourceDir}/build-windows-dev",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo" }
+    },
+    {
+      "name": "windows-clang-cl-release-lto",
+      "displayName": "Windows release + LTO (clang-cl, lld-link, Ninja, Release)",
+      "description": "windows-clang-cl-release with TE_LTO=ON (CMAKE_INTERPROCEDURAL_OPTIMIZATION here and PS2R_LTO on the engine, through CheckIPOSupported) and lld-link as the linker (link.exe does not read clang-cl's LTO objects). Not the shipped shape until it passes the unit tests, a boot and a save-state round trip on a Windows machine -- the engine's windows-release-lto has the same status.",
+      "inherits": "windows-clang-cl-release",
+      "binaryDir": "${sourceDir}/build-windows-release-lto",
+      "cacheVariables": { "TE_LTO": "ON", "CMAKE_LINKER": "lld-link" }
+    },
+    {
+      "name": "vita-release",
+      "displayName": "PlayStation Vita (VitaSDK arm-vita-eabi, Ninja, Release) -- the spike lane",
+      "description": "The Vita lane: cmake/vita.toolchain.cmake wraps $VITASDK/share/vita.toolchain.cmake; the wasm32 half runs on the host, the eboot's C/C++ is cross-compiled (TE_VITA=ON in CMakeLists.txt: no window / GL 4.1 backend -- the ps2e draw surface is the engine's null arm; SDL2's Vita port for pads + audio; the disc image read from ux0:data/twinsanity/). Builds twinsanityevolved.vpk. Nothing here touches the macOS / Linux / Windows configurations (every Vita difference sits under if(TE_VITA)).",
+      "condition": { "type": "notEquals", "lhs": "${hostSystemName}", "rhs": "Windows" },
+      "generator": "Ninja",
+      "toolchainFile": "${sourceDir}/cmake/vita.toolchain.cmake",
+      "binaryDir": "${sourceDir}/build-vita-release",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release", "TE_VITA": "ON", "TE_DIST": "OFF" }
+    }
+  ],
+  "buildPresets": [
+    { "name": "windows-clang-cl-release",     "configurePreset": "windows-clang-cl-release",     "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }, "targets": ["twinsanityevolved", "te_tests", "te_fiber_test", "te_graphics_selftest", "te_pdesc"] },
+    { "name": "windows-clang-cl-dev",         "configurePreset": "windows-clang-cl-dev",         "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }, "targets": ["twinsanityevolved", "te_tests", "te_fiber_test", "te_graphics_selftest", "te_pdesc"] },
+    { "name": "windows-clang-cl-release-lto", "configurePreset": "windows-clang-cl-release-lto", "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }, "targets": ["twinsanityevolved", "te_tests", "te_fiber_test", "te_graphics_selftest", "te_pdesc"] }
+,
+    { "name": "vita-release",                "configurePreset": "vita-release",                "condition": { "type": "notEquals", "lhs": "${hostSystemName}", "rhs": "Windows" }, "targets": ["twinsanityevolved_vpk"] }
+  ],
+  "testPresets": [
+    { "name": "windows-clang-cl-release",     "configurePreset": "windows-clang-cl-release",     "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }, "filter": { "include": { "label": "nativeee" } }, "output": { "outputOnFailure": true }, "execution": { "timeout": 300 } },
+    { "name": "windows-clang-cl-dev",         "configurePreset": "windows-clang-cl-dev",         "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }, "filter": { "include": { "label": "nativeee" } }, "output": { "outputOnFailure": true }, "execution": { "timeout": 300 } },
+    { "name": "windows-clang-cl-release-lto", "configurePreset": "windows-clang-cl-release-lto", "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }, "filter": { "include": { "label": "nativeee" } }, "output": { "outputOnFailure": true }, "execution": { "timeout": 300 } }
+  ]
+}

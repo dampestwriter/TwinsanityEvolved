@@ -1,0 +1,4 @@
+# verify/baseline/coldboot_attract/SCENE_KEYS.tsv -- the title's two scene words (title data; read by verify/clock_pair.py --keys)
+# key	guest address	what
+clock_word	0x323534	the title's tick accumulator (u32): +149 per EE boundary while the title runs (+2048 periodically, +4 across the attract); its VALUE is tree-specific after the boot (DT-6)
+boot_sm_word	0x98c140	the boot state machine's object word 0 (u64): case = bits 44..49 (6 = the Beach hub load, 7 = the title / cutscene, 14 = the attract movie), bit 63 = the in-engine cutscene flag (HW-1)
