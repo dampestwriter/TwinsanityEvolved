@@ -44,7 +44,7 @@ if (-not $SkipBuild) {
 $Exe = Join-Path $BuildDir "ps2r_launcher.exe"
 if (-not (Test-Path $Exe)) { throw "release_launcher: no $Exe" }
 
-$Dist = Join-Path $DistDir "launcher-windows-x64"
+$Dist = Join-Path $DistDir $Product   # the folder inside the zip players see
 Step "stage $Dist"
 if (Test-Path $Dist) { Remove-Item -Recurse -Force $Dist }
 New-Item -ItemType Directory -Force -Path (Join-Path $Dist "titles"), (Join-Path $Dist "licenses") | Out-Null

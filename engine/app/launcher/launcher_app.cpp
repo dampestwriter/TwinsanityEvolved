@@ -286,6 +286,7 @@ bool copyTreeOver(const QString& from, const QString& to, QString* failed) {
 
 #ifdef Q_OS_WIN
 void makeShortcut(const QString& lnk, const QString& target, const QString& workDir, const QString& description) {
+    QDir().mkpath(QFileInfo(lnk).absolutePath());
     auto quote = [](QString s) { return "'" + s.replace("'", "''") + "'"; };
     const QString script = QStringLiteral("$s = (New-Object -ComObject WScript.Shell).CreateShortcut(%1); $s.TargetPath = %2; "
                                           "$s.WorkingDirectory = %3; $s.Description = %4; $s.Save()")

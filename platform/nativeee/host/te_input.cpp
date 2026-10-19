@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <vector>
 
+#include "te_host.h"
 #include "te_input.h"
 #include "te_services.h"
 
@@ -55,7 +56,15 @@ bool Install(Pads& pads, const Settings& settings) {
         if (port != 0 || slot != 0) return s;   // one pad: the engine's InputSystem is pad 0
         if (g_pump_owned) {
             SDL_Event e;
-            while (SDL_PollEvent(&e)) g_input->HandleEvent(e);
+            while (SDL_PollEvent(&e)) {
+                // This pump drains SDL's whole queue, so the window's close button arrives here as often as at the
+                // window owner's pump (graphics PumpWindow): it ends the run the same way, at once.
+                if (e.type == SDL_QUIT || (e.type == SDL_WINDOWEVENT && e.window.event == SDL_WINDOWEVENT_CLOSE)) {
+                    std::fprintf(stderr, "[te.gfx] window closed: exit\n");
+                    te::RequestExit(0);
+                }
+                g_input->HandleEvent(e);
+            }
         }
         if (!g_injections.empty() && g_input->Kbm()) {
             const uint64_t boundary = te::Services::Get().clock().BoundaryCount();
