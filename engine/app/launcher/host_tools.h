@@ -39,8 +39,10 @@ private:
     QString systemCmake() const;
     QString systemNinja() const;
     const AppData* appData_;
-    mutable QString vsCache_, cmakeCache_, ninjaCache_;
-    mutable bool vsChecked_ = false, cmakeChecked_ = false, ninjaChecked_ = false;
+    [[maybe_unused]] mutable QString vsCache_;      // Windows only (visualStudio())
+    [[maybe_unused]] mutable bool vsChecked_ = false;
+    mutable QString cmakeCache_, ninjaCache_;
+    mutable bool cmakeChecked_ = false, ninjaChecked_ = false;
 };
 
 }  // namespace ps2r::launcher
