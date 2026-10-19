@@ -37,6 +37,9 @@ fi
 WABT_URL="https://github.com/WebAssembly/wabt/releases/download/${WABT_VERSION}/${WABT_TGZ}"
 LIBCLANG_WHL="libclang-${LIBCLANG_VERSION}-${LIBCLANG_TAG}.whl"
 LIBCLANG_URL="https://files.pythonhosted.org/packages/py2.py3/l/libclang/${LIBCLANG_WHL}"
+# Windows: wabt's wasm2c.exe loads OpenSSL's libcrypto-3-x64.dll, which its release does not ship (MinGit's copy, beside it)
+MINGIT_ZIP="MinGit-2.56.0.2-64-bit.zip"
+MINGIT_URL="https://github.com/git-for-windows/git/releases/download/v2.56.0.windows.2/${MINGIT_ZIP}"
 
 mkdir -p "$DEST"
 fetch() { # url file
@@ -55,6 +58,7 @@ verify() { # file
 fetch "$WASI_URL" "$WASI_TGZ"; verify "$WASI_TGZ"
 fetch "$WABT_URL" "$WABT_TGZ";  verify "$WABT_TGZ"
 fetch "$LIBCLANG_URL" "$LIBCLANG_WHL"; verify "$LIBCLANG_WHL"
+if [ -n "$EXE" ]; then fetch "$MINGIT_URL" "$MINGIT_ZIP"; verify "$MINGIT_ZIP"; fi
 
 if [ ! -x "$DEST/wasi-sdk/bin/clang$EXE" ]; then
   rm -rf "$DEST/wasi-sdk" "$DEST/wasi-sdk.tmp"; mkdir -p "$DEST/wasi-sdk.tmp"
@@ -80,6 +84,12 @@ if [ ! -f "$DEST/libclang/libclang-${LIBCLANG_VERSION}.data/platlib/clang/cindex
   rm -rf "$DEST/libclang" "$DEST/libclang.tmp"; mkdir -p "$DEST/libclang.tmp"
   unzip -q "$DEST/$LIBCLANG_WHL" -d "$DEST/libclang.tmp"
   mv "$DEST/libclang.tmp" "$DEST/libclang"
+fi
+if [ -n "$EXE" ] && [ ! -f "$DEST/wabt/bin/libcrypto-3-x64.dll" ]; then
+  rm -rf "$DEST/mingit.tmp"; mkdir -p "$DEST/mingit.tmp"
+  unzip -q "$DEST/$MINGIT_ZIP" ucrt64/bin/libcrypto-3-x64.dll -d "$DEST/mingit.tmp"
+  mv "$DEST/mingit.tmp/ucrt64/bin/libcrypto-3-x64.dll" "$DEST/wabt/bin/"
+  rm -rf "$DEST/mingit.tmp"
 fi
 "$DEST/wasi-sdk/bin/clang$EXE" --version | head -1
 "$DEST/wabt/bin/wasm2c$EXE" --version

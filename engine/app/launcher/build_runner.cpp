@@ -5,6 +5,7 @@
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QProcessEnvironment>
+#include <QRegularExpression>
 #include <QSaveFile>
 #include "app_data.h"
 #include "host_tools.h"
@@ -200,12 +201,26 @@ void BuildRunner::stage() {
 }
 
 QString BuildRunner::plainFailure() const {
-    // the first "error" line of the tail, else the last line
-    const QStringList lines = proc_->tail(60).split('\n');
+    // The first line that says what went wrong: a compiler's "error:", a Python exception, a "fatal". Ninja's own
+    // "FAILED: <outputs>" line only names the step's output files, so it is the answer only when nothing says more.
+    const QStringList lines = proc_->tail(120).split('\n');
+    static const QRegularExpression said("error:|error [A-Z]+\\d+|fatal|Traceback|\\w+Error\\b|\\w+Exception\\b|not recognized|cannot|could not|"
+                                         "No such file|Access is denied|out of memory|bad_alloc|killed",
+                                         QRegularExpression::CaseInsensitiveOption);
     for (const QString& l : lines) {
-        if (l.contains("error:") || l.contains("Error") || l.contains("FAILED:") || l.contains("fatal")) return l.simplified().left(200);
+        if (l.startsWith("FAILED:") || l.startsWith("ninja:")) continue;
+        if (said.match(l).hasMatch()) return l.simplified().left(240);
     }
-    return lines.isEmpty() ? QStringLiteral("no output") : lines.last().simplified().left(200);
+    // a Python script's last word is its exception, after the Traceback's frames
+    for (int i = lines.size() - 1; i >= 0; --i) {
+        if (lines[i].startsWith("FAILED:") || lines[i].startsWith("ninja:") || lines[i].trimmed().isEmpty()) continue;
+        if (!lines[i].startsWith("[")) return lines[i].simplified().left(240);
+        break;
+    }
+    for (const QString& l : lines) {
+        if (l.startsWith("FAILED:")) return l.simplified().left(240);
+    }
+    return lines.isEmpty() ? QStringLiteral("no output") : lines.last().simplified().left(240);
 }
 
 void BuildRunner::finish(bool ok, const QString& failure) {

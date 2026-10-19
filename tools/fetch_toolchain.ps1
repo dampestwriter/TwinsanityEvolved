@@ -7,6 +7,9 @@
 #   wasi-sdk 24.0   (clang 18 + wasm-ld + the wasi-libc/libc++ sysroot)  -> tools\toolchain\wasi-sdk\   (bin\clang.exe ...)
 #   wabt     1.0.42 (wasm2c, wasm-objdump, wasm-validate)                -> tools\toolchain\wabt\       (bin\wasm2c.exe ...)
 #   libclang 18.1.1 python wheel (gen_vtable_slots.py)              -> tools\toolchain\libclang\   (…\clang\native\libclang.dll)
+#   OpenSSL libcrypto-3-x64.dll from MinGit 2.56.0.2                  -> tools\toolchain\wabt\bin\  (wasm2c.exe loads it; wabt's
+#                                                                       release does not ship it, and a machine without
+#                                                                       an OpenSSL on PATH cannot start wasm2c otherwise)
 #
 # The archives are .tar.gz: Windows 10 1803+ ships bsdtar as C:\Windows\System32\tar.exe, which this script uses; the
 # wheel is a zip (Expand-Archive). A download whose digest does not match its pin is DELETED and the script stops
@@ -39,6 +42,9 @@ $WabtTgz = "wabt-$WabtVersion-windows-x64.tar.gz"
 $WabtUrl = "https://github.com/WebAssembly/wabt/releases/download/$WabtVersion/$WabtTgz"
 $LibclangWhl = "libclang-$LibclangVersion-py2.py3-none-win_amd64.whl"
 $LibclangUrl = "https://files.pythonhosted.org/packages/py2.py3/l/libclang/$LibclangWhl"
+$MinGitZip = "MinGit-2.56.0.2-64-bit.zip"
+$MinGitUrl = "https://github.com/git-for-windows/git/releases/download/v2.56.0.windows.2/$MinGitZip"
+$LibcryptoMember = "ucrt64/bin/libcrypto-3-x64.dll"
 
 New-Item -ItemType Directory -Force -Path $Dest | Out-Null
 if (-not (Test-Path $Pins)) { throw "fetch_toolchain.ps1: $Pins missing (a checkout without tools/toolchain/PINS.sha256?)" }
@@ -86,6 +92,7 @@ function Verify-Pin([string]$name) {
 Fetch $WasiUrl $WasiTgz;         Verify-Pin $WasiTgz
 Fetch $WabtUrl $WabtTgz;         Verify-Pin $WabtTgz
 Fetch $LibclangUrl $LibclangWhl; Verify-Pin $LibclangWhl
+Fetch $MinGitUrl $MinGitZip;     Verify-Pin $MinGitZip
 if ($Verify) { Write-Host "fetch_toolchain: pins OK (-Verify: nothing extracted)"; exit 0 }
 
 $tar = Join-Path $env:SystemRoot "System32\tar.exe"
@@ -125,6 +132,22 @@ if ($Force -or -not (Test-Path $libclangProbe)) {
     Move-Item -Force $tmp $libclangDir
 }
 
+# wasm2c.exe loads libcrypto-3-x64.dll: the one from MinGit beside it (Windows looks in the exe's own folder first)
+$libcrypto = Join-Path $Dest "wabt\bin\libcrypto-3-x64.dll"
+if ($Force -or -not (Test-Path $libcrypto)) {
+    $tmp = Join-Path $Dest "mingit.tmp"
+    if (Test-Path $tmp) { Remove-Item -Recurse -Force $tmp }
+    New-Item -ItemType Directory -Force -Path $tmp | Out-Null
+    Write-Host "fetch_toolchain: extracting libcrypto-3-x64.dll from $MinGitZip -> wabt\bin\"
+    & $tar -xf (Join-Path $Dest $MinGitZip) -C $tmp $LibcryptoMember
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $tmp $LibcryptoMember))) { throw "fetch_toolchain.ps1: $MinGitZip did not contain $LibcryptoMember" }
+    Move-Item -Force (Join-Path $tmp $LibcryptoMember) $libcrypto
+    Remove-Item -Recurse -Force $tmp
+}
+
+# Every tool must start here: a native program's failure does not stop PowerShell, so the exit codes are checked
 & (Join-Path $Dest "wasi-sdk\bin\clang.exe") --version | Select-Object -First 1
+if ($LASTEXITCODE -ne 0) { throw "fetch_toolchain.ps1: wasi-sdk's clang.exe does not start (exit $LASTEXITCODE) -- the Visual C++ runtime may be missing" }
 & (Join-Path $Dest "wabt\bin\wasm2c.exe") --version
+if ($LASTEXITCODE -ne 0) { throw "fetch_toolchain.ps1: wabt's wasm2c.exe does not start (exit $LASTEXITCODE; -1073741515 is a missing DLL)" }
 Write-Host "fetch_toolchain: OK -> $Dest\{wasi-sdk,wabt,libclang}"

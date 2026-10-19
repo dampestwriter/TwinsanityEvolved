@@ -19,3 +19,6 @@ a7632c1cc66f70886441842ecf5a2ffa91a98c79e026059458451234ad013ea8  wabt-1.0.42-li
 0f934c6e7e171b5627c81b697a9e57e96d65cd889f56ce6077350de48978afd3  wasi-sdk-24.0-x86_64-windows.tar.gz
 62f1eb2b51aa57cf0f0b8ba333bf2c72a049930aa9c5de01dcad271c4fe48c88  wabt-1.0.42-windows-x64.tar.gz
 4dd2d3b82fab35e2bf9ca717d7b63ac990a3519c7e312f19fa8e86dcc712f7fb  libclang-18.1.1-py2.py3-none-win_amd64.whl
+# wabt's Windows wasm2c.exe loads OpenSSL's libcrypto-3-x64.dll, which its release does not ship: the copy from
+# Git for Windows' MinGit (UCRT build, system DLLs only) is placed beside it
+da35e72aa21c005a5a0d298cfbae110bc1609a815730ea0dde84b01a1b3cd3be  MinGit-2.56.0.2-64-bit.zip
