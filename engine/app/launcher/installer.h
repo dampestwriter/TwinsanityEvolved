@@ -43,6 +43,7 @@ public:
                                        // source step (and the steps after it), so the next install action updates
     QString toolchainPinsHash() const; // sha256 of the title's PINS file as installed
     QString ffmpegPrefix() const;      // Toolchain/ffmpeg
+    QString vcpkgRoot() const;         // Toolchain/vcpkg (Windows: SDL2 and FFmpeg come from the source's vcpkg.json)
     QString vitaSdkDir() const;        // Toolchain/vitasdk
     bool vitaSdkInstalled() const;
     qint64 totalDownloadedBytes() const { return downloadedBytes_; }
@@ -75,6 +76,8 @@ private:
     void stepSource(int i);
     void stepToolchain(int i);
     void stepMedia(int i);
+    void stepVcpkg(int i);
+    QString vcpkgBaseline() const;     // the source's vcpkg.json builtin-baseline
     void stepPython(int i);
     void stepVitaSdk(int i);
     void downloadAndUnpack(const QString& tool, const QString& destDir, std::function<void(bool, QString, qint64)> done);

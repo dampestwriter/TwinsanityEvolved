@@ -2,6 +2,7 @@
 // compiler (macOS: the Xcode Command Line Tools), git, python3, and the portable CMake / Ninja under
 // Toolchain/. Answers paths; never installs system-wide.
 #pragma once
+#include <QProcessEnvironment>
 #include <QString>
 namespace ps2r::launcher {
 class AppData;
@@ -12,8 +13,14 @@ public:
 
     // macOS: the Command Line Tools (or Xcode) are present -- clang and git exist. Windows / Linux: a C++ compiler.
     bool hasCompiler(QString* description = nullptr) const;
-    // macOS: asks the system to offer the Command Line Tools (xcode-select --install). Returns false when unsupported.
+    // macOS: asks the system to offer the Command Line Tools (xcode-select --install). Windows: winget installs the
+    // Visual Studio 2022 Build Tools with the C++ Clang tools. Returns false when unsupported.
     bool promptCompilerInstall(QString* error) const;
+    // Windows: the Visual Studio 2022 (or Build Tools) installation that carries the C++ Clang tools, else empty.
+    QString visualStudio() const;
+    // The environment the game's build runs in. Windows: that installation's x64 developer environment (clang-cl,
+    // the SDK, Ninja on PATH) without its own VCPKG_ROOT; elsewhere the system's.
+    QProcessEnvironment buildEnvironment() const;
     QString git() const;       // the git executable or empty
     QString python3() const;   // a python3 of at least 3.8, or empty
     QString cmake() const;     // the portable one under Toolchain/cmake when present, else empty

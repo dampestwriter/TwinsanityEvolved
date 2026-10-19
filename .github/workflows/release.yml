@@ -23,8 +23,7 @@
 name: TwinsanityEvolved release
 
 on:
-  push:
-    tags: ['v*']
+  # by hand: the platform game zips; a v* tag publishes the launcher (launcher.yml)
   workflow_dispatch:
 
 permissions:

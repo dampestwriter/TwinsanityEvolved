@@ -30,7 +30,18 @@ bool copyFolder(const QString& from, const QString& to) {
 }
 }  // namespace
 
-LauncherApp::LauncherApp(QObject* parent) : QObject(parent) {}
+LauncherApp::LauncherApp(QObject* parent) : QObject(parent) {
+#ifdef Q_OS_WIN
+    // Every git the launcher starts (the source, vcpkg, and vcpkg's own during the build) verifies HTTPS against the
+    // Windows certificate store: Git for Windows' bundled OpenSSL list rejects the certificates of antivirus HTTPS
+    // scanning and company proxies. Set through git's environment config unless the user already set some.
+    if (!qEnvironmentVariableIsSet("GIT_CONFIG_COUNT")) {
+        qputenv("GIT_CONFIG_COUNT", "1");
+        qputenv("GIT_CONFIG_KEY_0", "http.sslBackend");
+        qputenv("GIT_CONFIG_VALUE_0", "schannel");
+    }
+#endif
+}
 
 LauncherApp::~LauncherApp() {
     delete settings_;

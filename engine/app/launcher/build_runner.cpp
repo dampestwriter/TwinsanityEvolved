@@ -140,7 +140,10 @@ void BuildRunner::configure() {
     emit progress(QStringLiteral("Preparing the build for %1").arg(spec_->label), 0, 0, timer_.elapsed() / 1000, -1);
     proc_->setLogPath(appData_->logPath("build-" + target_));
     proc_->setWorkingDirectory(src);
-    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    QProcessEnvironment env = host.buildEnvironment();
+#ifdef Q_OS_WIN
+    env.insert("VCPKG_ROOT", QDir::toNativeSeparators(installer_->vcpkgRoot()));
+#endif
     QStringList path;
     if (!host.cmake().isEmpty()) path << QFileInfo(host.cmake()).absolutePath();
     if (!host.ninja().isEmpty()) path << QFileInfo(host.ninja()).absolutePath();

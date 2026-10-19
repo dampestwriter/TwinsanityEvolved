@@ -3,6 +3,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QProcess>
+#include <QRegularExpression>
 #include <QStandardPaths>
 #include "app_data.h"
 #include "download_pins.h"
@@ -45,9 +46,13 @@ bool HostTools::hasCompiler(QString* description) const {
     if (description) *description = QStringLiteral("the Xcode Command Line Tools are not installed");
     return false;
 #elif defined(Q_OS_WIN)
-    const QString cl = which("clang-cl");
-    if (description) *description = cl.isEmpty() ? QStringLiteral("no clang-cl on this machine") : QStringLiteral("clang-cl at %1").arg(cl);
-    return !cl.isEmpty();
+    const QString vs = visualStudio();
+    if (!vs.isEmpty()) {
+        if (description) *description = QStringLiteral("Visual Studio with the C++ Clang tools (%1)").arg(QDir::toNativeSeparators(vs));
+        return true;
+    }
+    if (description) *description = QStringLiteral("Visual Studio 2022 Build Tools with the C++ Clang tools are not installed");
+    return false;
 #else
     const QString cc = which("c++");
     if (description) *description = cc.isEmpty() ? QStringLiteral("no C++ compiler on this machine") : QStringLiteral("compiler at %1").arg(cc);
@@ -61,9 +66,61 @@ bool HostTools::promptCompilerInstall(QString* error) const {
     if (QProcess::startDetached("/usr/bin/xcode-select", {"--install"})) return true;
     if (error) *error = QStringLiteral("xcode-select --install could not be started");
     return false;
+#elif defined(Q_OS_WIN)
+    // winget runs the Visual Studio installer (it asks for administrator approval): the C++ workload with the Clang
+    // tools the build uses. Without winget, the download page.
+    const QString winget = which("winget");
+    if (!winget.isEmpty() && QProcess::startDetached(winget, {"install", "--id", "Microsoft.VisualStudio.2022.BuildTools", "--exact",
+            "--accept-package-agreements", "--accept-source-agreements", "--override",
+            "--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Llvm.Clang "
+            "--add Microsoft.VisualStudio.Component.VC.Llvm.ClangToolset --includeRecommended"}))
+        return true;
+    if (QProcess::startDetached("cmd.exe", {"/c", "start", "", "https://visualstudio.microsoft.com/visual-cpp-build-tools/"})) return true;
+    if (error) *error = QStringLiteral("the Visual Studio Build Tools installer could not be started");
+    return false;
 #else
     if (error) *error = QStringLiteral("no system installer for a compiler on this platform");
     return false;
+#endif
+}
+
+QString HostTools::visualStudio() const {
+#ifdef Q_OS_WIN
+    const QString vswhere = QProcessEnvironment::systemEnvironment().value("ProgramFiles(x86)") + "/Microsoft Visual Studio/Installer/vswhere.exe";
+    if (!QFileInfo(vswhere).exists()) return QString();
+    const QString path = runForOutput(vswhere, {"-latest", "-products", "*", "-requires", "Microsoft.VisualStudio.Component.VC.Llvm.Clang",
+                                                "-property", "installationPath"}, 30000).section('\n', 0, 0).trimmed();
+    if (path.isEmpty() || !QFileInfo(path + "/VC/Tools/Llvm/x64/bin/clang-cl.exe").exists()) return QString();
+    return QDir::cleanPath(path);
+#else
+    return QString();
+#endif
+}
+
+QProcessEnvironment HostTools::buildEnvironment() const {
+    const QProcessEnvironment system = QProcessEnvironment::systemEnvironment();
+#ifdef Q_OS_WIN
+    const QString vs = visualStudio();
+    if (vs.isEmpty()) return system;
+    // VsDevCmd prints the environment it built through `set`
+    QProcess p;
+    p.setProgram("cmd.exe");
+    p.setNativeArguments(QStringLiteral("/d /c \"\"%1\" -arch=x64 -host_arch=x64 -no_logo >nul && set\"")
+                             .arg(QDir::toNativeSeparators(vs + "/Common7/Tools/VsDevCmd.bat")));
+    p.start();
+    if (!p.waitForFinished(120000) || p.exitStatus() != QProcess::NormalExit || p.exitCode() != 0) return system;
+    QProcessEnvironment dev;
+    const QStringList lines = QString::fromLocal8Bit(p.readAllStandardOutput()).split(QRegularExpression("[\r\n]+"), Qt::SkipEmptyParts);
+    for (const QString& line : lines) {
+        const int eq = line.indexOf('=');
+        if (eq > 0) dev.insert(line.left(eq), line.mid(eq + 1));
+    }
+    if (!dev.contains("INCLUDE")) return system;
+    dev.insert("PATH", QDir::toNativeSeparators(vs + "/VC/Tools/Llvm/x64/bin") + ";" + dev.value("PATH"));
+    dev.remove("VCPKG_ROOT");   // Visual Studio's bundled vcpkg; the build uses the launcher's own checkout
+    return dev;
+#else
+    return system;
 #endif
 }
 

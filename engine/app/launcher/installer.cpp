@@ -5,6 +5,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
+#include <QJsonObject>
 #include <QProcess>
 #include <QRegularExpression>
 #include <QSaveFile>
@@ -66,6 +67,11 @@ QString Installer::sourceDir() const { return appData_->sourceDir(manifest_->id(
 QString Installer::sourceCommit() const { return installed_.value("source_commit").toString(); }
 QString Installer::toolchainPinsHash() const { return installed_.value("toolchain_pins").toString(); }
 QString Installer::ffmpegPrefix() const { return appData_->toolchainDir() + "/ffmpeg"; }
+QString Installer::vcpkgRoot() const { return appData_->toolchainDir() + "/vcpkg"; }
+QString Installer::vcpkgBaseline() const {
+    const QJsonDocument doc = QJsonDocument::fromJson(readFile(sourceDir() + "/vcpkg.json").toUtf8());
+    return doc.isObject() ? doc.object().value("builtin-baseline").toString() : QString();
+}
 QString Installer::vitaSdkDir() const { return appData_->toolchainDir() + "/vitasdk"; }
 bool Installer::vitaSdkInstalled() const {
     // the toolchain AND the packages the Vita build needs (SDL2, vitaGL, FFmpeg)
@@ -103,7 +109,12 @@ bool Installer::upToDate() const {
     if (pins.isEmpty() || installed_.value("toolchain_pins").toString() != pins) return false;
     const QString tc = sourceDir() + "/" + manifest_->toolchainFolder();
     if (!QFileInfo(tc + "/wasi-sdk/bin/clang").isExecutable() && !QFileInfo(tc + "/wasi-sdk/bin/clang.exe").isExecutable()) return false;
+#ifdef Q_OS_WIN
+    const QString baseline = installed_.value("vcpkg_baseline").toString();
+    if (baseline.isEmpty() || baseline != vcpkgBaseline() || !QFileInfo(vcpkgRoot() + "/vcpkg.exe").exists()) return false;
+#else
     if (!manifest_->ffmpegRecipe().isEmpty() && !QFileInfo(ffmpegPrefix() + "/lib/libavcodec.a").exists()) return false;
+#endif
     if (manifest_->needsPython() && installed_.value("python").toString().isEmpty()) return false;
     return true;
 }
@@ -271,6 +282,10 @@ void Installer::stepCompiler(int i) {
     finishStep(i, false, QStringLiteral("not installed"),
                QStringLiteral("The Xcode Command Line Tools are not installed. Press Install to let macOS offer them (about 1 GB, no "
                               "administrator password for the download), then Retry when it has finished."), 0);
+#elif defined(Q_OS_WIN)
+    finishStep(i, false, QStringLiteral("not installed"),
+               QStringLiteral("Visual Studio 2022 Build Tools with the C++ Clang tools are not installed. Press Install (Windows asks for "
+                              "administrator approval; about 5 GB), then Retry when it has finished."), 0);
 #else
     finishStep(i, false, QStringLiteral("not installed"), QStringLiteral("No C++ compiler was found on this machine: %1.").arg(desc), 0);
 #endif
@@ -473,6 +488,10 @@ void Installer::makeSourceReadOnly() {
 
 // --- step 5: the engine's static media libraries (FFmpeg LGPL; SDL2 is fetched by the build itself) ----------------
 void Installer::stepMedia(int i) {
+#ifdef Q_OS_WIN
+    stepVcpkg(i);
+    return;
+#endif
     const QString recipe = manifest_->ffmpegRecipe();
     if (recipe.isEmpty()) { finishStep(i, true, QStringLiteral("none needed"), QString(), 0); return; }
     const QString script = sourceDir() + "/" + recipe;
@@ -497,6 +516,39 @@ void Installer::stepMedia(int i) {
         const QString detail = QStringLiteral("FFmpeg %1 (LGPL, static); SDL2 is fetched by the build").arg(tag);
         installed_["media_detail"] = detail;
         finishStep(i, true, detail, QString(), folderBytes(prefix));
+    });
+}
+
+// Windows: the build takes SDL2 and FFmpeg from vcpkg in manifest mode (the source's vcpkg.json). The launcher keeps its
+// own vcpkg checkout at the manifest's builtin-baseline; the first game build compiles the libraries through it.
+void Installer::stepVcpkg(int i) {
+    const QString git = host_->git();
+    if (git.isEmpty()) { finishStep(i, false, "no git", QStringLiteral("git was not found (Git for Windows: https://git-scm.com)."), 0); return; }
+    const QString baseline = vcpkgBaseline();
+    if (baseline.isEmpty()) { finishStep(i, false, "no manifest", QStringLiteral("The source has no vcpkg.json with a builtin-baseline."), 0); return; }
+    const QString root = vcpkgRoot();
+    emit progress(QStringLiteral("Downloading vcpkg (the library manager of the Windows build)"), 0, 0, true);
+    auto bootstrap = [=] {
+        runProcess(git, {"-C", root, "checkout", "--quiet", "--force", baseline}, root, "vcpkg-checkout", [=](bool ok) {
+            if (!ok) { finishStep(i, false, "not at the baseline", QStringLiteral("vcpkg could not be moved to the pinned baseline %1: %2").arg(baseline.left(12), proc_->tail(2).simplified().left(160)), 0); return; }
+            emit progress(QStringLiteral("Preparing vcpkg"), 0, 0, true);
+            runProcess("cmd.exe", {"/d", "/c", QDir::toNativeSeparators(root + "/bootstrap-vcpkg.bat"), "-disableMetrics"}, root, "vcpkg-bootstrap", [=](bool booted) {
+                if (!booted || !QFileInfo(root + "/vcpkg.exe").exists()) { finishStep(i, false, "not prepared", QStringLiteral("vcpkg could not be prepared: %1").arg(proc_->tail(3).simplified().left(200)), 0); return; }
+                installed_["vcpkg_baseline"] = baseline;
+                const QString detail = QStringLiteral("vcpkg at %1; the first build compiles SDL2 and FFmpeg (LGPL) through it").arg(baseline.left(7));
+                installed_["media_detail"] = detail;
+                finishStep(i, true, detail, QString(), folderBytes(root));
+            });
+        });
+    };
+    if (QFileInfo(root + "/.git").exists()) {
+        runProcess(git, {"-C", root, "fetch", "--quiet", "origin"}, root, "vcpkg-fetch", [=](bool) { bootstrap(); });
+        return;
+    }
+    QDir().mkpath(appData_->toolchainDir());
+    runProcess(git, {"clone", "--quiet", "https://github.com/microsoft/vcpkg.git", root}, appData_->toolchainDir(), "vcpkg-clone", [=](bool ok) {
+        if (!ok) { finishStep(i, false, "not downloaded", QStringLiteral("vcpkg could not be downloaded: %1").arg(proc_->tail(3).simplified().left(200)), 0); return; }
+        bootstrap();
     });
 }
 
