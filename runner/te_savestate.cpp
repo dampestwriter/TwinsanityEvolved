@@ -21,8 +21,11 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #elif defined(__linux__)
+#include <sys/auxv.h>
 #include <sys/personality.h>
 #include <unistd.h>
+// the image's bounds, from the linker (C names at global scope: declared inside a namespace they would not resolve)
+extern "C" char __executable_start[], _end[];
 #endif
 
 #include "engine/core/savestate/savestate_format.h"
@@ -36,7 +39,19 @@
 extern char** environ;
 // The stack protector's per-process random canary: every protected frame on the game stack holds it, so a loaded stack
 // must carry the loading process's value (the saved value is replaced word for word; 64 random bits never collide).
+#if defined(__linux__)
+// glibc keeps it in the thread block, not in an exported variable: the value is the kernel's AT_RANDOM bytes with the
+// low byte cleared (glibc's _dl_setup_stack_chk_guard), the same in every thread of the process.
+namespace {
+uintptr_t StackGuardNow() {
+    uintptr_t v = 0;
+    if (const void* random = reinterpret_cast<const void*>(getauxval(AT_RANDOM))) std::memcpy(&v, random, sizeof v);
+    return v & ~uintptr_t(0xff);
+}
+}  // namespace
+#else
 extern "C" uintptr_t __stack_chk_guard;
+#endif
 #else
 // Windows (/GS, clang-cl's default): a protected frame holds __security_cookie XOR its own rsp, never the raw cookie, so
 // the words cannot be swapped -- the loading PROCESS adopts the saved cookie instead (the CRT's globals are writable;
@@ -46,7 +61,7 @@ extern "C" uintptr_t __security_cookie;
 extern "C" uintptr_t __security_cookie_complement;
 namespace { uintptr_t StackGuardNow() { return __security_cookie; } }
 #endif
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(__linux__)
 namespace { uintptr_t StackGuardNow() { return __stack_chk_guard; } }
 #endif
 
@@ -358,7 +373,6 @@ ImageInfo Image() {
     info.base = lo == ~0ull ? 0 : lo;
     info.size = hi > lo ? hi - lo : 0;
 #elif defined(__linux__)
-    extern char __executable_start[], _end[];
     info.base = uint64_t(uintptr_t(__executable_start));
     info.size = uint64_t(uintptr_t(_end)) - info.base;
     info.slide = int64_t(info.base);   // PIE: nonzero unless loaded at 0
