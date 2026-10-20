@@ -21,7 +21,10 @@ struct Settings {
     int offset_y = 0;
     bool fps_counter = false;   // display.fps_counter: render fps + game Hz top-right through the GAME's text system
     int frame_rate = 1;         // video.frame_rate: 0 = 30, 1 = 60 (default), 2 = 120, 3 = 144, 4 = 240, 5 = uncapped -- the
-                                // presenter's cadence (the engine's PresentPacer rates); the game's tick stays 60 Hz whatever it is
+                                // presenter's cadence (the engine's PresentPacer rates); `60` shows every picture the game makes,
+                                // so at a game rate of 50 Hz it is 50 frames a second
+    int game_hz = 60;           // game.hz as chosen: 50 (the PAL console's rate) or 60; takes effect at the next start
+    int running_hz = 60;        // the game rate this run started with (te::Settings::field_hz)
 };
 
 // The runner's settings (before the device; applied when it is created, re-applied on every change).
@@ -36,7 +39,8 @@ void Apply();
 std::string Describe();
 
 // The seam's rows (Platform::Graphics::DisplaySetting*): the settings the page shows, in this order.
-enum Row : uint32_t { RowAspect = 0, RowScale, RowTextureFilter, RowVSync, RowFrameRate, RowDisplayMode, RowFpsCounter, RowCount };
+enum Row : uint32_t { RowAspect = 0, RowScale, RowTextureFilter, RowVSync, RowFrameRate, RowDisplayMode, RowFpsCounter, RowGameRate,
+                     RowCount };
 uint32_t Choices(uint32_t row);
 std::string RowLabel(uint32_t row);
 std::string ChoiceLabel(uint32_t row, uint32_t choice);
@@ -56,5 +60,8 @@ bool EffectiveVSync();
 // line itself in the menu's language ("vsync on: the display refresh caps the frame rate").
 bool GraphicsPageOpen();
 std::string FrameRateHelp();
+// The game rate chosen in the menu differs from the one this run started with: the help line says it applies next start.
+bool GameRatePending();
+std::string GameRateHelp();
 
 }  // namespace te::display

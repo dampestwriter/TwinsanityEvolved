@@ -72,6 +72,8 @@ void Configure(const Settings& settings) {
     g_settings.offset_x = std::clamp(g_settings.offset_x, -256, 256);
     g_settings.offset_y = std::clamp(g_settings.offset_y, -256, 256);
     g_settings.frame_rate = std::clamp(g_settings.frame_rate, 0, 5);
+    if (g_settings.game_hz != 50) g_settings.game_hz = 60;
+    if (g_settings.running_hz != 50) g_settings.running_hz = 60;
     Apply();
 }
 
@@ -133,6 +135,7 @@ uint32_t Choices(uint32_t row) {
     case RowFrameRate: return 6;
     case RowDisplayMode: return 3;
     case RowFpsCounter: return 2;
+    case RowGameRate: return 2;
     default: return 0;
     }
 }
@@ -143,6 +146,8 @@ int FrameRate() { return g_settings.frame_rate; }
 const char* FrameRateName() { return Pacer::Name(static_cast<Pacer::Rate>(g_settings.frame_rate)); }
 bool EffectiveVSync() { return g_settings.vsync && !Uncapped(); }
 std::string FrameRateHelp() { return MS(title::MenuStrings::Id::VSyncCapsRate); }
+bool GameRatePending() { return g_settings.game_hz != g_settings.running_hz; }
+std::string GameRateHelp() { return MS(title::MenuStrings::Id::GameRateNextStart); }
 bool GraphicsPageOpen() {
     const uint64_t now = Services::Get().clock().BoundaryCount();
     return g_page_polled_at != 0 && now >= g_page_polled_at && now - g_page_polled_at <= 1;
@@ -158,6 +163,7 @@ std::string RowLabel(uint32_t row) {
     case RowFrameRate: return MS(Id::FrameRate);
     case RowDisplayMode: return MS(Id::DisplayMode);
     case RowFpsCounter: return MS(Id::PerfOverlay);   // "fps overlay": the engine's name for the same row
+    case RowGameRate: return MS(Id::GameRate);
     default: return "";
     }
 }
@@ -183,6 +189,7 @@ std::string ChoiceLabel(uint32_t row, uint32_t choice) {
         return choice < 5 ? Pacer::Name(static_cast<Pacer::Rate>(choice)) : "";
     }
     case RowFpsCounter: return choice == 0 ? MS(Id::Aniso1) /* "off" */ : "on";
+    case RowGameRate: return choice == 0 ? MS(Id::GameRatePal) : MS(Id::GameRateSixty);
     case RowDisplayMode: {
         static const Id ids[] = {Id::Windowed, Id::Fullscreen, Id::Borderless};
         return choice < 3 ? MS(ids[choice]) : "";
@@ -201,6 +208,7 @@ uint32_t Value(uint32_t row) {
     case RowFrameRate: return uint32_t(g_settings.frame_rate);
     case RowDisplayMode: return uint32_t(g_settings.fullscreen);
     case RowFpsCounter: return g_settings.fps_counter ? 1u : 0u;
+    case RowGameRate: return g_settings.game_hz == 50 ? 0u : 1u;
     default: return 0;
     }
 }
@@ -228,6 +236,12 @@ void Set(uint32_t row, uint32_t choice) {
         g_settings.fps_counter = choice != 0;
         Persist("display.fps_counter", g_settings.fps_counter ? "on" : "off");
         std::fprintf(stderr, "[twinsanityevolved] %s\n", Describe().c_str());
+        return;
+    case RowGameRate:   // nothing changes in this run: the pacer, the audio blocks and the pads were built at start-up
+        g_settings.game_hz = choice == 0 ? 50 : 60;
+        Persist("game.hz", std::to_string(g_settings.game_hz));
+        std::fprintf(stderr, "[twinsanityevolved] display: game rate %d Hz from the next start (this run: %d Hz)\n",
+                     g_settings.game_hz, g_settings.running_hz);
         return;
     default: return;
     }

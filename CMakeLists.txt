@@ -522,6 +522,8 @@ if(WIN32)
     # A windowed program: started from a shortcut no console opens behind the game (runner/te_startup.cpp attaches the
     # terminal's console when started from one). main() stays the entry point.
     target_link_options(twinsanityevolved PRIVATE /SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup)
+    # the first start's Open dialog for the disc image (runner/te_startup.cpp ChooseDiscImage)
+    target_link_libraries(twinsanityevolved PRIVATE comdlg32)
 endif()
 # The coroutine's contract on this host's ABI arm: fixed mapping + guard, enter / yield / finish, callee-saved state
 # across both directions. No module, no engine: the fiber files alone.

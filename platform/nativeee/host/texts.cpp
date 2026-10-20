@@ -120,6 +120,18 @@ void InstallFpsCounter() {
         l.text = display::FrameRateHelp();
         out.push_back(l);
     });
+    // The game-rate row's help line: a rate chosen on the page applies from the next start, and the page says so
+    Register("game_rate_help", [](std::vector<Line>& out) {
+        if (!display::GraphicsPageOpen() || !display::GameRatePending()) return;
+        Line l;
+        l.x = 0.5f;
+        l.y = 0.94f;
+        l.scale = 0.5f;
+        l.colour = 0x80C0C0C0u;
+        l.alignment = Top | Middle;
+        l.text = display::GameRateHelp();
+        out.push_back(l);
+    });
 }
 
 }  // namespace te::texts

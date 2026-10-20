@@ -16,6 +16,7 @@
 // --save-state PATH@N writes PATH when boundary N has passed (repeatable); --load-state PATH restores before the first
 // switch into the fiber, so the loaded game continues at its saved boundary. Both re-exec the runner without ASLR.
 #include <csignal>
+#include <filesystem>
 #if defined(_WIN32) || defined(__vita__)
 #include <chrono>
 #include <thread>
@@ -133,13 +134,15 @@ int main(int argc, char** argv) {
     uint32_t press = 0;
     std::string load_state, record_pad, play_pad, pad_script, harness_out, autopilot, dump_collision, config_path, aspect_override, frame_rate_override;
     int fps_counter_override = -1;   // --fps-counter on|off for this run (the judge's arms); -1 = the file's / off
+    bool hz_given = false;           // --hz on the command line wins over ps2r.ini's game.hz
     std::vector<std::string> mods_on, mods_from_file;   // --mod <id> (repeatable, on for this run, not persisted); ps2r.ini's mods.<id>.enabled
     uint64_t stop_at = 0, close_at = 0;
-#if defined(_WIN32)
-    if (const char* home = std::getenv("USERPROFILE")) settings.mc_dir = std::string(home) + "/.twinsanityevolved/memcards";
-#else
-    if (const char* home = std::getenv("HOME")) settings.mc_dir = std::string(home) + "/.twinsanityevolved/memcards";
-#endif
+    // the memory cards (and ps2r.ini beside them): `userdata` in the game's own folder for a downloaded game, or an
+    // earlier install's <home>/.twinsanityevolved (te_startup.h DataDirectory)
+    {
+        const std::string data = te::startup::DataDirectory();
+        if (!data.empty()) settings.mc_dir = data + "/memcards";
+    }
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
         auto next = [&](std::string& out) { if (i + 1 >= argc) { Usage(); std::exit(2); } out = argv[++i]; };
@@ -151,7 +154,7 @@ int main(int argc, char** argv) {
         else if (a == "--test-trap") test_trap = true;   // self-test: a wasm trap must unwind to main, not crash
         else if (a == "--run-seconds") { std::string v; next(v); run_seconds = unsigned(std::atoi(v.c_str())); }   // watchdog: exit 0 after N s
         else if (a == "--deterministic") settings.deterministic = true;        // no pacer: one field per boundary, fixed RTC
-        else if (a == "--hz") { std::string v; next(v); settings.field_hz = unsigned(std::atoi(v.c_str())); }
+        else if (a == "--hz") { std::string v; next(v); settings.field_hz = unsigned(std::atoi(v.c_str())); hz_given = true; }
         else if (a == "--language") {   // a language NAME (english, french, ...) resolved against the disc's banks by content, or a raw console code 0..7
             std::string v; next(v);
             if (!v.empty() && v.find_first_not_of("0123456789") == std::string::npos) settings.language = std::atoi(v.c_str());
@@ -201,11 +204,20 @@ int main(int argc, char** argv) {
         }
         else { Usage(); return 2; }
     }
-    // no image on the command line: the one named beside the executable (the launcher's installed copy, a shortcut)
-    if (iso.empty() && elf_path.empty()) iso = te::startup::DiscImageBesideExecutable();
+    // no image on the command line: the one named beside the executable (chosen on an earlier start, or written by the
+    // launcher); none yet, or that file has moved: the player picks it, and the choice is remembered beside the game
     if (iso.empty() && elf_path.empty()) {
-        te::startup::ShowError("Crash Twinsanity", std::string("No disc image. Run the TwinsanityEvolved launcher once (it writes ") +
-                                                       te::startup::kDiscImageFile + " beside the game), or start the game with --iso <image>.");
+        iso = te::startup::DiscImageBesideExecutable();
+        std::error_code ec;
+        if (iso.empty() || !std::filesystem::exists(iso, ec)) {
+            iso = te::startup::ChooseDiscImage();
+            if (!iso.empty() && !te::startup::RememberDiscImage(iso))
+                std::fprintf(stderr, "[twinsanityevolved] the game's folder is read-only: the disc image is asked for again next start\n");
+        }
+    }
+    if (iso.empty() && elf_path.empty()) {
+        te::startup::ShowError("Crash Twinsanity", "No disc image was chosen. Start the game again and choose your PAL disc image "
+                                                   "(SLES-52568), or start it with --iso <image>.");
         Usage();
         return 2;
     }
@@ -238,6 +250,9 @@ int main(int argc, char** argv) {
                 std::fprintf(stderr, "[twinsanityevolved] settings: %s not applied: %s\n", config_path.c_str(), err.c_str());
             } else if (existed) {
                 if (settings.language_name.empty() && settings.language < 0 && settings.language_bank < 0) settings.language_name = cfg.game.language;
+                // game.hz: 50 (the PAL console's rate) or 60; anything else is the default
+                display.game_hz = cfg.game.hz == 50 ? 50 : 60;
+                if (!hz_given) settings.field_hz = unsigned(display.game_hz);
                 display.aspect = int(cfg.video.aspect);
                 display.fit = int(cfg.video.fit_mode);
                 display.scale = cfg.video.scale > 0 ? cfg.video.scale : 1;
@@ -279,6 +294,8 @@ int main(int argc, char** argv) {
             if (!found) { std::fprintf(stderr, "[twinsanityevolved] --aspect: auto|4:3|16:9|16:10|21:9\n"); return 2; }
         }
         if (fps_counter_override >= 0) display.fps_counter = fps_counter_override == 1;
+        display.running_hz = settings.field_hz == 50 ? 50 : 60;
+        if (hz_given) display.game_hz = display.running_hz;
         // --frame-rate for the run (the judges' arms), else TE_FRAME_RATE (a judge script that cannot add arguments)
         if (frame_rate_override.empty() && std::getenv("TE_FRAME_RATE")) frame_rate_override = std::getenv("TE_FRAME_RATE");
         if (!frame_rate_override.empty()) {

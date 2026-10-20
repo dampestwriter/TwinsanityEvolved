@@ -187,6 +187,10 @@ struct DisplayConfig {
 
 struct GameConfig {
     bool rtc_fixed = false;
+    // game.hz: the rate the game's frames run at -- 60 (the default) or 50, the PAL console's own rate, so a PAL disc runs
+    // at the speed and frame count it does on the console. Read when the game starts (the field pacer, the audio
+    // blocks and the pad sampling are built from it); the in-game Options menu writes it for the next start.
+    int hz = 60;
     // game.language: the language the title's text (and voices, where a disc
     // carries a bank per language) is played in -- the console's OSD language
     // the title asks for (sceScfGetLanguage / Platform::System::Language()).

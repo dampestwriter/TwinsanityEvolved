@@ -12,6 +12,18 @@ inline constexpr const char* kDiscImageFile = "disc-image.txt";
 // The disc image named by kDiscImageFile beside the running executable, or empty.
 std::string DiscImageBesideExecutable();
 
+// The first start of a downloaded game: the player picks their disc image in the system's file dialog (Windows' Open
+// dialog, macOS' chooser, zenity / kdialog on Linux). Empty when cancelled or no dialog exists.
+std::string ChooseDiscImage();
+// Writes `path` into kDiscImageFile beside the executable, so later starts need no dialog. False when the folder is
+// read-only (the game then asks again next time).
+bool RememberDiscImage(const std::string& path);
+
+// Where the memory cards and ps2r.ini live: `userdata` beside the executable when it exists, or when the folder is
+// writable and there is no earlier <home>/.twinsanityevolved (a downloaded game keeps everything in its own folder,
+// on whatever drive it was unzipped to); else <home>/.twinsanityevolved. Empty when neither can be named.
+std::string DataDirectory();
+
 // Windows: the executable is a windowed (GUI-subsystem) program; started from a terminal it writes to that terminal.
 // Output redirected to a file or a pipe is left alone. Elsewhere a no-op.
 void AttachParentConsole();

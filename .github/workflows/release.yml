@@ -205,17 +205,55 @@ jobs:
             if [ -f "$z" ]; then mv "$z" "release/twinsanityevolved-${tag}-$t.zip"; else missing="$missing $t"; fi
           done
           (cd release && sha256sum ./*.zip > SHA256SUMS && cat SHA256SUMS)
-          {
-            echo "TwinsanityEvolved ${tag} -- native PC Crash Twinsanity (the twinsanity-reversed decompilation on the NativeEE engine)."
-            echo
-            echo "One folder per platform; unzip, run twinsanityevolved --iso <your disc image>. This release contains NO game data:"
-            echo "you must own the game. README.md inside the zip."
-            echo
-            echo "| zip | sha256 |"
-            echo "|---|---|"
-            while read -r sha file; do echo "| ${file#./} | \`$sha\` |"; done < release/SHA256SUMS
-            if [ -n "$missing" ]; then echo; echo "Not in this release (the lane did not produce an artifact):$missing -- see the build logs."; fi
-          } > release/NOTES.md
+          # The release's notes (the launcher workflow only adds its files to the same release)
+          cat > release/NOTES.md <<EOF
+          Crash Twinsanity as a native PC game: the [twinsanity-reversed](https://github.com/Smartkin/twinsanity-reversed)
+          decompilation running on the NativeEE engine. **This release contains no game data:
+          you play with your own PAL disc image (SLES-52568).**
+
+          ### Play
+
+          1. Download the zip for your system:
+
+             | System | Download |
+             |---|---|
+             | Windows 10 / 11 (64-bit) | \`twinsanityevolved-${tag}-windows-x64.zip\` |
+             | macOS, Apple silicon | \`twinsanityevolved-${tag}-macos-arm64.zip\` |
+             | macOS, Intel | \`twinsanityevolved-${tag}-macos-x86_64.zip\` |
+             | Linux x86_64 / ARM64 | \`twinsanityevolved-${tag}-linux-x86_64.zip\` / \`-linux-aarch64.zip\` |
+
+          2. Unzip it anywhere, on any drive (Windows: right-click the zip > *Properties* > tick **Unblock** first, so
+             SmartScreen does not warn about the unsigned program).
+          3. Run \`twinsanityevolved\` (\`twinsanityevolved.exe\` on Windows; on macOS the first time right-click it >
+             **Open**). The first time it asks for your disc image: choose your PAL Crash Twinsanity \`.iso\`.
+
+          Nothing is installed and nothing else is downloaded. The game remembers your disc in \`disc-image.txt\` and keeps its
+          memory cards and settings in \`userdata\` inside its own folder; deleting the folder removes everything. The zips
+          hold only the program, its libraries and the licences: every one passes the repository's asset scan, which fails
+          on any disc file or game asset.
+
+          **50 Hz (the PAL speed):** Options > graphic options > **game rate** > **50 hz (pal)**, from the next start
+          (or \`game.hz = 50\` in \`userdata/ps2r.ini\`). The default is 60.
+
+          ### Requirements
+
+          - A graphics driver with OpenGL 4.1 (any current NVIDIA, AMD, Intel or Apple GPU).
+          - Keyboard and mouse, or a gamepad (Space = cross, Left Shift = square, right mouse = circle, E = triangle,
+            W A S D = left stick, mouse = camera, Y = start, Tab = select).
+
+          ### Build it yourself
+
+          The **launcher** (\`twinsanityevolved-launcher-windows-x64.zip\`, \`twinsanityevolved-launcher-macos-arm64.dmg\`) builds
+          the game from the source on your own machine instead: it installs the compiler and tools it needs into its own
+          app-data folder (about 15 GB) and builds the latest commit. You do not need it to play.
+
+          ### Checksums
+
+          | File | SHA-256 |
+          |---|---|
+          EOF
+          while read -r sha file; do f="${file#\*}"; echo "| ${f#./} | \`$sha\` |" >> release/NOTES.md; done < release/SHA256SUMS
+          if [ -n "$missing" ]; then printf '\nNot in this release (the build did not produce it):%s.\n' "$missing" >> release/NOTES.md; fi
           cat release/NOTES.md
       - uses: softprops/action-gh-release@v2
         with:

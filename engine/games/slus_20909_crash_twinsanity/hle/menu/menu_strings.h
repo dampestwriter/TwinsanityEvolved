@@ -52,6 +52,11 @@ public:
         Uncapped,           // "uncapped"
         OffUncapped,        // "off (uncapped)"
         VSyncCapsRate,      // "vsync on: the display refresh caps the frame rate"
+        // The GAME RATE row (game.hz): the game's own frame rate, read when the game starts.
+        GameRate,           // "game rate"
+        GameRatePal,        // "50 hz (pal)"
+        GameRateSixty,      // "60 hz"
+        GameRateNextStart,  // "the game rate changes the next time the game starts"
         Count,
     };
     static constexpr uint32_t kCount = static_cast<uint32_t>(Id::Count);

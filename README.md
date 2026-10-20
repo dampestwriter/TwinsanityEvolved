@@ -6,16 +6,32 @@ The game is compiled to wasm32 and lowered to C with wasm2c; its linear memory i
 decompilation's own `include/platform/*.h` is the only seam. No game data of any kind is in this repository — you need your
 own disc image, which is read at run time.
 
-## Play: download the launcher
+## Play: download the game
 
-Download `twinsanityevolved-launcher-macos-arm64.dmg` from the release, open it, drag TwinsanityEvolved to Applications
-and open it: on its first run it installs everything it needs into your own app-data folder (no terminal, no
-administrator password), finds your disc image by what is on the disc, builds the game on your machine and offers
-Play. The Settings page is the game's own Options menu in plain language (language, picture, frame rate, mods), written
-to the same file the game reads, and Targets builds the game for another machine (Windows, PS Vita). Everything it
-installs lives in its app-data folder (`%LOCALAPPDATA%\TwinsanityEvolved` on Windows); deleting that folder removes it. The
-launcher always builds the latest commit of this repository: on every start it checks for a newer one and offers the
-update.
+1. From the latest release, download the zip for your system: `twinsanityevolved-<version>-windows-x64.zip`,
+   `-macos-arm64.zip` (Apple silicon), `-macos-x86_64.zip`, `-linux-x86_64.zip` or `-linux-aarch64.zip`.
+2. Unzip it anywhere you like, on any drive.
+3. Start `twinsanityevolved` (`twinsanityevolved.exe` on Windows). The first time, it asks for your disc image: choose
+   your own **PAL** Crash Twinsanity image (SLES-52568, `.iso`). That is all: nothing is installed, nothing else is
+   downloaded, and nothing is written outside the game's folder.
+
+The game remembers your disc in `disc-image.txt` and keeps its memory cards and settings in `userdata\` beside it
+(an earlier install's `~/.twinsanityevolved` keeps being used if you have one). Deleting the folder removes everything.
+The zip holds only the program, its libraries and the licences: no game data, which is read from your disc while you
+play (every release zip passes `tools/ci/asset_scan.py`, which fails on any disc file or game asset).
+
+**50 Hz.** A PAL console runs the game at 50 frames a second; the port runs it at 60 by default. For the PAL speed, open
+Options → graphic options → **game rate** and choose **50 hz (pal)**: it takes effect the next time the game starts
+(the setting is `game.hz = 50` in `userdata/ps2r.ini`; `--hz 50` does the same for one run). At 50 Hz the frame rate
+row's `60` shows every frame the game makes, i.e. 50 frames a second.
+
+## Build it yourself: the launcher
+
+The launcher (`twinsanityevolved-launcher-*.zip` / `.dmg` on the release) is for building the game from this repository on
+your own machine instead of downloading it: on its first run it installs the compiler and tools it needs into its own
+app-data folder, finds your disc image by what is on the disc, builds the latest commit and offers Play. The Settings page
+is the game's own Options menu in plain language, and Targets builds for another machine (Windows, PS Vita). Everything it
+installs lives in its app-data folder (`%LOCALAPPDATA%\TwinsanityEvolved` on Windows); deleting that folder removes it.
 
 ![The Games page: the disc found and ready to play](docs/launcher/screenshots/launcher-games.png)
 ![The Settings page: the game's options in plain language](docs/launcher/screenshots/launcher-settings.png)
@@ -29,8 +45,8 @@ twinsanityevolved --iso "/path/to/Crash Twinsanity (Europe).iso"      # play: a 
 twinsanityevolved --iso "...iso" --skip-movies                        # straight to the legal screen / title
 twinsanityevolved --iso "...iso" --language french                    # the language (english default): see below
 twinsanityevolved --iso "...iso" --aspect 16:9                        # the picture's shape for one run; see Display below
-twinsanityevolved --iso "...iso" --mc-dir ~/.twinsanityevolved/memcards  # the memory card folder (the default)
-twinsanityevolved --iso "...iso" --hz 50                              # PAL field rate (default 60)
+twinsanityevolved --iso "...iso" --mc-dir ~/.twinsanityevolved/memcards  # the memory card folder (default: userdata/memcards beside the game)
+twinsanityevolved --iso "...iso" --hz 50                              # the PAL console's 50 Hz for one run (default 60; game.hz in ps2r.ini)
 twinsanityevolved --iso "...iso" --present-ct16                       # the retail look: the frame shown as the PS2's dithered 16-bit copy
 twinsanityevolved --iso "...iso" --fps-counter on                     # the shown fps + game Hz top-right in the game's own font
 twinsanityevolved --iso "...iso" --frame-rate 120                     # the presenter's cadence for one run (30|60|120|144|240|uncapped); see Frame rate below

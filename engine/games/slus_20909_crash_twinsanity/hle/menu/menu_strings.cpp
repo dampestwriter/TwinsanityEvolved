@@ -84,6 +84,15 @@ constexpr const char* kTable[MenuStrings::kCount][kLanguageCount] = {
     {"vsync on: the display refresh caps the frame rate", "vsync on: the display refresh caps the frame rate",
      "vsync actif: la frequence de l'ecran limite la cadence", "vsync an: die bildwiederholrate begrenzt die bildrate",
      "vsync activado: el refresco de pantalla limita la tasa", "vsync attivo: il refresh dello schermo limita la frequenza"},
+    // GameRate
+    {"game rate", "game rate", "vitesse du jeu", "spieltempo", "velocidad del juego", "velocita del gioco"},
+    // GameRatePal, GameRateSixty
+    {"50 hz (pal)", "50 hz (pal)", "50 hz (pal)", "50 hz (pal)", "50 hz (pal)", "50 hz (pal)"},
+    {"60 hz", "60 hz", "60 hz", "60 hz", "60 hz", "60 hz"},
+    // GameRateNextStart
+    {"the game rate changes the next time the game starts", "the game rate changes the next time the game starts",
+     "la vitesse du jeu change au prochain lancement", "das spieltempo aendert sich beim naechsten start",
+     "la velocidad cambia la proxima vez que inicie el juego", "la velocita cambia al prossimo avvio del gioco"},
 };
 
 }  // namespace

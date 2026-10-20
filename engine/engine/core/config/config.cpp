@@ -178,6 +178,7 @@ const std::vector<Field>& Fields() {
         INT_FIELD("engine.time_regime_pin", engine.time_regime_pin),
         INT_FIELD("engine.turbo", engine.turbo),
         ENUM_FIELD("engine.vu1_mode", engine.vu1_mode, kVu1),
+        INT_FIELD("game.hz", game.hz),
         STR_FIELD("game.language", game.language),
         BOOL_FIELD("game.rtc_fixed", game.rtc_fixed),
         ENUM_FIELD("gs.queue", gs.queue, kGsQueue),
