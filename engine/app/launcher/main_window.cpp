@@ -93,9 +93,9 @@ void MainWindow::askGameFolderIfNeeded() {
     if (app_->gameFolderChosen()) return;
     const QString name = app_->manifest()->name();
     QMessageBox::information(this, QStringLiteral("Where should %1 go?").arg(name),
-                             QStringLiteral("%1 builds %2 from your own disc and installs it as a normal program you can start "
-                                            "without the launcher.\n\nChoose the folder to put it in: a \"%2\" folder is made "
-                                            "there, with a shortcut on your Desktop.").arg(app_->manifest()->product(), name));
+                             QStringLiteral("%1 installs %2 as a normal program you can start without the launcher, and plays "
+                                            "it with your own disc.\n\nChoose the folder to put it in (any drive): a \"%2\" folder "
+                                            "is made there, with a shortcut on your Desktop.").arg(app_->manifest()->product(), name));
     const QString start = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
     const QString picked = QFileDialog::getExistingDirectory(this, QStringLiteral("Choose where to install %1").arg(name), start);
     app_->chooseGameFolder(picked.isEmpty() ? start : picked);

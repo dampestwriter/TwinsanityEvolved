@@ -41,6 +41,7 @@ class TestLauncherTargets : public QObject {
 private slots:
     void initTestCase() {
         LauncherStyle::apply();
+        qputenv("PS2R_LAUNCHER_BUILD_FROM_SOURCE", "1");   // this driver builds the game: the source-build mode
         app_ = new LauncherApp(this);
         QString err;
         QVERIFY2(app_->loadManifest(qEnvironmentVariable("PS2R_TARGETS_MANIFEST"), &err), qPrintable(err));

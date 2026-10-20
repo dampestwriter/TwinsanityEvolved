@@ -4,6 +4,7 @@
 #include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QProcess>
@@ -27,9 +28,15 @@ QString readFile(const QString& path) {
 }
 }  // namespace
 
-Installer::Installer(AppData* appData, const TitleManifest* manifest, QObject* parent)
-    : QObject(parent), appData_(appData), manifest_(manifest), host_(new HostTools(appData)) {
-    steps_ = {
+Installer::Installer(AppData* appData, const TitleManifest* manifest, bool buildFromSource, QObject* parent)
+    : QObject(parent), appData_(appData), manifest_(manifest), host_(new HostTools(appData)), buildFromSource_(buildFromSource) {
+    if (!buildFromSource_) {
+        // the finished game from the title's releases: one download, nothing to install on the machine
+        steps_ = {
+            {"game", manifest_->name(), InstallStep::Pending, "", "", 0, false, false},
+            {"vitasdk", "PlayStation Vita tools", InstallStep::Skipped, "only when building from source", "", 0, true, false},
+        };
+    } else steps_ = {
         {"compiler", "Developer tools", InstallStep::Pending, "", "", 0, false, true},
         {"tools", "Build tools", InstallStep::Pending, "", "", 0, false, false},
 #ifdef Q_OS_MACOS
@@ -55,6 +62,14 @@ Installer::Installer(AppData* appData, const TitleManifest* manifest, QObject* p
     });
     loadInstalled();
     downloadedBytes_ = qint64(installed_.value("downloaded_bytes").toDouble());
+    if (!buildFromSource_) {
+        if (!installedGameExe().isEmpty()) {
+            steps_[0].state = InstallStep::Done;
+            steps_[0].detail = QStringLiteral("%1 installed in %2").arg(installedRelease(), AppData::shortPath(QFileInfo(installedGameExe()).absolutePath()));
+            steps_[0].bytes = installed_.value("bytes_game").toDouble();
+        }
+        return;
+    }
     // what is already on disk shows as done before anything runs
     for (InstallStep& s : steps_) {
         if (s.optional) { s.state = vitaSdkInstalled() ? InstallStep::Done : InstallStep::Skipped; continue; }
@@ -105,6 +120,7 @@ bool Installer::sourceUrlIsLocal() const {
 }
 
 bool Installer::upToDate() const {
+    if (!buildFromSource_) return !installedGameExe().isEmpty();
     if (installed_.isEmpty()) return false;
     const DownloadPin* cmake = DownloadPins::find("cmake");
     const DownloadPin* ninja = DownloadPins::find("ninja");
@@ -308,6 +324,7 @@ void Installer::runStep(int i) {
     else if (id == "media") stepMedia(i);
     else if (id == "python") stepPython(i);
     else if (id == "vitasdk") stepVitaSdk(i);
+    else if (id == "game") stepGame(i);
 }
 
 void Installer::finishStep(int i, bool ok, const QString& detail, const QString& reason, qint64 bytes) {
@@ -524,6 +541,7 @@ void Installer::stepSource(int i) {
 }
 
 void Installer::checkForSourceUpdate() {
+    if (!buildFromSource_) { checkForReleaseUpdate(); return; }
     const QString git = host_->git();
     const QString url = manifest_->sourceUrl();
     const QString have = installed_.value("source_commit").toString();
@@ -550,6 +568,210 @@ void Installer::checkForSourceUpdate() {
     if (sourceUrlIsLocal()) args << "-c" << "protocol.file.allow=always";
     args << "ls-remote" << url << "HEAD";
     p->start(git, args);
+    QTimer::singleShot(20000, p, [p] { if (p->state() != QProcess::NotRunning) p->kill(); });
+}
+
+// --- download mode: the finished game from the title's GitHub releases ---------------------------------------------
+namespace {
+bool copyTreeInto(const QString& from, const QString& to, QString* failed) {
+    QDir().mkpath(to);
+    for (const QFileInfo& fi : QDir(from).entryInfoList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot | QDir::Hidden)) {
+        const QString dest = to + "/" + fi.fileName();
+        if (fi.isDir()) {
+            if (!copyTreeInto(fi.absoluteFilePath(), dest, failed)) return false;
+            continue;
+        }
+        QFile::remove(dest);
+        if (!QFile::copy(fi.absoluteFilePath(), dest)) { *failed = dest; return false; }
+        QFile(dest).setPermissions(fi.permissions());
+    }
+    return true;
+}
+
+QString gameExeName() {
+#ifdef Q_OS_WIN
+    return QStringLiteral("twinsanityevolved.exe");
+#else
+    return QStringLiteral("twinsanityevolved");
+#endif
+}
+}  // namespace
+
+void Installer::setGameFolder(const QString& folder) {
+    gameFolder_ = QDir::cleanPath(folder);
+    // a game installed somewhere else is installed again into the folder now chosen
+    if (buildFromSource_ || steps_.isEmpty() || steps_[0].id != "game") return;
+    const QString exe = installed_.value("game_exe").toString();
+    if (!exe.isEmpty() && QFileInfo(exe).absolutePath() != gameFolder_ && steps_[0].state == InstallStep::Done) {
+        steps_[0].state = InstallStep::Pending;
+        steps_[0].detail = QStringLiteral("to be installed in %1").arg(AppData::shortPath(gameFolder_));
+        emit stepChanged(0);
+    }
+}
+
+QString Installer::installedRelease() const { return installed_.value("release_tag").toString(); }
+
+QString Installer::installedGameExe() const {
+    const QString exe = installed_.value("game_exe").toString();
+    return !exe.isEmpty() && QFileInfo::exists(exe) ? exe : QString();
+}
+
+QString Installer::releasePlatform() {
+    const QString host = DownloadPins::currentHost();   // windows-x86_64 / macos-arm64 / macos-x86_64 / linux-x86_64 / linux-aarch64
+    return host == "windows-x86_64" ? QStringLiteral("windows-x64") : host;
+}
+
+QStringList Installer::curlArgs(bool binary) const {
+    QStringList a = {"-fL", "--retry", "3", "-H", binary ? "Accept: application/octet-stream" : "Accept: application/vnd.github+json"};
+    // a private repository's releases need a token; curl does not forward it to the storage host it is redirected to
+    QString token = qEnvironmentVariable("GITHUB_TOKEN");
+    if (token.isEmpty()) token = qEnvironmentVariable("GH_TOKEN");
+    if (!token.isEmpty()) a << "-H" << ("Authorization: Bearer " + token);
+    return a;
+}
+
+void Installer::stepGame(int i) {
+    const QString repo = manifest_->releaseRepo();
+    if (repo.isEmpty()) { finishStep(i, false, "no releases", QStringLiteral("The manifest names no GitHub repository to download the game from."), 0); return; }
+    if (gameFolder_.isEmpty()) { finishStep(i, false, "no folder", QStringLiteral("No game folder has been chosen."), 0); return; }
+    QDir().mkpath(appData_->downloadsDir());
+    const QString json = appData_->downloadsDir() + "/latest-release.json";
+    emit progress(QStringLiteral("Looking for the latest version of %1").arg(manifest_->name()), 0, 0, true);
+    QStringList args = curlArgs(false);
+    args << "-sS" << "-o" << json << QStringLiteral("https://api.github.com/repos/%1/releases/latest").arg(repo);
+    runProcess("curl", args, appData_->downloadsDir(), "release-latest", [=](bool ok) {
+        const QJsonObject rel = QJsonDocument::fromJson(readFile(json).toUtf8()).object();
+        const QString tag = rel.value("tag_name").toString();
+        if (!ok || tag.isEmpty()) {
+            finishStep(i, false, "not reachable", QStringLiteral("The latest release of %1 could not be read (%2). Check the network and Retry.")
+                                                       .arg(repo, proc_->tail(2).simplified().left(160)), 0);
+            return;
+        }
+        const QString want = QStringLiteral("twinsanityevolved-%1-%2.zip").arg(tag, releasePlatform());
+        QJsonObject zipAsset, sumsAsset;
+        for (const QJsonValue& v : rel.value("assets").toArray()) {
+            const QJsonObject a = v.toObject();
+            if (a.value("name").toString() == want) zipAsset = a;
+            if (a.value("name").toString() == "SHA256SUMS") sumsAsset = a;
+        }
+        if (zipAsset.isEmpty()) {
+            finishStep(i, false, "no download for this computer",
+                       QStringLiteral("The latest release (%1) has no download for this computer (%2).").arg(tag, want), 0);
+            return;
+        }
+        if (installedRelease() == tag && !installedGameExe().isEmpty() && QFileInfo(installedGameExe()).absolutePath() == gameFolder_) {
+            finishStep(i, true, QStringLiteral("%1 installed in %2 (the latest)").arg(tag, AppData::shortPath(gameFolder_)), QString(), -1);
+            return;
+        }
+        // the API's asset URL with a token (a private repository), the public download URL without one
+        const bool token = !qEnvironmentVariable("GITHUB_TOKEN").isEmpty() || !qEnvironmentVariable("GH_TOKEN").isEmpty();
+        auto urlOf = [token](const QJsonObject& a) { return token ? a.value("url").toString() : a.value("browser_download_url").toString(); };
+        const QString zip = appData_->downloadsDir() + "/" + want;
+        const QString sums = appData_->downloadsDir() + "/SHA256SUMS-" + tag;
+        const qint64 size = qint64(zipAsset.value("size").toDouble());
+        auto install = [=] {
+            // the checksum the release published for this zip
+            QString wantSha;
+            for (const QString& line : readFile(sums).split('\n')) {
+                const QString l = line.simplified();
+                const QString file = l.section(' ', 1).remove(QRegularExpression("^[*]?(\\./)?"));
+                if (file == want) wantSha = l.section(' ', 0, 0).toLower();
+            }
+            const QString gotSha = DownloadPins::sha256Of(zip);
+            if (wantSha.isEmpty() || gotSha != wantSha) {
+                QFile::remove(zip);
+                finishStep(i, false, "checksum mismatch", wantSha.isEmpty() ? QStringLiteral("The release's SHA256SUMS does not list %1.").arg(want)
+                                                                            : QStringLiteral("The download of %1 did not match the release's checksum (got %2…, wanted %3…). It was deleted; Retry downloads it again.").arg(want, gotSha.left(8), wantSha.left(8)), 0);
+                return;
+            }
+            downloadedBytes_ += QFileInfo(zip).size();
+            const QString tmp = appData_->downloadsDir() + "/game-" + tag + ".tmp";
+            QDir(tmp).removeRecursively();
+            QDir().mkpath(tmp);
+            emit progress(QStringLiteral("Unpacking %1 %2").arg(manifest_->name(), tag), 0, 0, true);
+#ifdef Q_OS_LINUX
+            const QString unpacker = "unzip";
+            const QStringList unpackArgs = {"-q", "-o", zip, "-d", tmp};
+#else
+            const QString unpacker = "tar";   // Windows 10+ and macOS: bsdtar reads zip
+            const QStringList unpackArgs = {"-xf", zip, "-C", tmp};
+#endif
+            runProcess(unpacker, unpackArgs, tmp, "unpack-game", [=](bool unpacked) {
+                // the zip holds one folder (twinsanityevolved-<platform>/) with the game in it
+                QString root = tmp;
+                const QStringList dirs = QDir(tmp).entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+                if (!QFileInfo::exists(tmp + "/" + gameExeName()) && dirs.size() == 1) root = tmp + "/" + dirs.first();
+                if (!unpacked || !QFileInfo::exists(root + "/" + gameExeName())) {
+                    QDir(tmp).removeRecursively();
+                    finishStep(i, false, "not unpacked", QStringLiteral("%1 could not be unpacked: %2").arg(want, proc_->tail(2).simplified().left(160)), 0);
+                    return;
+                }
+                QString failed;
+                if (!copyTreeInto(root, gameFolder_, &failed)) {
+                    QDir(tmp).removeRecursively();
+                    finishStep(i, false, "not installed", QStringLiteral("%1 could not be written (is the game still running?)").arg(QDir::toNativeSeparators(failed)), 0);
+                    return;
+                }
+                QDir(tmp).removeRecursively();
+                QFile::remove(zip);   // the folder is the copy that is kept
+                const QString exe = gameFolder_ + "/" + gameExeName();
+                QFile(exe).setPermissions(QFile(exe).permissions() | QFileDevice::ExeOwner | QFileDevice::ExeUser | QFileDevice::ExeGroup);
+                installed_["release_tag"] = tag;
+                installed_["game_exe"] = exe;
+                saveInstalled();
+                finishStep(i, true, QStringLiteral("%1 installed in %2").arg(tag, AppData::shortPath(gameFolder_)), QString(), folderBytes(gameFolder_));
+            });
+        };
+        QStringList sumArgs = curlArgs(true);
+        sumArgs << "-sS" << "-o" << sums << urlOf(sumsAsset);
+        runProcess("curl", sumArgs, appData_->downloadsDir(), "release-sums", [=](bool sumsOk) {
+            if (!sumsOk || sumsAsset.isEmpty()) {
+                finishStep(i, false, "no checksums", QStringLiteral("The release's SHA256SUMS could not be downloaded, so the game is not installed unchecked."), 0);
+                return;
+            }
+            emit progress(QStringLiteral("Downloading %1 %2 (%3)").arg(manifest_->name(), tag, bytesText(size)), 0, 1000, false);
+            // curl -# draws a percentage: it drives the bar
+            auto conn = std::make_shared<QMetaObject::Connection>();
+            *conn = connect(proc_, &ProcessRunner::line, this, [this, tag, size](const QString& l) {
+                static const QRegularExpression pct("(\\d+(?:\\.\\d+)?)%\\s*$");
+                const QRegularExpressionMatch m = pct.match(l);
+                if (m.hasMatch()) emit progress(QStringLiteral("Downloading %1 %2 (%3)").arg(manifest_->name(), tag, bytesText(size)), int(m.captured(1).toDouble() * 10), 1000, false);
+            });
+            QStringList zipArgs = curlArgs(true);
+            zipArgs << "-#" << "-o" << zip + ".part" << urlOf(zipAsset);
+            runProcess("curl", zipArgs, appData_->downloadsDir(), "download-game", [=](bool got) {
+                disconnect(*conn);
+                if (!got) {
+                    QFile::remove(zip + ".part");
+                    finishStep(i, false, "download stopped", QStringLiteral("The download of %1 stopped (%2). Check the network and Retry.").arg(want, proc_->tail(2).simplified().left(120)), 0);
+                    return;
+                }
+                QFile::remove(zip);
+                QFile::rename(zip + ".part", zip);
+                install();
+            });
+        });
+    });
+}
+
+void Installer::checkForReleaseUpdate() {
+    const QString repo = manifest_->releaseRepo();
+    const QString have = installedRelease();
+    if (running_ || repo.isEmpty() || have.isEmpty()) return;
+    // one short request off the UI thread; offline or slow simply means no update is offered this time
+    auto* p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [=](int code, QProcess::ExitStatus status) {
+        const QString latest = QJsonDocument::fromJson(p->readAllStandardOutput()).object().value("tag_name").toString();
+        p->deleteLater();
+        if (status != QProcess::NormalExit || code != 0 || latest.isEmpty() || latest == have || running_) return;
+        steps_[0].state = InstallStep::Pending;
+        steps_[0].detail = QStringLiteral("a newer version is available (%1)").arg(latest);
+        emit stepChanged(0);
+        emit sourceUpdateAvailable(latest);
+    });
+    QStringList args = curlArgs(false);
+    args << "-sS" << QStringLiteral("https://api.github.com/repos/%1/releases/latest").arg(repo);
+    p->start("curl", args);
     QTimer::singleShot(20000, p, [p] { if (p->state() != QProcess::NotRunning) p->kill(); });
 }
 

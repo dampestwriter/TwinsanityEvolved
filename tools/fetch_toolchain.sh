@@ -75,6 +75,9 @@ if [ ! -x "$DEST/wabt/bin/wasm2c$EXE" ]; then
     cmake --build "$DEST/wabt.tmp/build" --target wasm2c wasm-objdump wasm-validate > "$DEST/wabt.tmp/build.log" 2>&1
     mkdir -p "$DEST/wabt.tmp/bin"
     cp "$DEST/wabt.tmp/build/wasm2c" "$DEST/wabt.tmp/build/wasm-objdump" "$DEST/wabt.tmp/build/wasm-validate" "$DEST/wabt.tmp/bin/"
+    # the wasm2c runtime the generated C is compiled with, where the binary releases keep it
+    mkdir -p "$DEST/wabt.tmp/share/wabt/wasm2c"
+    cp "$DEST/wabt.tmp/wasm2c/"wasm-rt* "$DEST/wabt.tmp/share/wabt/wasm2c/"
   else
     tar -xzf "$DEST/$WABT_TGZ" -C "$DEST/wabt.tmp" --strip-components=1
   fi

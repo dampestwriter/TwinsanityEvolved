@@ -86,7 +86,8 @@ void GameCard::refresh() {
     const BuildRecord rec = app_->builder()->record(app_->hostTarget());
     const bool building = app_->builder()->running() && app_->builder()->runningTarget() == app_->hostTarget();
     QString status, statusColor = t.css(LauncherTheme::TextMuted), build;
-    if (rec.ok) build = QStringLiteral("build %1").arg(rec.sourceCommit.left(7));
+    if (app_->buildFromSource() && rec.ok) build = QStringLiteral("build %1").arg(rec.sourceCommit.left(7));
+    else if (!app_->buildFromSource() && !app_->installer()->installedRelease().isEmpty()) build = app_->installer()->installedRelease();
     if (building) {
         progress_->show();
         actionRow_->setVisible(true);
@@ -109,7 +110,8 @@ void GameCard::refresh() {
             action_->setKind(FlatButton::Secondary);
             break;
         case LauncherApp::Install:
-            status = QStringLiteral("The first run has not finished: the tools the build needs are not installed yet.");
+            status = app_->buildFromSource() ? QStringLiteral("The first run has not finished: the tools the build needs are not installed yet.")
+                                             : QStringLiteral("Not installed yet: Install downloads the finished game.");
             action_->setText(QStringLiteral("Install"));
             action_->setKind(FlatButton::Primary);
             break;
@@ -123,7 +125,7 @@ void GameCard::refresh() {
         case LauncherApp::Play:
             status = QStringLiteral("Ready to play.");
             statusColor = t.css(LauncherTheme::Ok);
-            build += QStringLiteral(" (up to date)");
+            if (!build.isEmpty()) build += QStringLiteral(" (up to date)");
             action_->setText(QStringLiteral("Play"));
             action_->setKind(FlatButton::Primary);
             break;

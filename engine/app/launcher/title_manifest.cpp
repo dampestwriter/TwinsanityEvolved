@@ -1,5 +1,6 @@
 // app/launcher/title_manifest.cpp -- reading title.json.
 #include "title_manifest.h"
+#include <QRegularExpression>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -62,6 +63,11 @@ bool TitleManifest::loadJson(const QJsonObject& root, QString* error) {
 
     const QJsonObject source = root.value("source").toObject();
     sourceUrl_ = source.value("url").toString();
+    releaseRepo_ = root.value("release").toObject().value("repo").toString();
+    if (releaseRepo_.isEmpty()) {   // https://github.com/<owner>/<name>(.git)
+        const QRegularExpressionMatch m = QRegularExpression("github\\.com[/:]([^/]+)/([^/.]+)").match(sourceUrl_);
+        if (m.hasMatch()) releaseRepo_ = m.captured(1) + "/" + m.captured(2);
+    }
     const QJsonObject tc = source.value("toolchain").toObject();
     toolchainScript_ = tc.value("script").toString("tools/fetch_toolchain.sh");
     toolchainWindowsScript_ = tc.value("windows_script").toString("tools/fetch_toolchain.ps1");

@@ -87,7 +87,8 @@ bool LauncherApp::loadManifest(const QString& explicitPath, QString* error) {
     QString err;
     appData_->ensureFolders(&err);
     library_ = new GameLibrary(appData_, this);
-    installer_ = new Installer(appData_, manifest_, this);
+    buildFromSource_ = qEnvironmentVariable("PS2R_LAUNCHER_BUILD_FROM_SOURCE") == "1" || appData_->value("build_from_source").toBool();
+    installer_ = new Installer(appData_, manifest_, buildFromSource_, this);
     builder_ = new BuildRunner(appData_, manifest_, installer_, this);
     game_ = new GameProcess(manifest_, this);
     scanner_ = new DiscScanner(this);
@@ -95,7 +96,12 @@ bool LauncherApp::loadManifest(const QString& explicitPath, QString* error) {
     seedFolders();
     connect(scanner_, &DiscScanner::found, this, [this](const DiscFound& d) { library_->add(d.path, d.fingerprintFile, d.sizeBytes); });
     connect(installer_, &Installer::stepChanged, this, [this](int) { emit stateChanged(); });
-    connect(installer_, &Installer::finished, this, [this](bool) { emit stateChanged(); });
+    connect(installer_, &Installer::finished, this, [this](bool ok) {
+        // download mode: the downloaded game gets its disc and shortcuts
+        if (ok && !buildFromSource_ && !installer_->installedGameExe().isEmpty())
+            finishInstall(QFileInfo(installer_->installedGameExe()).absolutePath(), installer_->installedGameExe());
+        emit stateChanged();
+    });
     connect(builder_, &BuildRunner::finished, this, [this](const QString& target, bool ok, const BuildRecord&) {
         // a build for this machine is installed to the game folder at once
         if (ok && target == hostTarget()) exportGame();
@@ -113,9 +119,10 @@ bool LauncherApp::loadManifest(const QString& explicitPath, QString* error) {
         appData_->setValue("folder.game_output", QDir::cleanPath(preset));
         appData_->save();
     }
+    if (gameFolderChosen()) installer_->setGameFolder(folder("game_output"));
     // a build already made (an earlier launcher, or the folder moved): bring the installed copy up to date
     const BuildRecord r = builder_->record(hostTarget());
-    if (r.ok && gameFolderChosen() && appData_->value("installed_game_commit").toString() != r.sourceCommit) exportGame();
+    if (buildFromSource_ && r.ok && gameFolderChosen() && appData_->value("installed_game_commit").toString() != r.sourceCommit) exportGame();
     return true;
 }
 
@@ -220,6 +227,7 @@ LauncherApp::Action LauncherApp::nextAction(const QString& isoPath) const {
     if (!g || g->missing) return Missing;
     if (game_->running() && game_->isoPath() == isoPath) return Playing;
     if (!installer_->complete()) return Install;
+    if (!buildFromSource_) return Play;   // the downloaded game is the one that plays
     if (!builder_->upToDate(hostTarget())) return Build;
     return Play;
 }
@@ -233,12 +241,20 @@ void LauncherApp::build(const QString& targetId) {
 
 bool LauncherApp::play(const QString& isoPath, QString* error) {
     if (game_->running()) { if (error) *error = QStringLiteral("a game is already running"); return false; }
-    const BuildRecord r = builder_->record(hostTarget());
-    if (!r.ok) { if (error) *error = QStringLiteral("no build for this machine yet"); return false; }
+    QString binary;
+    if (buildFromSource_) {
+        const BuildRecord r = builder_->record(hostTarget());
+        if (!r.ok) { if (error) *error = QStringLiteral("no build for this machine yet"); return false; }
+        binary = r.binaryPath;
+    } else {
+        binary = installer_->installedGameExe();
+        if (binary.isEmpty()) { if (error) *error = QStringLiteral("the game is not installed yet"); return false; }
+        writeDiscImage(QFileInfo(binary).absolutePath(), isoPath);   // the shortcut starts with the disc played last
+    }
     seedModsFolder();
     QStringList extra;
     const QString mc = folder("memory_cards");
-    if (!game_->start(r.binaryPath, isoPath, settingsFilePath(), mc, extra, appData_->logPath("play"), error)) return false;
+    if (!game_->start(binary, isoPath, settingsFilePath(), mc, extra, appData_->logPath("play"), error)) return false;
     appData_->setValue("last_disc", isoPath);   // the disc the installed game names
     appData_->save();
     playingIso_ = isoPath;
@@ -257,8 +273,9 @@ void LauncherApp::chooseGameFolder(const QString& parentOrFolder) {
     if (QFileInfo(dir).fileName().compare(manifest_->name(), Qt::CaseInsensitive) != 0) dir += "/" + manifest_->name();
     appData_->setValue("folder.game_output", dir);
     appData_->save();
+    installer_->setGameFolder(dir);
     emit foldersChanged();
-    if (builder_->record(hostTarget()).ok) exportGame();
+    if (buildFromSource_ && builder_->record(hostTarget()).ok) exportGame();
 }
 
 QString LauncherApp::discForExport() const {
@@ -332,34 +349,43 @@ bool LauncherApp::exportGame(QString* error) {
             QFile::copy(installer_->sourceDir() + "/" + f, out + "/" + f);
         }
     }
-    // the disc image the game starts with when it is given none (runner/te_startup.h)
-    const QString disc = discForExport();
-    if (!disc.isEmpty()) {
-        QFile f(out + "/disc-image.txt");
-        if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+    appData_->setValue("installed_game_commit", r.sourceCommit);
+    finishInstall(out, out + "/" + exeName);
+    return true;
+}
+
+void LauncherApp::writeDiscImage(const QString& folder, const QString& disc) const {
+    // the disc image the game starts with when it is given none (runner/te_startup.h); none known: the game asks itself
+    if (disc.isEmpty()) return;
+    QFile f(folder + "/disc-image.txt");
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) return;
 #ifdef Q_OS_WIN
-            f.write(QDir::toNativeSeparators(disc).toLocal8Bit());   // the C runtime opens it in the system code page
+    f.write(QDir::toNativeSeparators(disc).toLocal8Bit());   // the C runtime opens it in the system code page
 #else
-            f.write(disc.toUtf8());
+    f.write(disc.toUtf8());
 #endif
-            f.write("\n");
-        }
-    }
-    const QString exe = out + "/" + exeName;
+    f.write("\n");
+}
+
+void LauncherApp::finishInstall(const QString& folder, const QString& exe) {
+    writeDiscImage(folder, discForExport());
 #ifdef Q_OS_WIN
     const QString name = manifest_->name();
     const QString desktop = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
     const QString startMenu = QStandardPaths::writableLocation(QStandardPaths::ApplicationsLocation);
-    if (!desktop.isEmpty()) makeShortcut(desktop + "/" + name + ".lnk", exe, out, name);
-    if (!startMenu.isEmpty()) makeShortcut(startMenu + "/" + name + ".lnk", exe, out, name);
+    if (!desktop.isEmpty()) makeShortcut(desktop + "/" + name + ".lnk", exe, folder, name);
+    if (!startMenu.isEmpty()) makeShortcut(startMenu + "/" + name + ".lnk", exe, folder, name);
 #endif
-    appData_->setValue("installed_game_commit", r.sourceCommit);
     appData_->setValue("installed_game", exe);
     appData_->save();
     exportError_.clear();
-    emit gameExported(out);
+    emit gameExported(folder);
     emit stateChanged();
-    return true;
+}
+
+void LauncherApp::setBuildFromSource(bool on) {
+    appData_->setValue("build_from_source", on);
+    appData_->save();
 }
 
 QString LauncherApp::installedGame() const {

@@ -69,6 +69,12 @@ public:
     QString version() const;
     QString engineCommit() const;
 
+    // Download mode (the default): the finished game comes from the title's releases, nothing is built here.
+    // Build-from-source mode (Targets > "Build from source", or PS2R_LAUNCHER_BUILD_FROM_SOURCE=1) installs the
+    // toolchain and builds; it is read when the launcher starts.
+    bool buildFromSource() const { return buildFromSource_; }
+    void setBuildFromSource(bool on);   // from the next start
+
 signals:
     void foldersChanged();
     void settingsChanged(const QString& key);
@@ -87,7 +93,11 @@ private:
     IniSettings* settings_ = nullptr;
     QString playingIso_;
     QString exportError_;
+    bool buildFromSource_ = false;
     QString discForExport() const;
+    // the installed game's companions: disc-image.txt (the disc it starts with) and, on Windows, the shortcuts
+    void writeDiscImage(const QString& folder, const QString& disc) const;
+    void finishInstall(const QString& folder, const QString& exe);
 };
 
 }  // namespace ps2r::launcher

@@ -31,7 +31,9 @@ struct InstallStep {
 class Installer : public QObject {
     Q_OBJECT
 public:
-    Installer(AppData* appData, const TitleManifest* manifest, QObject* parent = nullptr);
+    // buildFromSource false (the default): one step, the finished game downloaded from the title's GitHub releases
+    // into the game folder -- no compiler, no tools. true: the toolchain steps and a build on this machine.
+    Installer(AppData* appData, const TitleManifest* manifest, bool buildFromSource = false, QObject* parent = nullptr);
     ~Installer() override;
 
     const QVector<InstallStep>& steps() const { return steps_; }
@@ -50,6 +52,13 @@ public:
     qint64 totalDownloadedBytes() const { return downloadedBytes_; }
     qint64 totalOnDiskBytes() const;
     QString currentLogPath() const;
+    bool buildFromSource() const { return buildFromSource_; }
+    // Download mode: where the game is installed (the launcher's game folder) and what is there.
+    void setGameFolder(const QString& folder);
+    QString installedRelease() const;   // the release tag installed, or empty
+    QString installedGameExe() const;   // the installed executable, or empty
+    // The release zip for this computer: twinsanityevolved-<tag>-<platform>.zip (windows-x64, macos-arm64, ...).
+    static QString releasePlatform();
     QJsonObject installed() const { return installed_; }
 
     void start();                      // runs every pending required step in order
@@ -87,6 +96,9 @@ private:
     QString vcpkgBaseline() const;     // the source's vcpkg.json builtin-baseline
     void stepPython(int i);
     void stepVitaSdk(int i);
+    void stepGame(int i);   // download mode: the release zip, sha256-checked against SHA256SUMS, unpacked into the game folder
+    void checkForReleaseUpdate();
+    QStringList curlArgs(bool binary) const;   // GitHub API headers (+ a GITHUB_TOKEN when set, for a private repository)
     void downloadAndUnpack(const QString& tool, const QString& destDir, std::function<void(bool, QString, qint64)> done);
     void runProcess(const QString& program, const QStringList& args, const QString& workDir, const QString& logStep,
                     std::function<void(bool)> done);
@@ -109,6 +121,8 @@ private:
     int watchLeft_ = 0;
     int current_ = -1;
     bool running_ = false, cancelled_ = false, vitaRequested_ = false;
+    bool buildFromSource_ = false;
+    QString gameFolder_;
 };
 
 }  // namespace ps2r::launcher

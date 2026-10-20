@@ -79,6 +79,9 @@ public:
     QVector<DiscFingerprint> allFingerprints() const;
 
     QString sourceUrl() const { return sourceUrl_; }
+    // The GitHub repository whose releases carry the finished game ("owner/name"): manifest release.repo, else the
+    // source URL's github.com path. Empty when neither names one.
+    QString releaseRepo() const { return releaseRepo_; }
     QString toolchainScript() const { return toolchainScript_; }
     QString toolchainWindowsScript() const { return toolchainWindowsScript_; }
     QString toolchainPins() const { return toolchainPins_; }
@@ -113,6 +116,7 @@ private:
     DiscFingerprint fingerprint_;
     QVector<DiscFingerprint> alternates_;
     QStringList discExtensions_;
+    QString releaseRepo_;
     QString sourceUrl_, toolchainScript_, toolchainWindowsScript_, toolchainPins_, toolchainFolder_, ffmpegRecipe_;
     bool needsPython_ = true;
     QVector<TargetSpec> targets_;

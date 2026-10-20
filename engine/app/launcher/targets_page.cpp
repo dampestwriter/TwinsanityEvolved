@@ -1,9 +1,12 @@
 // app/launcher/targets_page.cpp -- the Targets page.
 #include "targets_page.h"
+#include <QLabel>
+#include <QMessageBox>
 #include <QScrollArea>
 #include <QVBoxLayout>
 #include "build_runner.h"
 #include "details_sheet.h"
+#include "flat_button.h"
 #include "installer.h"
 #include "launcher_app.h"
 #include "launcher_theme.h"
@@ -24,6 +27,26 @@ TargetsPage::TargetsPage(LauncherApp* app, DetailsSheet* details, QWidget* paren
     col->setContentsMargins(LauncherTheme::S5, 0, LauncherTheme::S5, LauncherTheme::S5);
     col->setSpacing(LauncherTheme::S3);
     col->addWidget(new PageHeader(QStringLiteral("Targets"), QStringLiteral("Build the game for another machine. This machine's build is the one Play uses."), inner));
+    // Building is for people who want to compile the game themselves: the downloaded game needs none of it
+    {
+        const LauncherTheme& t = LauncherTheme::instance();
+        auto* note = new QLabel(app->buildFromSource()
+                                    ? QStringLiteral("Building from source is on: the launcher installs the compiler and tools it needs and builds the game on this computer.")
+                                    : QStringLiteral("You are using the downloaded game, so nothing needs building. Building from source installs a compiler and "
+                                                     "tools (about 15 GB) and is only for compiling the game yourself or for another machine."), inner);
+        note->setWordWrap(true);
+        note->setFont(t.font(LauncherTheme::Body));
+        note->setStyleSheet(QStringLiteral("color: %1;").arg(t.css(LauncherTheme::TextMuted)));
+        col->addWidget(note);
+        auto* toggle = new FlatButton(app->buildFromSource() ? QStringLiteral("Use the downloaded game instead") : QStringLiteral("Build from source"),
+                                      FlatButton::Secondary, inner);
+        connect(toggle, &QAbstractButton::clicked, this, [this] {
+            app_->setBuildFromSource(!app_->buildFromSource());
+            QMessageBox::information(this, QStringLiteral("Restart the launcher"),
+                                     QStringLiteral("The change applies the next time you open the launcher."));
+        });
+        col->addWidget(toggle, 0, Qt::AlignLeft);
+    }
     selector_ = new SegmentedControl(inner);
     selector_->setAccessibleName(QStringLiteral("Target"));
     QStringList labels, ids;
@@ -36,6 +59,10 @@ TargetsPage::TargetsPage(LauncherApp* app, DetailsSheet* details, QWidget* paren
         connect(c, &TargetCard::detailsRequested, this, [this] { details_->showLogFile(QStringLiteral("Build details"), app_->builder()->currentLogPath()); });
         cards_ << c;
         col->addWidget(c);
+    }
+    if (!app->buildFromSource()) {   // no toolchain in download mode: the targets are shown, not built
+        selector_->setEnabled(false);
+        for (TargetCard* c : cards_) c->setEnabled(false);
     }
     col->addStretch(1);
     auto* outer = new QVBoxLayout(this);

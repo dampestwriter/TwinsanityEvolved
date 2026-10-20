@@ -183,7 +183,8 @@ jobs:
   release:
     name: SHA256SUMS + GitHub release
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    # the platforms that built are published even when another failed (the notes name the missing ones)
+    if: ${{ !cancelled() && startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:

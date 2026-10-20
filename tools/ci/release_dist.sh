@@ -85,7 +85,7 @@ if [ "$SKIP_BUILD" = 0 ]; then
   grep -E "SDL2|FFmpeg|LTO|TwinsanityEvolved:" "$BUILD/configure.log" | head -12 || true
   step "build (game wasm, wasm2c, engine libs, runner)"
   if ! cmake --build "$BUILD" ${JOBS:+-j "$JOBS"} --target twinsanityevolved > "$BUILD/build.log" 2>&1; then
-    grep -n "error\|FAILED" "$BUILD/build.log" | head -40; exit 1
+    grep -n -A 30 "FAILED:" "$BUILD/build.log" | head -120; exit 1   # the failed step's own output (a linker's undefined references)
   fi
   echo "build OK -- warning: $(grep -c 'warning:' "$BUILD/build.log" || true)"
 fi

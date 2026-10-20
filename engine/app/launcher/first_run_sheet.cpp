@@ -20,7 +20,9 @@ FirstRunSheet::FirstRunSheet(Installer* installer, DetailsSheet* details, QWidge
     auto* col = new QVBoxLayout(content);
     col->setContentsMargins(0, 0, 0, 0);
     col->setSpacing(LauncherTheme::S2);
-    auto* intro = new QLabel(QStringLiteral("The launcher installs what it needs into your app-data folder — nothing system-wide, no administrator password."), content);
+    auto* intro = new QLabel(installer_->buildFromSource()
+                                 ? QStringLiteral("Building from source: the launcher installs the compiler and tools it needs into its app-data folder, then builds the game here.")
+                                 : QStringLiteral("The launcher downloads the finished game into the folder you chose. Nothing else is installed on your computer."), content);
     intro->setFont(t.font(LauncherTheme::Body));
     intro->setWordWrap(true);
     intro->setStyleSheet(QStringLiteral("color: %1;").arg(t.css(LauncherTheme::TextMuted)));
