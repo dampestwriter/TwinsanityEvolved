@@ -588,6 +588,31 @@ bool copyTreeInto(const QString& from, const QString& to, QString* failed) {
     return true;
 }
 
+// The newest published release that carries this computer's game zip and its SHA256SUMS. The game zips arrive after the
+// launchers (their builds take longer), and a platform whose build failed is missing from that release: the release
+// before it is then the one to install. False when none in the list has one.
+bool pickRelease(const QJsonArray& releases, const QString& platform, QString* tag, QJsonObject* zip, QJsonObject* sums) {
+    for (const QJsonValue& rv : releases) {
+        const QJsonObject rel = rv.toObject();
+        if (rel.value("draft").toBool() || rel.value("prerelease").toBool()) continue;
+        const QString t = rel.value("tag_name").toString();
+        const QString want = QStringLiteral("twinsanityevolved-%1-%2.zip").arg(t, platform);
+        QJsonObject z, sh;
+        for (const QJsonValue& v : rel.value("assets").toArray()) {
+            const QJsonObject a = v.toObject();
+            if (a.value("name").toString() == want) z = a;
+            if (a.value("name").toString() == "SHA256SUMS") sh = a;
+        }
+        if (!z.isEmpty() && !sh.isEmpty()) {
+            *tag = t;
+            *zip = z;
+            *sums = sh;
+            return true;
+        }
+    }
+    return false;
+}
+
 QString gameExeName() {
 #ifdef Q_OS_WIN
     return QStringLiteral("twinsanityevolved.exe");
@@ -635,30 +660,26 @@ void Installer::stepGame(int i) {
     if (repo.isEmpty()) { finishStep(i, false, "no releases", QStringLiteral("The manifest names no GitHub repository to download the game from."), 0); return; }
     if (gameFolder_.isEmpty()) { finishStep(i, false, "no folder", QStringLiteral("No game folder has been chosen."), 0); return; }
     QDir().mkpath(appData_->downloadsDir());
-    const QString json = appData_->downloadsDir() + "/latest-release.json";
+    const QString json = appData_->downloadsDir() + "/releases.json";
     emit progress(QStringLiteral("Looking for the latest version of %1").arg(manifest_->name()), 0, 0, true);
     QStringList args = curlArgs(false);
-    args << "-sS" << "-o" << json << QStringLiteral("https://api.github.com/repos/%1/releases/latest").arg(repo);
-    runProcess("curl", args, appData_->downloadsDir(), "release-latest", [=](bool ok) {
-        const QJsonObject rel = QJsonDocument::fromJson(readFile(json).toUtf8()).object();
-        const QString tag = rel.value("tag_name").toString();
-        if (!ok || tag.isEmpty()) {
-            finishStep(i, false, "not reachable", QStringLiteral("The latest release of %1 could not be read (%2). Check the network and Retry.")
+    args << "-sS" << "-o" << json << QStringLiteral("https://api.github.com/repos/%1/releases?per_page=20").arg(repo);
+    runProcess("curl", args, appData_->downloadsDir(), "release-list", [=](bool ok) {
+        const QJsonDocument doc = QJsonDocument::fromJson(readFile(json).toUtf8());
+        if (!ok || !doc.isArray()) {
+            finishStep(i, false, "not reachable", QStringLiteral("The releases of %1 could not be read (%2). Check the network and Retry.")
                                                        .arg(repo, proc_->tail(2).simplified().left(160)), 0);
             return;
         }
-        const QString want = QStringLiteral("twinsanityevolved-%1-%2.zip").arg(tag, releasePlatform());
+        QString tag;
         QJsonObject zipAsset, sumsAsset;
-        for (const QJsonValue& v : rel.value("assets").toArray()) {
-            const QJsonObject a = v.toObject();
-            if (a.value("name").toString() == want) zipAsset = a;
-            if (a.value("name").toString() == "SHA256SUMS") sumsAsset = a;
-        }
-        if (zipAsset.isEmpty()) {
+        if (!pickRelease(doc.array(), releasePlatform(), &tag, &zipAsset, &sumsAsset)) {
             finishStep(i, false, "no download for this computer",
-                       QStringLiteral("The latest release (%1) has no download for this computer (%2).").arg(tag, want), 0);
+                       QStringLiteral("No release of %1 has the game for this computer (%2) yet. If a release was just published, "
+                                      "its game downloads follow the launcher by about half an hour: Retry then.").arg(repo, releasePlatform()), 0);
             return;
         }
+        const QString want = zipAsset.value("name").toString();
         if (installedRelease() == tag && !installedGameExe().isEmpty() && QFileInfo(installedGameExe()).absolutePath() == gameFolder_) {
             finishStep(i, true, QStringLiteral("%1 installed in %2 (the latest)").arg(tag, AppData::shortPath(gameFolder_)), QString(), -1);
             return;
@@ -761,16 +782,19 @@ void Installer::checkForReleaseUpdate() {
     // one short request off the UI thread; offline or slow simply means no update is offered this time
     auto* p = new QProcess(this);
     connect(p, &QProcess::finished, this, [=](int code, QProcess::ExitStatus status) {
-        const QString latest = QJsonDocument::fromJson(p->readAllStandardOutput()).object().value("tag_name").toString();
+        const QJsonDocument doc = QJsonDocument::fromJson(p->readAllStandardOutput());
         p->deleteLater();
-        if (status != QProcess::NormalExit || code != 0 || latest.isEmpty() || latest == have || running_) return;
+        QString latest;
+        QJsonObject zip, sums;
+        if (status != QProcess::NormalExit || code != 0 || !doc.isArray() || !pickRelease(doc.array(), releasePlatform(), &latest, &zip, &sums)) return;
+        if (latest == have || running_) return;
         steps_[0].state = InstallStep::Pending;
         steps_[0].detail = QStringLiteral("a newer version is available (%1)").arg(latest);
         emit stepChanged(0);
         emit sourceUpdateAvailable(latest);
     });
     QStringList args = curlArgs(false);
-    args << "-sS" << QStringLiteral("https://api.github.com/repos/%1/releases/latest").arg(repo);
+    args << "-sS" << QStringLiteral("https://api.github.com/repos/%1/releases?per_page=20").arg(repo);
     p->start("curl", args);
     QTimer::singleShot(20000, p, [p] { if (p->state() != QProcess::NotRunning) p->kill(); });
 }

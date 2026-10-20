@@ -33,6 +33,7 @@ class TestLauncherCold : public QObject {
     QJsonObject report_;
     QElapsedTimer wall_;
     QString shots_;
+    bool download_ = false;   // PS2R_COLD_DOWNLOAD=1: the launcher's default mode
 
     int envInt(const char* name, int fallback) {
         const QByteArray v = qgetenv(name);
@@ -56,7 +57,9 @@ private slots:
         wall_.start();
         shots_ = qEnvironmentVariable("PS2R_COLD_SCREENSHOTS");
         LauncherStyle::apply();
-        qputenv("PS2R_LAUNCHER_BUILD_FROM_SOURCE", "1");   // this driver builds the game: the source-build mode
+        // PS2R_COLD_DOWNLOAD=1: the default mode (the release's game downloaded); else the source build
+        download_ = qEnvironmentVariable("PS2R_COLD_DOWNLOAD") == "1";
+        if (!download_) qputenv("PS2R_LAUNCHER_BUILD_FROM_SOURCE", "1");
         app_ = new LauncherApp(this);
         QString err;
         QVERIFY2(app_->loadManifest(qEnvironmentVariable("PS2R_COLD_MANIFEST"), &err), qPrintable(err));
@@ -95,6 +98,8 @@ private slots:
         }
         report_["install_steps"] = steps;
         report_["install_seconds"] = double(t.elapsed() / 1000);
+        report_["installed_release"] = app_->installer()->installedRelease();
+        report_["installed_game"] = app_->installer()->installedGameExe();
         report_["download_bytes"] = double(app_->installer()->totalDownloadedBytes());
         report_["on_disk_bytes"] = double(app_->installer()->totalOnDiskBytes());
         writeReport();
@@ -117,10 +122,11 @@ private slots:
         const GameEntry& g = app_->library()->games().first();
         report_["disc"] = g.path;
         report_["disc_fingerprint"] = g.fingerprintFile;
-        QCOMPARE(app_->nextAction(g.path), LauncherApp::Build);
+        QCOMPARE(app_->nextAction(g.path), download_ ? LauncherApp::Play : LauncherApp::Build);
         shot("03-games-found");
     }
     void buildFromTheCard() {
+        if (download_) QSKIP("the downloaded game needs no build");
         const QString iso = app_->library()->games().first().path;
         GameCard* card = window_->gamesPage()->card(iso);
         QVERIFY(card);
