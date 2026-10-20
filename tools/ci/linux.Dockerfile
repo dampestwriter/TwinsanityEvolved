@@ -6,7 +6,7 @@
 #   docker build -f tools/ci/linux.Dockerfile --platform linux/amd64 -t te-linux-amd64 .     # the x86_64 lane on an arm64 host
 #
 # The tree is bind-mounted, not copied: dist/linux-<arch>/ and the zip land in the host's checkout. Game data is never
-# in the image or the tree (tools/ci/asset_scan.sh).
+# in the image or the tree (tools/ci/asset_scan.py).
 ARG UBUNTU=24.04
 FROM ubuntu:${UBUNTU}
 ENV DEBIAN_FRONTEND=noninteractive

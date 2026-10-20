@@ -11,7 +11,7 @@
 #                                     docker build -f tools/ci/linux.Dockerfile -t te-linux . && \
 #                                     docker run --rm -v "$PWD:/src" te-linux tools/ci/release_dist.sh --jobs 3
 #
-# Every artifact is the port's code + the engine + the decompilation compiled: NO game data (tools/ci/asset_scan.sh
+# Every artifact is the port's code + the engine + the decompilation compiled: NO game data (tools/ci/asset_scan.py
 # over every staged folder; the user supplies their own disc image at run time). The engine (engine/) and the
 # decompilation (game/) are vendored trees in this repository
 # so a plain checkout holds everything the build needs.
@@ -23,7 +23,8 @@
 name: TwinsanityEvolved release
 
 on:
-  # by hand: the platform game zips; a v* tag publishes the launcher (launcher.yml)
+  push:
+    tags: ['v*']   # the game zips join the launcher's GitHub release (launcher.yml) on the same tag
   workflow_dispatch:
 
 permissions:
@@ -40,11 +41,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Asset scan over the tree (zero findings)
-        run: tools/ci/asset_scan.sh
+        run: python3 tools/ci/asset_scan.py
       - name: Script syntax
         run: |
           bash -n tools/ci/release_dist.sh tools/ci/build_all.sh tools/ci/judges.sh tools/fetch_toolchain.sh tools/ci/asset_scan.sh
-          python3 -m py_compile tools/oracle/diff.py tools/judges/hub_fps_judge.py
+          python3 -m py_compile tools/oracle/diff.py tools/judges/hub_fps_judge.py tools/ci/asset_scan.py
 
   build:
     name: ${{ matrix.target }}
@@ -163,7 +164,7 @@ jobs:
       - name: Asset scan over the staged folder (again, on the runner)
         if: matrix.platform != 'windows'
         shell: bash
-        run: tools/ci/asset_scan.sh dist/${{ matrix.target }}
+        run: python3 tools/ci/asset_scan.py dist/${{ matrix.target }}
 
       - uses: actions/upload-artifact@v4
         with:

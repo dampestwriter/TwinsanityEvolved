@@ -17,7 +17,7 @@
 #   4. stage dist/<platform>/: twinsanityevolved, BUILD-ID, README.md (the user half), LICENSE (MIT),
 #      THIRD_PARTY_NOTICES.md + licenses/ (the engine's committed texts + the FFmpeg
 #      build-configuration proof read from WHAT WAS LINKED), fixtures/padlogs/ (inputs only: no game data);
-#   5. the asset scan over the staged folder (tools/ci/asset_scan.sh ROOT=dist: zero findings);
+#   5. the asset scan over the staged folder (tools/ci/asset_scan.py ROOT=dist: zero findings);
 #   6. a --dry-run of the binary when --iso is given (a local run only; CI has no disc);
 #   7. dist/twinsanityevolved-<platform>.zip + .sha256.
 #
@@ -239,7 +239,7 @@ SDL2_TAG="$(grep -o 'release-[0-9.]*' "$ENGINE/cmake/Sdl2Dependency.cmake" | hea
 } > "$DIST/THIRD_PARTY_NOTICES.md"
 
 step "asset scan over the staged folder (zero findings)"
-tools/ci/asset_scan.sh "$DIST"
+python3 tools/ci/asset_scan.py "$DIST"
 
 if [ -n "$ISO" ]; then
   step "dry run (the disc read at run time only)"

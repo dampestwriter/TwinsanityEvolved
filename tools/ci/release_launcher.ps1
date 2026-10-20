@@ -88,29 +88,8 @@ Step "windeployqt (the Qt DLLs and plugins beside the executable, dynamic)"
 if ($LASTEXITCODE -ne 0) { throw "windeployqt failed" }
 
 Step "asset scan over the staged folder"
-# Git for Windows' bash runs the asset scan. Not `bash` from PATH: on a machine with WSL that is System32\bash.exe,
-# which cannot open a Windows path.
-function Get-GitBash {
-    $git = Get-Command git -ErrorAction SilentlyContinue
-    if ($git) {
-        foreach ($up in @(1, 2)) {
-            $root = $git.Source
-            for ($i = 0; $i -le $up; $i++) { $root = Split-Path $root -Parent }
-            $candidate = Join-Path $root "bin\bash.exe"
-            if (Test-Path $candidate) { return $candidate }
-        }
-    }
-    $default = Join-Path $env:ProgramFiles "Git\bin\bash.exe"
-    if (Test-Path $default) { return $default }
-    $any = Get-Command bash -ErrorAction SilentlyContinue
-    if ($any) { return $any.Source }
-    return $null
-}
-$Bash = Get-GitBash
-if ($Bash) {
-    & $Bash tools/ci/asset_scan.sh ($Dist.Replace('\', '/'))
-    if ($LASTEXITCODE -ne 0) { throw "release_launcher: the asset scan found something in $Dist" }
-} else { throw "release_launcher: Git for Windows' bash.exe not found (the asset scan runs under it)" }
+& python (Join-Path $Root "tools\ci\asset_scan.py") $Dist
+if ($LASTEXITCODE -ne 0) { throw "release_launcher: the asset scan found something in $Dist" }
 
 Step "zip"
 $ZipName = "$($Product.ToLower())-launcher-windows-x64.zip"

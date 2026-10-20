@@ -134,7 +134,7 @@ codesign --verify --deep --strict "$APP" && echo "codesign: verified"
 echo "bundle starts: ok"
 
 step "asset scan over the staged folder (zero findings)"
-tools/ci/asset_scan.sh "$DIST"
+python3 tools/ci/asset_scan.py "$DIST"
 
 APP_BYTES=$(du -sk "$APP" | awk '{print $1*1024}')
 echo "app: $APP ($(( APP_BYTES / 1048576 )) MB)"

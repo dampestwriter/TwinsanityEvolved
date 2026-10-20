@@ -143,7 +143,7 @@ if [ -n "$ISO" ]; then
 fi
 
 step "asset scan (zero findings)"
-tools/ci/asset_scan.sh
+python3 tools/ci/asset_scan.py
 
 if [ "$VITA" = 1 ]; then
   step "armv7 vitasdk syntax lane"

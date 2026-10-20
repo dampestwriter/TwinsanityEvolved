@@ -15,12 +15,12 @@
 #   3. stage dist\windows-x64\: twinsanityevolved.exe + every DLL vcpkg's applocal deployment placed beside the built exe,
 #      BUILD-ID, README.md (the user half), LICENSE, THIRD_PARTY_NOTICES.md +
 #      licenses\ (the engine's committed texts + vcpkg's share\<port>\copyright), fixtures\padlogs\;
-#   4. the asset scan over the staged folder (tools/ci/asset_scan.sh under bash: zero findings);
+#   4. the asset scan over the staged folder (tools/ci/asset_scan.py: zero findings);
 #   5. dist\twinsanityevolved-windows-x64.zip + .sha256.
 #
 # Prerequisites: Visual Studio 2022 Build Tools with "C++ Clang tools for Windows" (clang-cl,
 # Ninja) -- run from a Developer PowerShell or let the script import VsDevCmd.bat; vcpkg with VCPKG_ROOT; CMake 3.24+;
-# Python 3.8+ as `python`; Git for Windows (its bash runs the asset scan).
+# Python 3.8+ as `python`; git (the BUILD-ID's commits -- the launcher's MinGit is enough, no bash needed).
 #
 # STATUS: the runner's Win32 arm exists (runner/te_fiber.c
 # VirtualAlloc, te_fiber_win64.c, te_savestate.cpp with /DYNAMICBASE:NO and the adopted /GS cookie) and the whole lane was
@@ -94,29 +94,9 @@ if (-not (Get-Command clang-cl -ErrorAction SilentlyContinue)) {
         }
     }
 }
-# Git for Windows' bash runs the asset scan. Not `bash` from PATH: on a machine with WSL that is System32\bash.exe,
-# which cannot open a Windows path.
-function Get-GitBash {
-    $git = Get-Command git -ErrorAction SilentlyContinue
-    if ($git) {
-        foreach ($up in @(1, 2)) {
-            $root = $git.Source
-            for ($i = 0; $i -le $up; $i++) { $root = Split-Path $root -Parent }
-            $candidate = Join-Path $root "bin\bash.exe"
-            if (Test-Path $candidate) { return $candidate }
-        }
-    }
-    $default = Join-Path $env:ProgramFiles "Git\bin\bash.exe"
-    if (Test-Path $default) { return $default }
-    $any = Get-Command bash -ErrorAction SilentlyContinue
-    if ($any) { return $any.Source }
-    return $null
-}
-$Bash = Get-GitBash
-foreach ($tool in @("cmake", "ninja", "clang-cl", "python")) {
+foreach ($tool in @("cmake", "ninja", "clang-cl", "python", "git")) {
     if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) { throw "release_dist.ps1: '$tool' not on PATH (prerequisites at the top of this script)" }
 }
-if (-not $Bash) { throw "release_dist.ps1: Git for Windows' bash.exe not found (the asset scan runs under it)" }
 if (-not $SkipBuild) {
     if (-not $env:VCPKG_ROOT -or -not (Test-Path (Join-Path $env:VCPKG_ROOT "scripts\buildsystems\vcpkg.cmake"))) {
         throw "release_dist.ps1: VCPKG_ROOT must point at a vcpkg checkout (git clone https://github.com/microsoft/vcpkg; .\bootstrap-vcpkg.bat)"
@@ -212,8 +192,7 @@ if ($conf[0] -match '--enable-gpl|--enable-nonfree|--enable-libx26|--enable-vers
 ) | Set-Content -Encoding UTF8 (Join-Path $Dist "THIRD_PARTY_NOTICES.md")
 
 Step "asset scan over the staged folder (zero findings)"
-$distBash = $Dist.Replace('\', '/')
-$rc = Invoke-Native { & $Bash tools/ci/asset_scan.sh "$distBash" }
+$rc = Invoke-Native { & python (Join-Path $Root "tools\ci\asset_scan.py") $Dist }
 if ($rc -ne 0) { throw "release_dist.ps1: asset scan found game data in the staged folder ($rc)" }
 
 if (-not $NoZip) {

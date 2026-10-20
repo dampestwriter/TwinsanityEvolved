@@ -38,7 +38,7 @@ jobs:
 
       - name: Asset scan over the source tree
         shell: bash
-        run: tools/ci/asset_scan.sh
+        run: python tools/ci/asset_scan.py
 
       - name: Python 3.12 (the clang-cl shim and the generators run under `python`)
         uses: actions/setup-python@v5
