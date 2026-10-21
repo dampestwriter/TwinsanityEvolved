@@ -3,6 +3,7 @@
 #include "games/slus_20909_crash_twinsanity/vu1_library/vu1_loaded_programs.h"
 
 #include "engine/vu/vu_chop_round_guard.h"
+#include "engine/vu/vu_float.h"
 #include "games/slus_20909_crash_twinsanity/vu1_library/displace_prefix.h"
 #include "games/slus_20909_crash_twinsanity/vu1_library/lit_tristrip.h"
 #include "games/slus_20909_crash_twinsanity/vu1_library/skinned_lit_strip.h"
@@ -100,8 +101,8 @@ bool CrysPrograms::RunCrysEnv1720(QwPtr m, u32 node, u32 top, Vu1HleOutput& out,
             float wn[3];
             for (int k = 0; k < 3; ++k) {
                 float acc = CF(CF(bits2f(nrmR[0].b[k])) * nx);
-                acc = CF(std::fmaf(CF(bits2f(nrmR[1].b[k])), ny, acc));
-                wn[k] = CF(std::fmaf(CF(bits2f(nrmR[2].b[k])), nz, acc));
+                acc = CF(VuFloat::Fma(CF(bits2f(nrmR[1].b[k])), ny, acc));
+                wn[k] = CF(VuFloat::Fma(CF(bits2f(nrmR[2].b[k])), nz, acc));
             }
 
             // Lighting -> RGBA (MAXx vs +0; MULAw/MADDAx/MADDAy/MADDz; MUL.xyz
@@ -114,9 +115,9 @@ bool CrysPrograms::RunCrysEnv1720(QwPtr m, u32 node, u32 top, Vu1HleOutput& out,
                 float lit[3];
                 for (int k = 0; k < 3; ++k) {
                     float acc = CF(CF(bits2f(litR[3].b[k])) * 1.0f);
-                    acc = CF(std::fmaf(CF(bits2f(litR[0].b[k])), CF(wcx), acc));
-                    acc = CF(std::fmaf(CF(bits2f(litR[1].b[k])), CF(wcy), acc));
-                    lit[k] = CF(std::fmaf(CF(bits2f(litR[2].b[k])), CF(wcz), acc));
+                    acc = CF(VuFloat::Fma(CF(bits2f(litR[0].b[k])), CF(wcx), acc));
+                    acc = CF(VuFloat::Fma(CF(bits2f(litR[1].b[k])), CF(wcy), acc));
+                    lit[k] = CF(VuFloat::Fma(CF(bits2f(litR[2].b[k])), CF(wcz), acc));
                 }
                 for (int k = 0; k < 3; ++k) {
                     const float s = (float)(int32_t)col.b[k];  // ITOF0
@@ -150,8 +151,8 @@ bool CrysPrograms::RunCrysEnv1720(QwPtr m, u32 node, u32 top, Vu1HleOutput& out,
                     // ST math consumes .xy.
                     for (int k = 0; k < 4; ++k) {
                         float acc = CF(CF(bits2f(stR[2].b[k])) * nz);
-                        acc = CF(std::fmaf(CF(bits2f(stR[1].b[k])), ny, acc));
-                        end_stp.b[k] = f2bits(CF(std::fmaf(CF(bits2f(stR[0].b[k])), nx, acc)));
+                        acc = CF(VuFloat::Fma(CF(bits2f(stR[1].b[k])), ny, acc));
+                        end_stp.b[k] = f2bits(CF(VuFloat::Fma(CF(bits2f(stR[0].b[k])), nx, acc)));
                     }
                     stp[0] = CF(bits2f(end_stp.b[0]));
                     stp[1] = CF(bits2f(end_stp.b[1]));
@@ -159,7 +160,7 @@ bool CrysPrograms::RunCrysEnv1720(QwPtr m, u32 node, u32 top, Vu1HleOutput& out,
                 const float p3z = CF(bits2f(p3.b[2]));
                 for (int k = 0; k < 2; ++k) {  // MULAw.xy ACC, st, vf00.w; MADDz.xy st, stp, vf16
                     const float acc = CF(CF(st[k]) * 1.0f);
-                    float v = CF(std::fmaf(CF(stp[k]), p3z, acc));
+                    float v = CF(VuFloat::Fma(CF(stp[k]), p3z, acc));
                     u32 vb2 = Fmin_raw(f2bits(v), 0x3f800000u);                     // MINIw
                     vb2 = Fmax_raw(vb2, 0u);                                        // MAXx
                     const float vc = CF(CF(bits2f(vb2)) + CF(bits2f(p2.b[k])));  // ADD.xy

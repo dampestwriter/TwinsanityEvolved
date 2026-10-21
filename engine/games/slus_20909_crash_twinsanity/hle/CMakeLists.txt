@@ -28,6 +28,7 @@ add_library(ps2r_title_hle STATIC title_profile.cpp pad_readiness_hook.cpp sif_i
     math/joint_math.cpp math/joint_library.cpp math/joint_library_bindings.cpp
     math/ray_math.cpp
     math/particle_view_math.cpp
+    math/decal_math.cpp
     game_libraries.cpp stream/stream_library.cpp
     graphics/graphics.cpp graphics/graphics_resources.cpp graphics/graphics_buckets.cpp
     graphics/graphics_targets.cpp graphics/graphics_renderer.cpp
@@ -61,7 +62,7 @@ set_source_files_properties(math/trig_math.cpp math/trig_math_rotations.cpp PROP
 set_source_files_properties(math/culling_math.cpp PROPERTIES COMPILE_OPTIONS "-ffp-contract=off")
 set_source_files_properties(math/culling_planes.cpp PROPERTIES COMPILE_OPTIONS "-ffp-contract=off")
 set_source_files_properties(math/bounds_math.cpp PROPERTIES COMPILE_OPTIONS "-ffp-contract=off")
-set_source_files_properties(math/ray_math.cpp math/particle_view_math.cpp PROPERTIES COMPILE_OPTIONS "-ffp-contract=off")
+set_source_files_properties(math/ray_math.cpp math/particle_view_math.cpp math/decal_math.cpp PROPERTIES COMPILE_OPTIONS "-ffp-contract=off")
 set_source_files_properties(math/clipping_math.cpp PROPERTIES COMPILE_OPTIONS "-ffp-contract=off")
 set_source_files_properties(math/joint_math.cpp PROPERTIES COMPILE_OPTIONS "-ffp-contract=off")
 set_source_files_properties(graphics/mesh_geometry.cpp graphics/mesh_intent.cpp graphics/sky_geometry.cpp graphics/sky_setup.cpp graphics/skin_geometry.cpp PROPERTIES COMPILE_OPTIONS "-ffp-contract=off")

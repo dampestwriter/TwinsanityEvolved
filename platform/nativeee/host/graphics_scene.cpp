@@ -14,6 +14,7 @@
 // The draws go through graphics.cpp's buckets (graphics_internal.h).
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -537,6 +538,26 @@ struct DiagBox {
 // strips and fans, and the instances of one material after it -- into ONE draw in their order; blended states stay one
 // draw per published strip/fan, as the backend may read the destination before each draw). The bucket owns the vertex
 // storage; nothing is allocated per build once the buckets have grown.
+// One built vertex as the draw records it: the GS's STQ as the program left it on a textured state (the engine interpolates
+// S, T and Q over the screen and divides per pixel, so the mapping is perspective-correct -- divided here per vertex it was
+// affine per triangle: the seams across the intro's water tiles at grazing angles)
+ps2e_draw_vertex DrawVertex(const ps2r::gs::VertexRec& v, bool textured) {
+    ps2e_draw_vertex o{};
+    o.x = v.x;
+    o.y = v.y;
+    o.z = v.z;
+    if (textured && v.q != 0.f) {
+        o.u = v.s;
+        o.v = v.t;
+        o.q = v.q;
+    }
+    o.r = v.r;
+    o.g = v.g;
+    o.b = v.b;
+    o.a = v.a;
+    return o;
+}
+
 struct Emitter {
     uint32_t bucket = 0;
     ps2e_draw_state state{};
@@ -577,26 +598,12 @@ struct Emitter {
         for (size_t i = 0; i < count; ++i) {
             const auto& v = verts[i];
             ps2e_draw_vertex& o = d.verts[base + i];
-            o = ps2e_draw_vertex{};
-            o.x = v.x;
-            o.y = v.y;
-            o.z = v.z;
+            o = DrawVertex(v, textured && !screenCopy);
             if (screenCopy) {
                 const float ds = v.q != 0.f ? v.s / v.q : 0.f, dt = v.q != 0.f ? v.t / v.q : 0.f;
                 o.u = std::min(1.f, std::max(0.f, v.x * invW + ds)) + copyScroll[0];
                 o.v = std::min(1.f, std::max(0.f, v.y * invH + dt)) + copyScroll[1];
-            } else if (textured && v.q != 0.f) {
-                // the GS's STQ as the program left it: the engine interpolates S, T and Q over the screen and divides per
-                // pixel, so the mapping is perspective-correct (divided here per vertex it was affine per triangle: the
-                // seams across the intro's water tiles at grazing angles)
-                o.u = v.s;
-                o.v = v.t;
-                o.q = v.q;
             }
-            o.r = v.r;
-            o.g = v.g;
-            o.b = v.b;
-            o.a = v.a;
             if (box) box->Add(o);
             if (g_diag.flat && flatTint >= 0) {
                 o.r = flatTint == 0 ? 0xC0 : 0x20;
@@ -621,6 +628,32 @@ struct Emitter {
     }
 };
 std::vector<std::array<uint8_t, 4>> g_colourScratch;   // the lit colours / the shadows' stamp colour per vertex
+
+// The Emitter's appends on a worker (te::gfx::DeferredBuild): the same vertices, each Append's triangles one segment
+struct Collector {
+    te::gfx::DeferredBuild* out = nullptr;
+    bool textured = false;
+    size_t triangles = 0;
+    void Append(const ps2r::gs::VertexRec* verts, size_t count) {
+        count = count / 3 * 3;
+        if (!count) return;
+        const size_t base = out->verts.size();
+        out->verts.resize(base + count);
+        for (size_t i = 0; i < count; ++i) out->verts[base + i] = DrawVertex(verts[i], textured);
+        out->segments.push_back(uint32_t(count));
+        triangles += count / 3;
+    }
+    static void Sink(void* user, const ps2r::gs::VertexRec* verts, size_t count, bool fan) {
+        (void)fan;
+        static_cast<Collector*>(user)->Append(verts, count);
+    }
+};
+// The triangles the workers built, folded into the scene's census on the game thread
+std::atomic<uint64_t> g_deferredModelTriangles{0}, g_deferredSkinTriangles{0};
+// Whether this draw's build may run on a worker: workers running, nothing logged or tinted for diagnosis
+bool Deferrable(bool logging) {
+    return !logging && !g_diag.flat && te::gfx::DeferringBuilds();
+}
 
 
 // One instance of a model: every submodel the model and its materials both have, through the view
@@ -708,6 +741,7 @@ bool ScreenCopyType(uint32_t type) { return type == 0x10 || type == 0x11; }
 
 void DrawInstance(const te_gfx_rigid_model* rigid, const Geometry::View& view, const InstanceState& inst, uint64_t& counter) {
     auto& scene = te::gfx::Scene();
+    scene.model_triangles += g_deferredModelTriangles.exchange(0, std::memory_order_relaxed);
     static const bool noDraw = std::getenv("TE_GFX_NO_DRAW") != nullptr;   // diagnosis: culling without the draws
     // Diagnosis: TE_GFX_NO_PASSES=1 draws the first shader only (the single-pass picture: the judge's reference arm)
     static const bool firstPassOnly = std::getenv("TE_GFX_NO_PASSES") != nullptr;
@@ -784,6 +818,25 @@ void DrawInstance(const te_gfx_rigid_model* rigid, const Geometry::View& view, c
             DiagBox box;
             const bool logging = g_diag.Logging();
             emitter.box = logging ? &box : nullptr;
+            if (!screenCopy && !envMap && Deferrable(logging)) {
+                // the plain build on a worker: the placeholder takes this draw's place in the bucket
+                te::gfx::DeferredBuild& build = te::gfx::ReserveDeferred(bucket, emitter.state);
+                std::vector<std::array<uint8_t, 4>> lit;
+                if (colours) lit.assign(g_colourScratch.begin(), g_colourScratch.end());
+                te::gfx::PostBuild(build, [&build, prepared = &part.prepared, sub, lit = std::move(lit), state = BuildState(),
+                                           textured = emitter.textured, model = rigid->model, i, pass] {
+                    Collector collector{&build, textured};
+                    const Geometry::Result r = te::gfx::MeshBuild(*prepared, sub, state, lit.empty() ? nullptr : lit.data(), &Collector::Sink, &collector);
+                    if (r != Geometry::Result::Ok) {
+                        static std::atomic<int> said{0};
+                        if (said++ < 8) std::fprintf(stderr, "[te.gfx] model %#x part %u pass %u: Build refused (%d)\n", model, i, pass, int(r));
+                    }
+                    g_deferredModelTriangles += collector.triangles;
+                });
+                emitter.box = nullptr;
+                if (pass) scene.material_passes++;
+                continue;
+            }
             Geometry::Result result;
             size_t triangles;
             if (screenCopy || envMap) {
@@ -889,7 +942,11 @@ void ps2e_gfx2_model_loaded(ps2e_u32 model, ps2e_s32 index, ps2e_s32 count, ps2e
     LoadModelPart(model, index, count, bytes, size, vertices);
 }
 
-void ps2e_gfx2_model_released(ps2e_u32 model) { g_models.erase(model); g_shadowModels.erase(model); }
+void ps2e_gfx2_model_released(ps2e_u32 model) {
+    te::gfx::DrainBuilds();   // a posted build may still read its parts
+    g_models.erase(model);
+    g_shadowModels.erase(model);
+}
 
 }  // extern "C"
 
@@ -897,6 +954,7 @@ namespace {
 void LoadModelPart(uint32_t model, int32_t index, int32_t count, const uint8_t* bytes, int32_t size, int32_t vertices) {
     auto& scene = te::gfx::Scene();
     if (index < 0 || count <= 0 || index >= count || count > 4096) return;
+    te::gfx::DrainBuilds();   // a posted build may still read the parts this replaces
     Model& m = g_models[model];
     if (m.parts.size() != size_t(count)) { m.parts.assign(size_t(count), Part{}); m.sources.assign(size_t(count), PartSource{}); }
     PartSource& source = m.sources[size_t(index)];
@@ -959,6 +1017,7 @@ std::vector<ModelSource> ModelSources() {
     return out;
 }
 void ReplayModelSources(const std::vector<ModelSource>& sources) {
+    DrainBuilds();
     g_models.clear();
     g_shadowModels.clear();
     auto& scene = Scene();
@@ -1597,6 +1656,7 @@ void SkinDiag(const char* kind, uint32_t skin, uint32_t index, uint32_t count, c
 void LoadSkinPart(uint32_t skin, int32_t index, int32_t count, const uint8_t* bytes, int32_t size, int32_t vertices) {
     auto& scene = te::gfx::Scene();
     if (index < 0 || count <= 0 || index >= count || count > 4096) return;
+    te::gfx::DrainBuilds();   // a posted build may still read the parts this replaces
     SkinModel& m = g_skins[skin];
     if (m.parts.size() != size_t(count)) m.parts.assign(size_t(count), SkinPart{});
     SkinPart& part = m.parts[size_t(index)];
@@ -1637,6 +1697,7 @@ std::vector<ModelSource> SkinSources() {
     return out;
 }
 void ReplaySkinSources(const std::vector<ModelSource>& sources) {
+    DrainBuilds();
     g_skins.clear();
     g_blendSkins.clear();
     auto& scene = Scene();
@@ -1655,6 +1716,7 @@ void ps2e_gfx2_skin_loaded(ps2e_u32 skin, ps2e_s32 index, ps2e_s32 count, ps2e_u
     LoadSkinPart(skin, index, count, bytes, size, vertices);
 }
 void ps2e_gfx2_skin_released(ps2e_u32 skin) {
+    te::gfx::DrainBuilds();   // a posted build may still read its parts
     g_skins.erase(skin);
 }
 void ps2e_gfx2_blend_skin_released(ps2e_u32 skin) {
@@ -1673,6 +1735,7 @@ void ps2e_graphics_draw_skin(ps2e_u32 skinAddress, ps2e_u32 joints, ps2e_s32 joi
     SkinGeo::Inputs in;
     if (!SkinInputs(joints, jointCount, matrix, lights, mode, in)) return;
     auto& scene = te::gfx::Scene();
+    scene.skin_triangles += g_deferredSkinTriangles.exchange(0, std::memory_order_relaxed);
     static Emitter emitter;
     static std::vector<ps2r::gs::DrawIr> draws;
     const uint32_t count = std::min<uint32_t>(skin->count, uint32_t(it->second.parts.size()));
@@ -1688,6 +1751,23 @@ void ps2e_graphics_draw_skin(ps2e_u32 skinAddress, ps2e_u32 joints, ps2e_s32 joi
         else in.scroll = {0.f, 0.f};
         // the interpolator's identity: this skin at this instance matrix, submodel i -- a vertex run paired when its count holds
         te::gfx::SetDrawTag(ps2r::ps2e::InterpTag{skinId, i, ps2r::ps2e::InterpKind::Vertices});
+        if (Deferrable(g_diag.Logging())) {
+            // the build on a worker: the placeholder takes this submodel's place in the bucket
+            te::gfx::DeferredBuild& build = te::gfx::ReserveDeferred(bucket, state);
+            te::gfx::PostBuild(build, [&build, geometry = &part.part, in, buildState = BuildState(), textured = state.texture != 0, skinAddress, i] {
+                std::vector<ps2r::gs::DrawIr> built;
+                const SkinGeo::Result r = SkinGeo::Build(*geometry, in, buildState, built);
+                if (r != SkinGeo::Result::Ok) {
+                    static std::atomic<int> said{0};
+                    if (said++ < 8) std::fprintf(stderr, "[te.gfx] skin %#x part %u: Build refused (%d)\n", skinAddress, i, int(r));
+                    return;
+                }
+                Collector collector{&build, textured};
+                for (const auto& d : built) collector.Append(d.verts.data(), d.verts.size());
+                g_deferredSkinTriangles += collector.triangles;
+            });
+            continue;
+        }
         draws.clear();
         const SkinGeo::Result r = SkinGeo::Build(part.part, in, BuildState(), draws);
         if (r != SkinGeo::Result::Ok) {

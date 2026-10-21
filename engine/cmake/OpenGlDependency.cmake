@@ -19,9 +19,21 @@
 #           on every Mesa/vendor install, while libOpenGL.so.0 is Ubuntu's
 #           separate libopengl0 package (a fresh ubuntu:24.04 + libgl1 could
 #           not load the GLVND-linked binary).
+#   Vita    no FindOpenGL: OpenGL::GL is composed from VitaSDK's vitaGL (`vdpm install vitaGL`; GL ES 2-class
+#           over sceGxm, <vitaGL.h> as PS2R_GL_HEADER) and the kernel stubs it calls. Only the SDL window /
+#           context TUs reach it on the Vita lane; the GL 4.1 backend is not built there.
 #
 # The GL header spelling is NOT here: every TU includes PS2R_GL_HEADER from the
 # ONE host header. Included from each directory that links OpenGL::GL.
+if(VITA)
+    if(NOT TARGET OpenGL::GL)
+        add_library(OpenGL::GL INTERFACE IMPORTED GLOBAL)
+        set_property(TARGET OpenGL::GL PROPERTY INTERFACE_LINK_LIBRARIES
+            vitaGL vitashark SceShaccCgExt taihen_stub SceShaccCg_stub mathneon SceKernelDmacMgr_stub SceGxm_stub
+            SceDisplay_stub SceAppMgr_stub SceCommonDialog_stub SceSysmodule_stub m)
+    endif()
+    return()
+endif()
 if(POLICY CMP0072)
     cmake_policy(SET CMP0072 NEW)
 endif()

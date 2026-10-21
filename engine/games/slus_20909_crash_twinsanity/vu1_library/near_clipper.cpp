@@ -2,6 +2,7 @@
 #include "games/slus_20909_crash_twinsanity/vu1_library/near_clipper.h"
 
 #include <cmath>
+#include "engine/vu/vu_float.h"
 
 using namespace vu1lib;
 
@@ -128,16 +129,16 @@ bool NearClipper::Run(QwPtr m, u32 node, u32 top, const V4 clipR[5], u32 j, u32 
             pw[r] = CF(CF(bits2f(clipR[r].b[3])) + kPlanes[plane].sgn * CF(bits2f(clipR[r].b[kPlanes[plane].lane])));
         auto dist = [&](const V4& v) {
             float acc = CF(pw[0] * CF(bits2f(v.b[0])));
-            acc = CF(std::fmaf(pw[1], CF(bits2f(v.b[1])), acc));
-            acc = CF(std::fmaf(pw[2], CF(bits2f(v.b[2])), acc));
-            return CF(std::fmaf(pw[3], 1.0f, acc));  // MADD vf30*vf00w
+            acc = CF(VuFloat::Fma(pw[1], CF(bits2f(v.b[1])), acc));
+            acc = CF(VuFloat::Fma(pw[2], CF(bits2f(v.b[2])), acc));
+            return CF(VuFloat::Fma(pw[3], 1.0f, acc));  // MADD vf30*vf00w
         };
         auto isect = [&](const V4& prev, const V4& cur, float pd, float cd, float q) {
             // MULA prev*cur_d / MSUB cur*prev_d / MULq -- all four lanes.
             V4 r;
             for (int k = 0; k < 4; ++k) {
                 const float acc = CF(CF(bits2f(prev.b[k])) * cd);
-                const float sub = CF(std::fmaf(-CF(bits2f(cur.b[k])), pd, acc));
+                const float sub = CF(VuFloat::Fma(-CF(bits2f(cur.b[k])), pd, acc));
                 r.b[k] = f2bits(CF(sub * q));
             }
             return r;
@@ -229,16 +230,16 @@ bool NearClipper::EmitClipFan(QwPtr m, u32 node, u32 vi06, u32 fan_beg, u32 fan_
         V4 stq;
         for (int k = 0; k < 3; ++k) {
             float acc = CF(CF(bits2f(c_j2.b[k])) * wx);
-            acc = CF(std::fmaf(CF(bits2f(c_j1.b[k])), wy, acc));
-            stq.b[k] = f2bits(CF(std::fmaf(CF(bits2f(c_j.b[k])), wz, acc)));
+            acc = CF(VuFloat::Fma(CF(bits2f(c_j1.b[k])), wy, acc));
+            stq.b[k] = f2bits(CF(VuFloat::Fma(CF(bits2f(c_j.b[k])), wz, acc)));
         }
         stq.b[3] = stale_w;  // vf06.w never written
         // Color .xyzw: MULA vf29*w.x / MADDA vf28*w.y / MADD vf27*w.z.
         V4 col;
         for (int k = 0; k < 4; ++k) {
             float acc = CF(CF(bits2f(u_j2.b[k])) * wx);
-            acc = CF(std::fmaf(CF(bits2f(u_j1.b[k])), wy, acc));
-            col.b[k] = f2bits(CF(std::fmaf(CF(bits2f(u_j.b[k])), wz, acc)));
+            acc = CF(VuFloat::Fma(CF(bits2f(u_j1.b[k])), wy, acc));
+            col.b[k] = f2bits(CF(VuFloat::Fma(CF(bits2f(u_j.b[k])), wz, acc)));
         }
         const float q = VuDiv(1.0f, bits2f(T.b[3]));  // DIV Q, vf00w, vf05w
         for (int k = 0; k < 2; ++k)                    // ADD.xy vf06 += vf23
@@ -282,8 +283,8 @@ bool NearClipper::EmitLitClipFan(QwPtr m, u32 node, u32 vi06, u32 fan_beg, u32 f
         float wn[3];
         for (int k = 0; k < 3; ++k) {
             float acc = CF(CF(bits2f(nrmR[0].b[k])) * nx);
-            acc = CF(std::fmaf(CF(bits2f(nrmR[1].b[k])), ny, acc));
-            wn[k] = CF(std::fmaf(CF(bits2f(nrmR[2].b[k])), nz, acc));
+            acc = CF(VuFloat::Fma(CF(bits2f(nrmR[1].b[k])), ny, acc));
+            wn[k] = CF(VuFloat::Fma(CF(bits2f(nrmR[2].b[k])), nz, acc));
         }
         const float wcx = bits2f(Fmax_raw(f2bits(wn[0]), 0u));
         const float wcy = bits2f(Fmax_raw(f2bits(wn[1]), 0u));
@@ -292,9 +293,9 @@ bool NearClipper::EmitLitClipFan(QwPtr m, u32 node, u32 vi06, u32 fan_beg, u32 f
         V4 r;
         for (int k = 0; k < 3; ++k) {
             float acc = CF(CF(bits2f(litR[3].b[k])) * 1.0f);
-            acc = CF(std::fmaf(CF(bits2f(litR[0].b[k])), CF(wcx), acc));
-            acc = CF(std::fmaf(CF(bits2f(litR[1].b[k])), CF(wcy), acc));
-            const float lt = CF(std::fmaf(CF(bits2f(litR[2].b[k])), CF(wcz), acc));
+            acc = CF(VuFloat::Fma(CF(bits2f(litR[0].b[k])), CF(wcx), acc));
+            acc = CF(VuFloat::Fma(CF(bits2f(litR[1].b[k])), CF(wcy), acc));
+            const float lt = CF(VuFloat::Fma(CF(bits2f(litR[2].b[k])), CF(wcz), acc));
             const float s = (float)(int32_t)c.b[k];           // ITOF0
             const float mod = CF(CF(lt) * CF(s));             // MUL.xyz vf12,vf12,vf16
             r.b[k] = Fmin_raw(f2bits(mod), f2bits(255.0f));  // MINIi
@@ -331,16 +332,16 @@ bool NearClipper::EmitLitClipFan(QwPtr m, u32 node, u32 vi06, u32 fan_beg, u32 f
         V4 stq;
         for (int k = 0; k < 3; ++k) {
             float acc = CF(CF(bits2f(st_j2.b[k])) * wx);
-            acc = CF(std::fmaf(CF(bits2f(st_j1.b[k])), wy, acc));
-            stq.b[k] = f2bits(CF(std::fmaf(CF(bits2f(st_j.b[k])), wz, acc)));
+            acc = CF(VuFloat::Fma(CF(bits2f(st_j1.b[k])), wy, acc));
+            stq.b[k] = f2bits(CF(VuFloat::Fma(CF(bits2f(st_j.b[k])), wz, acc)));
         }
         stq.b[3] = st_w;  // vf06.w pre-loop
         // Color .xyzw: MULAx vf14*w.x / MADDAy vf13*w.y / MADDz vf12*w.z.
         V4 col;
         for (int k = 0; k < 4; ++k) {
             float acc = CF(CF(bits2f(corner_j2.b[k])) * wx);
-            acc = CF(std::fmaf(CF(bits2f(corner_j1.b[k])), wy, acc));
-            col.b[k] = f2bits(CF(std::fmaf(CF(bits2f(corner_j.b[k])), wz, acc)));
+            acc = CF(VuFloat::Fma(CF(bits2f(corner_j1.b[k])), wy, acc));
+            col.b[k] = f2bits(CF(VuFloat::Fma(CF(bits2f(corner_j.b[k])), wz, acc)));
         }
         const float q = VuDiv(1.0f, bits2f(T.b[3]));  // DIV Q, vf00w, vf05w
         for (int k = 0; k < 2; ++k)                    // ADD.xy vf06 += vf23
@@ -458,16 +459,16 @@ bool NearClipper::EmitCrysClipFan(QwPtr m, u32 node, u32 vi06, u32 fan_beg, u32 
         V4 wn;
         for (int k = 0; k < 4; ++k) {
             float acc = CF(CF(bits2f(nrmR[0].b[k])) * nx);
-            acc = CF(std::fmaf(CF(bits2f(nrmR[1].b[k])), ny, acc));
-            wn.b[k] = f2bits(CF(std::fmaf(CF(bits2f(nrmR[2].b[k])), nz, acc)));
+            acc = CF(VuFloat::Fma(CF(bits2f(nrmR[1].b[k])), ny, acc));
+            wn.b[k] = f2bits(CF(VuFloat::Fma(CF(bits2f(nrmR[2].b[k])), nz, acc)));
         }
         for (int k = 0; k < 4; ++k) wn.b[k] = Fmax_raw(wn.b[k], 0u);
         const float wx = CF(bits2f(wn.b[0])), wy = CF(bits2f(wn.b[1])), wz = CF(bits2f(wn.b[2]));
         for (int k = 0; k < 4; ++k) {
             float acc = CF(CF(bits2f(litR[3].b[k])) * 1.0f);
-            acc = CF(std::fmaf(CF(bits2f(litR[0].b[k])), wx, acc));
-            acc = CF(std::fmaf(CF(bits2f(litR[1].b[k])), wy, acc));
-            litc[c].b[k] = f2bits(CF(std::fmaf(CF(bits2f(litR[2].b[k])), wz, acc)));
+            acc = CF(VuFloat::Fma(CF(bits2f(litR[0].b[k])), wx, acc));
+            acc = CF(VuFloat::Fma(CF(bits2f(litR[1].b[k])), wy, acc));
+            litc[c].b[k] = f2bits(CF(VuFloat::Fma(CF(bits2f(litR[2].b[k])), wz, acc)));
         }
     }
     // Color modulate (MUL.xyz vf12/13/14 by lit) + MINIi.xyzw 255.
@@ -507,8 +508,8 @@ bool NearClipper::EmitCrysClipFan(QwPtr m, u32 node, u32 vi06, u32 fan_beg, u32 
         float ni[3];
         for (int k = 0; k < 3; ++k) {
             float acc = CF(CF(bits2f(nrmc[2].b[k])) * wx);
-            acc = CF(std::fmaf(CF(bits2f(nrmc[1].b[k])), wy, acc));
-            ni[k] = CF(std::fmaf(CF(bits2f(nrmc[0].b[k])), wz, acc));
+            acc = CF(VuFloat::Fma(CF(bits2f(nrmc[1].b[k])), wy, acc));
+            ni[k] = CF(VuFloat::Fma(CF(bits2f(nrmc[0].b[k])), wz, acc));
         }
         // st.xy = (scr.xy - p3.xy) * p4.xy  (SUB.xy / MUL.xy into vf29.xy;
         // vf29.zw keep the previous iteration's FTOI0 ints -- live register).
@@ -520,14 +521,14 @@ bool NearClipper::EmitCrysClipFan(QwPtr m, u32 node, u32 vi06, u32 fan_beg, u32 
         float stp[2];
         for (int k = 0; k < 2; ++k) {
             float acc = CF(CF(bits2f(stR[2].b[k])) * ni[2]);
-            acc = CF(std::fmaf(CF(bits2f(stR[1].b[k])), ni[1], acc));
-            stp[k] = CF(std::fmaf(CF(bits2f(stR[0].b[k])), ni[0], acc));
+            acc = CF(VuFloat::Fma(CF(bits2f(stR[1].b[k])), ni[1], acc));
+            stp[k] = CF(VuFloat::Fma(CF(bits2f(stR[0].b[k])), ni[0], acc));
         }
         // v.xy = st + stp*p3.z (MULAw.xy ACC, vf29, vf00.w; MADDz.xy).
         const float p3z = CF(bits2f(p3.b[2]));
         for (int k = 0; k < 2; ++k) {
             const float acc = CF(CF(bits2f(vf29.b[k])) * 1.0f);
-            vf29.b[k] = f2bits(CF(std::fmaf(CF(stp[k]), p3z, acc)));
+            vf29.b[k] = f2bits(CF(VuFloat::Fma(CF(stp[k]), p3z, acc)));
         }
         // vf28 = MINIw(vf29, vf00.w) then MAXx(vf28, vf00.x) -- FOUR lanes.
         V4 stq;
@@ -540,8 +541,8 @@ bool NearClipper::EmitCrysClipFan(QwPtr m, u32 node, u32 vi06, u32 fan_beg, u32 
         // Color interp (MULAx vf14/MADDAy vf13/MADD vf12, xyzw) -> vf29.
         for (int k = 0; k < 4; ++k) {
             float acc = CF(CF(bits2f(colc[2].b[k])) * wx);
-            acc = CF(std::fmaf(CF(bits2f(colc[1].b[k])), wy, acc));
-            vf29.b[k] = f2bits(CF(std::fmaf(CF(bits2f(colc[0].b[k])), wz, acc)));
+            acc = CF(VuFloat::Fma(CF(bits2f(colc[1].b[k])), wy, acc));
+            vf29.b[k] = f2bits(CF(VuFloat::Fma(CF(bits2f(colc[0].b[k])), wz, acc)));
         }
         scr.b[3] = 0x3f800000u;                                    // MOVE.w vf27, vf00
         for (int k = 0; k < 4; ++k) vf29.b[k] = Ftoi0(vf29.b[k]);  // FTOI0

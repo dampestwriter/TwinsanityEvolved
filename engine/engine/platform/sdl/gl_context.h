@@ -25,12 +25,13 @@ public:
     void Destroy();
     bool MakeCurrent(Window& window);
     void SetSwapInterval(int interval);
-    bool IsCreated() const { return context_ != nullptr; }
+    bool IsCreated() const { return context_ != nullptr || vita_initialized_; }
     const char* Version() const { return version_; }
     const char* Renderer() const { return renderer_; }
 
 private:
     void* context_ = nullptr;     // SDL_GLContext
+    bool vita_initialized_ = false;   // the Vita: vitaGL owns the one context (no SDL_GLContext)
     const char* version_ = "";
     const char* renderer_ = "";
 };

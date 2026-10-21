@@ -52,6 +52,7 @@
 #include "te_mods.h"
 #include "te_autopilot.h"
 #include "te_probe.h"
+#include "te_profile.h"
 #include "te_savestate.h"
 #include "te_startup.h"
 #if defined(__vita__)
@@ -126,6 +127,7 @@ int main(int argc, char** argv) {
 #if defined(__vita__)
     te::vita::Startup(&argc, &argv);
 #endif
+    te::profile::StartFromEnvironment();
     std::string iso, elf_path, elf_in_iso = "SLES_525.68";
     bool dry_run = false, verbose = false, test_trap = false, no_audio = false, trace_state = false;
     unsigned trace_player = 0;

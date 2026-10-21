@@ -3,6 +3,7 @@
 #include "games/slus_20909_crash_twinsanity/vu1_library/vu1_loaded_programs.h"
 
 #include "engine/vu/vu_chop_round_guard.h"
+#include "engine/vu/vu_float.h"
 #include "games/slus_20909_crash_twinsanity/vu1_library/displace_prefix.h"
 
 using namespace vu1lib;
@@ -122,8 +123,8 @@ bool SkinnedLitStrip::RunSkinCb0(QwPtr m, u32 top) {
         float nrm[3];
         for (int k = 0; k < 3; ++k) {
             float acc = CF(CF(bits2f(b0.c0.b[k])) * npw);
-            acc = CF(std::fmaf(CF(bits2f(b0.c1.b[k])), nsz, acc));
-            nrm[k] = CF(std::fmaf(CF(bits2f(b0.c2.b[k])), nsw, acc));
+            acc = CF(VuFloat::Fma(CF(bits2f(b0.c1.b[k])), nsz, acc));
+            nrm[k] = CF(VuFloat::Fma(CF(bits2f(b0.c2.b[k])), nsw, acc));
         }
 
         // Position blend -- the exact per-path accumulation order.
@@ -132,9 +133,9 @@ bool SkinnedLitStrip::RunSkinCb0(QwPtr m, u32 top) {
             // MULAx ACC = tr0*w0 (delay slot), then the bone0 rows.
             for (int k = 0; k < 3; ++k) {
                 float acc = CF(CF(bits2f(b0.tr.b[k])) * wx);
-                acc = CF(std::fmaf(CF(bits2f(b0.c0.b[k])), CF(pw0[0]), acc));
-                acc = CF(std::fmaf(CF(bits2f(b0.c1.b[k])), CF(pw0[1]), acc));
-                po[k] = CF(std::fmaf(CF(bits2f(b0.c2.b[k])), CF(pw0[2]), acc));
+                acc = CF(VuFloat::Fma(CF(bits2f(b0.c0.b[k])), CF(pw0[0]), acc));
+                acc = CF(VuFloat::Fma(CF(bits2f(b0.c1.b[k])), CF(pw0[1]), acc));
+                po[k] = CF(VuFloat::Fma(CF(bits2f(b0.c2.b[k])), CF(pw0[2]), acc));
             }
         } else {
             // Bone0 full result vf31.
@@ -142,34 +143,34 @@ bool SkinnedLitStrip::RunSkinCb0(QwPtr m, u32 top) {
             float v31[3];
             for (int k = 0; k < 3; ++k) {
                 float acc = CF(CF(bits2f(b0.tr.b[k])) * wx);
-                acc = CF(std::fmaf(CF(bits2f(b0.c0.b[k])), CF(pw0[0]), acc));
-                acc = CF(std::fmaf(CF(bits2f(b0.c1.b[k])), CF(pw0[1]), acc));
-                v31[k] = CF(std::fmaf(CF(bits2f(b0.c2.b[k])), CF(pw0[2]), acc));
+                acc = CF(VuFloat::Fma(CF(bits2f(b0.c0.b[k])), CF(pw0[0]), acc));
+                acc = CF(VuFloat::Fma(CF(bits2f(b0.c1.b[k])), CF(pw0[1]), acc));
+                v31[k] = CF(VuFloat::Fma(CF(bits2f(b0.c2.b[k])), CF(pw0[2]), acc));
             }
             if (cnt == 2) {
                 // ACC = tr1*w1; += c0*(pw1).x; += vf31 (delay slot); += c1*(pw1).y; res = +c2*(pw1).z.
                 for (int k = 0; k < 3; ++k) {
                     float acc = CF(CF(bits2f(b1.tr.b[k])) * wy);
-                    acc = CF(std::fmaf(CF(bits2f(b1.c0.b[k])), CF(pw1[0]), acc));
-                    acc = CF(std::fmaf(CF(v31[k]), 1.0f, acc));
-                    acc = CF(std::fmaf(CF(bits2f(b1.c1.b[k])), CF(pw1[1]), acc));
-                    po[k] = CF(std::fmaf(CF(bits2f(b1.c2.b[k])), CF(pw1[2]), acc));
+                    acc = CF(VuFloat::Fma(CF(bits2f(b1.c0.b[k])), CF(pw1[0]), acc));
+                    acc = CF(VuFloat::Fma(CF(v31[k]), 1.0f, acc));
+                    acc = CF(VuFloat::Fma(CF(bits2f(b1.c1.b[k])), CF(pw1[1]), acc));
+                    po[k] = CF(VuFloat::Fma(CF(bits2f(b1.c2.b[k])), CF(pw1[2]), acc));
                 }
             } else {  // cnt == 3 (the degenerate cnt == 0 falls through too)
                 const Bone b2 = LoadBone(m, wq.b[2] & 0x1FF);
                 for (int k = 0; k < 3; ++k) {
                     // Two-bone accumulate vf19.
                     float acc = CF(CF(bits2f(b1.tr.b[k])) * wy);
-                    acc = CF(std::fmaf(CF(bits2f(b1.c0.b[k])), CF(pw1[0]), acc));
-                    acc = CF(std::fmaf(CF(v31[k]), 1.0f, acc));
-                    acc = CF(std::fmaf(CF(bits2f(b1.c1.b[k])), CF(pw1[1]), acc));
-                    const float two = CF(std::fmaf(CF(bits2f(b1.c2.b[k])), CF(pw1[2]), acc));
+                    acc = CF(VuFloat::Fma(CF(bits2f(b1.c0.b[k])), CF(pw1[0]), acc));
+                    acc = CF(VuFloat::Fma(CF(v31[k]), 1.0f, acc));
+                    acc = CF(VuFloat::Fma(CF(bits2f(b1.c1.b[k])), CF(pw1[1]), acc));
+                    const float two = CF(VuFloat::Fma(CF(bits2f(b1.c2.b[k])), CF(pw1[2]), acc));
                     // ACC = two*1.0; += tr2*w2; then the bone2 rows.
                     acc = CF(CF(two) * 1.0f);
-                    acc = CF(std::fmaf(CF(bits2f(b2.tr.b[k])), wz, acc));
-                    acc = CF(std::fmaf(CF(bits2f(b2.c0.b[k])), CF(pw2[0]), acc));
-                    acc = CF(std::fmaf(CF(bits2f(b2.c1.b[k])), CF(pw2[1]), acc));
-                    po[k] = CF(std::fmaf(CF(bits2f(b2.c2.b[k])), CF(pw2[2]), acc));
+                    acc = CF(VuFloat::Fma(CF(bits2f(b2.tr.b[k])), wz, acc));
+                    acc = CF(VuFloat::Fma(CF(bits2f(b2.c0.b[k])), CF(pw2[0]), acc));
+                    acc = CF(VuFloat::Fma(CF(bits2f(b2.c1.b[k])), CF(pw2[1]), acc));
+                    po[k] = CF(VuFloat::Fma(CF(bits2f(b2.c2.b[k])), CF(pw2[2]), acc));
                 }
             }
         }
@@ -216,9 +217,9 @@ bool SkinnedLitStrip::RunSkin1040(QwPtr m, u32 top, u32 entry_vf19_w) {
         float po[3];
         for (int k = 0; k < 3; ++k) {
             float acc = CF(CF(bits2f(b0.tr.b[k])) * wx);
-            acc = CF(std::fmaf(CF(bits2f(b0.c0.b[k])), CF(pw[0]), acc));
-            acc = CF(std::fmaf(CF(bits2f(b0.c1.b[k])), CF(pw[1]), acc));
-            po[k] = CF(std::fmaf(CF(bits2f(b0.c2.b[k])), CF(pw[2]), acc));
+            acc = CF(VuFloat::Fma(CF(bits2f(b0.c0.b[k])), CF(pw[0]), acc));
+            acc = CF(VuFloat::Fma(CF(bits2f(b0.c1.b[k])), CF(pw[1]), acc));
+            po[k] = CF(VuFloat::Fma(CF(bits2f(b0.c2.b[k])), CF(pw[2]), acc));
         }
         // Normal by bone0: n = (pos.w, st.z raw, st.w raw), clamped on read.
         float nrm[3];
@@ -228,8 +229,8 @@ bool SkinnedLitStrip::RunSkin1040(QwPtr m, u32 top, u32 entry_vf19_w) {
             const float nsw = CF(bits2f(st.b[3]));
             for (int k = 0; k < 3; ++k) {
                 float acc = CF(CF(bits2f(b0.c0.b[k])) * npw);
-                acc = CF(std::fmaf(CF(bits2f(b0.c1.b[k])), nsz, acc));
-                nrm[k] = CF(std::fmaf(CF(bits2f(b0.c2.b[k])), nsw, acc));
+                acc = CF(VuFloat::Fma(CF(bits2f(b0.c1.b[k])), nsz, acc));
+                nrm[k] = CF(VuFloat::Fma(CF(bits2f(b0.c2.b[k])), nsw, acc));
             }
         }
         if (cnt != 1) {
@@ -238,20 +239,20 @@ bool SkinnedLitStrip::RunSkin1040(QwPtr m, u32 top, u32 entry_vf19_w) {
             for (int k = 0; k < 3; ++k) pw[k] = CF(CF(bits2f(pos.b[k])) * wy);
             for (int k = 0; k < 3; ++k) {
                 float acc = CF(CF(po[k]) * 1.0f);
-                acc = CF(std::fmaf(CF(bits2f(b1.tr.b[k])), wy, acc));
-                acc = CF(std::fmaf(CF(bits2f(b1.c0.b[k])), CF(pw[0]), acc));
-                acc = CF(std::fmaf(CF(bits2f(b1.c1.b[k])), CF(pw[1]), acc));
-                po[k] = CF(std::fmaf(CF(bits2f(b1.c2.b[k])), CF(pw[2]), acc));
+                acc = CF(VuFloat::Fma(CF(bits2f(b1.tr.b[k])), wy, acc));
+                acc = CF(VuFloat::Fma(CF(bits2f(b1.c0.b[k])), CF(pw[0]), acc));
+                acc = CF(VuFloat::Fma(CF(bits2f(b1.c1.b[k])), CF(pw[1]), acc));
+                po[k] = CF(VuFloat::Fma(CF(bits2f(b1.c2.b[k])), CF(pw[2]), acc));
             }
             if (cnt != 2) {  // cnt == 3 (or 0)
                 const Bone b2 = LoadBone(m, wq.b[2] & 0x1FF);
                 for (int k = 0; k < 3; ++k) pw[k] = CF(CF(bits2f(pos.b[k])) * wz);
                 for (int k = 0; k < 3; ++k) {
                     float acc = CF(CF(po[k]) * 1.0f);
-                    acc = CF(std::fmaf(CF(bits2f(b2.tr.b[k])), wz, acc));
-                    acc = CF(std::fmaf(CF(bits2f(b2.c0.b[k])), CF(pw[0]), acc));
-                    acc = CF(std::fmaf(CF(bits2f(b2.c1.b[k])), CF(pw[1]), acc));
-                    po[k] = CF(std::fmaf(CF(bits2f(b2.c2.b[k])), CF(pw[2]), acc));
+                    acc = CF(VuFloat::Fma(CF(bits2f(b2.tr.b[k])), wz, acc));
+                    acc = CF(VuFloat::Fma(CF(bits2f(b2.c0.b[k])), CF(pw[0]), acc));
+                    acc = CF(VuFloat::Fma(CF(bits2f(b2.c1.b[k])), CF(pw[1]), acc));
+                    po[k] = CF(VuFloat::Fma(CF(bits2f(b2.c2.b[k])), CF(pw[2]), acc));
                 }
             }
         }
@@ -335,8 +336,8 @@ bool SkinnedLitStrip::RunSkinnedLitCall(QwPtr m, u32 node, u32 top, Vu1HleOutput
         float wn[3];
         for (int k = 0; k < 3; ++k) {
             float acc = CF(CF(bits2f(nrmR[0].b[k])) * nx);
-            acc = CF(std::fmaf(CF(bits2f(nrmR[1].b[k])), ny, acc));
-            wn[k] = CF(std::fmaf(CF(bits2f(nrmR[2].b[k])), nz, acc));
+            acc = CF(VuFloat::Fma(CF(bits2f(nrmR[1].b[k])), ny, acc));
+            wn[k] = CF(VuFloat::Fma(CF(bits2f(nrmR[2].b[k])), nz, acc));
         }
 
         // Lighting -> RGBA (raw-bit MAX vs +0; MULAw vf11 first).
@@ -348,9 +349,9 @@ bool SkinnedLitStrip::RunSkinnedLitCall(QwPtr m, u32 node, u32 top, Vu1HleOutput
             float lit[3];
             for (int k = 0; k < 3; ++k) {
                 float acc = CF(CF(bits2f(litR[3].b[k])) * 1.0f);
-                acc = CF(std::fmaf(CF(bits2f(litR[0].b[k])), CF(wcx), acc));
-                acc = CF(std::fmaf(CF(bits2f(litR[1].b[k])), CF(wcy), acc));
-                lit[k] = CF(std::fmaf(CF(bits2f(litR[2].b[k])), CF(wcz), acc));
+                acc = CF(VuFloat::Fma(CF(bits2f(litR[0].b[k])), CF(wcx), acc));
+                acc = CF(VuFloat::Fma(CF(bits2f(litR[1].b[k])), CF(wcy), acc));
+                lit[k] = CF(VuFloat::Fma(CF(bits2f(litR[2].b[k])), CF(wcz), acc));
             }
             for (int k = 0; k < 3; ++k) {
                 const float s = (float)(int32_t)st_col.b[k];  // ITOF0
@@ -432,8 +433,8 @@ bool SkinnedLitStrip::RunSkinEnv1aa0(QwPtr m, u32 node, u32 top, Vu1HleOutput& o
         float wn[3];
         for (int k = 0; k < 3; ++k) {
             float acc = CF(CF(bits2f(nrmR[0].b[k])) * nx);
-            acc = CF(std::fmaf(CF(bits2f(nrmR[1].b[k])), ny, acc));
-            wn[k] = CF(std::fmaf(CF(bits2f(nrmR[2].b[k])), nz, acc));
+            acc = CF(VuFloat::Fma(CF(bits2f(nrmR[1].b[k])), ny, acc));
+            wn[k] = CF(VuFloat::Fma(CF(bits2f(nrmR[2].b[k])), nz, acc));
         }
         // MAX.xyzw vs +0 (raw-bit), lit accumulate (MULAw vf11 / MADDAx vf08 /
         // MADDAy vf09 / MADDz vf10), colour modulate + MINI.xyzw 255.0
@@ -447,9 +448,9 @@ bool SkinnedLitStrip::RunSkinEnv1aa0(QwPtr m, u32 node, u32 top, Vu1HleOutput& o
             for (int k = 0; k < 4; ++k) c4[k] = (float)(int32_t)col.b[k];  // ITOF0
             for (int k = 0; k < 3; ++k) {
                 float acc = CF(CF(bits2f(litR[3].b[k])) * 1.0f);
-                acc = CF(std::fmaf(CF(bits2f(litR[0].b[k])), CF(wcx), acc));
-                acc = CF(std::fmaf(CF(bits2f(litR[1].b[k])), CF(wcy), acc));
-                const float lit = CF(std::fmaf(CF(bits2f(litR[2].b[k])), CF(wcz), acc));
+                acc = CF(VuFloat::Fma(CF(bits2f(litR[0].b[k])), CF(wcx), acc));
+                acc = CF(VuFloat::Fma(CF(bits2f(litR[1].b[k])), CF(wcy), acc));
+                const float lit = CF(VuFloat::Fma(CF(bits2f(litR[2].b[k])), CF(wcz), acc));
                 c4[k] = CF(CF(c4[k]) * lit);  // MUL.xyz vf24, vf24, vf25
             }
             for (int k = 0; k < 4; ++k) rgba[k] = Ftoi0(Fmin_raw(f2bits(c4[k]), f2bits(255.0f)));
@@ -468,7 +469,7 @@ bool SkinnedLitStrip::RunSkinEnv1aa0(QwPtr m, u32 node, u32 top, Vu1HleOutput& o
             const float len2 = CF(CF(CF(CF(sx) + CF(sz))) + CF(sy));
             const float fl = (float)(int32_t)f2bits(len2);        // ITOF0.x
             const float acc = CF(CF(fl) * CF(negp5));             // MULA.x
-            const float rs = CF(std::fmaf(CF(magic), 1.0f, acc));  // MADD.x
+            const float rs = CF(VuFloat::Fma(CF(magic), 1.0f, acc));  // MADD.x
             const u32 rsbits = Ftoi0(f2bits(rs));                 // FTOI0.x
             const float inv = CF(bits2f(rsbits));
             for (int k = 0; k < 3; ++k) dir[k] = CF(CF(dir[k]) * inv);
@@ -496,8 +497,8 @@ bool SkinnedLitStrip::RunSkinEnv1aa0(QwPtr m, u32 node, u32 top, Vu1HleOutput& o
         float env[2];
         for (int k = 0; k < 2; ++k) {
             float acc = CF(CF(bits2f(envR[2].b[k])) * CF(refl[2]));
-            acc = CF(std::fmaf(CF(bits2f(envR[1].b[k])), CF(refl[1]), acc));
-            env[k] = CF(std::fmaf(CF(bits2f(envR[0].b[k])), CF(refl[0]), acc));
+            acc = CF(VuFloat::Fma(CF(bits2f(envR[1].b[k])), CF(refl[1]), acc));
+            env[k] = CF(VuFloat::Fma(CF(bits2f(envR[0].b[k])), CF(refl[0]), acc));
         }
         // ST build: .xy = env*0.5 + 0.5, .z = 0+1.0; MINI.xyzw vs 1.0 then
         // MAX.xyzw vs +0 (raw-bit); .xy += payload; *= Q.

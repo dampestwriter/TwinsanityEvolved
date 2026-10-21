@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstring>
 
+#include "engine/vu/vu_float.h"
 #include "games/slus_20909_crash_twinsanity/hle/graphics/rounding_guard.h"
 
 // The standard VU0 set's program 0xAB8 (the fast ray/triangle test of TR collision.cpp's CheckCollisionRayCastFast), its
@@ -111,17 +112,17 @@ void MulQ(Vu& u, int fd, int fs, uint8_t mask, uint16_t* f = nullptr) {
 }
 void MaddBc(Vu& u, int fd, int fs, int ft, int bc, uint8_t mask, uint16_t* f = nullptr) {
     ClampAcc(u); const Vector a = S(u, fs); const float s = S(u, ft)[bc]; Vector r{};
-    for (int k = 0; k < 4; ++k) r[k] = std::fmaf(a[k], s, u.acc[k]);
+    for (int k = 0; k < 4; ++k) r[k] = VuFloat::Fma(a[k], s, u.acc[k]);
     Write(u, fd, r, mask, f);
 }
 void MaddQ(Vu& u, int fd, int fs, uint8_t mask, uint16_t* f = nullptr) {
     ClampAcc(u); const Vector a = S(u, fs); Vector r{};
-    for (int k = 0; k < 4; ++k) r[k] = std::fmaf(a[k], u.q, u.acc[k]);
+    for (int k = 0; k < 4; ++k) r[k] = VuFloat::Fma(a[k], u.q, u.acc[k]);
     Write(u, fd, r, mask, f);
 }
 void MaddI(Vu& u, int fd, int fs, uint8_t mask, uint16_t* f = nullptr) {
     ClampAcc(u); const Vector a = S(u, fs); const float s = Clamp(u.i); Vector r{};
-    for (int k = 0; k < 4; ++k) r[k] = std::fmaf(a[k], s, u.acc[k]);
+    for (int k = 0; k < 4; ++k) r[k] = VuFloat::Fma(a[k], s, u.acc[k]);
     Write(u, fd, r, mask, f);
 }
 void Abs(Vu& u, int fd, int fs, uint8_t mask, uint16_t* f = nullptr) {
@@ -151,12 +152,12 @@ void MulABc(Vu& u, int fs, int ft, int bc, uint8_t mask, uint16_t* f = nullptr) 
 }
 void MaddABc(Vu& u, int fs, int ft, int bc, uint8_t mask, uint16_t* f = nullptr) {
     ClampAcc(u); const Vector a = S(u, fs); const float s = S(u, ft)[bc]; Vector r{};
-    for (int k = 0; k < 4; ++k) r[k] = std::fmaf(a[k], s, u.acc[k]);
+    for (int k = 0; k < 4; ++k) r[k] = VuFloat::Fma(a[k], s, u.acc[k]);
     WriteAcc(u, r, mask, f);
 }
 void MsubAQ(Vu& u, int fs, uint8_t mask, uint16_t* f = nullptr) {
     ClampAcc(u); const Vector a = S(u, fs); Vector r{};
-    for (int k = 0; k < 4; ++k) r[k] = std::fmaf(-a[k], u.q, u.acc[k]);
+    for (int k = 0; k < 4; ++k) r[k] = VuFloat::Fma(-a[k], u.q, u.acc[k]);
     WriteAcc(u, r, mask, f);
 }
 void Opmula(Vu& u, int fs, int ft, uint16_t* f = nullptr) {
@@ -166,7 +167,7 @@ void Opmula(Vu& u, int fs, int ft, uint16_t* f = nullptr) {
 }
 void Opmsub(Vu& u, int fd, int fs, int ft, uint16_t* f = nullptr) {
     ClampAcc(u); const Vector a = S(u, fs), b = S(u, ft);
-    Vector r{std::fmaf(-a[1], b[2], u.acc[0]), std::fmaf(-a[2], b[0], u.acc[1]), std::fmaf(-a[0], b[1], u.acc[2]), u.acc[3]};
+    Vector r{VuFloat::Fma(-a[1], b[2], u.acc[0]), VuFloat::Fma(-a[2], b[0], u.acc[1]), VuFloat::Fma(-a[0], b[1], u.acc[2]), u.acc[3]};
     Write(u, fd, r, X | Y | Z, f);
 }
 // ---- the FDIV pipe (the interpreter's bodies) ----------------------------------------------------------------------

@@ -115,6 +115,29 @@ void GlStateCache::DeleteTextures(int n, const uint32_t* ids) {
 
 // --- program / array buffer / viewport ------------------------------------------
 
+#if PS2R_HOST_VITA
+void GlStateCache::ApplyVitaSamplerSizes() {
+    if (program_ == kUnknown || program_ == 0) return;
+    static const struct { const char* name; int unit; } kSizes[6] = {
+        {"te_size_u_texture", 0}, {"te_size_u_frame", 0}, {"te_size_u_rt_texture", 1},
+        {"te_size_u_clut", 2},    {"te_size_u_idx_tex2", 3}, {"te_size_u_zsrc_tex", 4},
+    };
+    auto it = vita_size_locs_.find(program_);
+    if (it == vita_size_locs_.end()) {
+        std::array<int32_t, 6> locs{};
+        for (int i = 0; i < 6; ++i) locs[i] = glGetUniformLocation(program_, kSizes[i].name);
+        it = vita_size_locs_.emplace(program_, locs).first;
+    }
+    for (int i = 0; i < 6; ++i) {
+        const int32_t loc = it->second[i];
+        const uint32_t tex = tex2d_[kSizes[i].unit];
+        if (loc < 0 || tex == kUnknown || tex == 0) continue;
+        int w = 0, h = 0;
+        if (ps2r_vita_TexSize(tex, &w, &h)) glUniform2f(loc, float(w), float(h));
+    }
+}
+#endif
+
 void GlStateCache::UseProgram(uint32_t prog) {
     if (program_ == prog) { skips_++; return; }
     program_ = prog;
@@ -194,7 +217,11 @@ void GlStateCache::BlendColor(float r, float g, float b, float a) {
     }
     blend_color_known_ = true;
     blend_color_[0] = r; blend_color_[1] = g; blend_color_[2] = b; blend_color_[3] = a;
+#if PS2R_HOST_VITA
+    (void)r; (void)g; (void)b; (void)a;   // vitaGL has no constant-colour blend factor
+#else
     glBlendColor(r, g, b, a);
+#endif
 }
 
 void GlStateCache::DepthFunc(uint32_t f) {

@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstring>
 
+#include "engine/vu/vu_float.h"
 #include "games/slus_20909_crash_twinsanity/hle/graphics/rounding_guard.h"
 
 // The culling VU0 set's programs 0xA08 (ParticleBlockView) and 0xB90 (ParticleBlockView, keepsTranslation) as value
@@ -46,7 +47,7 @@ Vector MaddBc(const Vector& acc, const Vector& a, float s) {
     const Vector ca = Clamp4(a), cacc = Clamp4(acc);
     const float cs = Clamp(s);
     Vector r{};
-    for (int k = 0; k < 4; ++k) r[k] = Clamp(std::fmaf(ca[k], cs, cacc[k]));
+    for (int k = 0; k < 4; ++k) r[k] = Clamp(VuFloat::Fma(ca[k], cs, cacc[k]));
     return r;
 }
 Vector MulBc(const Vector& a, float s) {
@@ -75,8 +76,8 @@ uint32_t GroupFlags(const Vector* qw, const Vector& extents, const Vector& place
     centre = MaddBc(centre, qw[6], 1.f);
     Vector plus{}, minus{};
     for (int k = 0; k < 4; ++k) {
-        plus[k] = std::fmaf(radius[k], 1.f, centre[k]);
-        minus[k] = std::fmaf(-radius[k], 1.f, centre[k]);
+        plus[k] = VuFloat::Fma(radius[k], 1.f, centre[k]);
+        minus[k] = VuFloat::Fma(-radius[k], 1.f, centre[k]);
     }
     return uint32_t(SignFlags(plus) & 0xF0) & uint32_t(SignFlags(minus) & 0xF0);
 }

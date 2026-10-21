@@ -115,6 +115,7 @@ SSize FdPread(int fd, void* buf, size_t n, uint64_t offset) {
     return static_cast<SSize>(got);
 }
 int FdSync(int fd) { return _commit(fd); }
+int64_t FdSize(int fd) { return _filelengthi64(fd); }
 int FdClose(int fd) { return _close(fd); }
 int FdOfStream(std::FILE* f) { return _fileno(f); }
 int DirectorySync(const char* directory) {

@@ -53,7 +53,7 @@ std::string Trimmed(const std::string& line) {
     return line.substr(begin, end - begin);
 }
 
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(__vita__)
 // The first line a dialog command printed (its chosen path), or empty when it was cancelled or does not exist.
 std::string FirstLineOf(const char* command) {
     FILE* p = popen(command, "r");
@@ -120,6 +120,8 @@ std::string ChooseDiscImage() {
     std::string path(static_cast<size_t>(n - 1), '\0');
     WideCharToMultiByte(CP_ACP, 0, file, -1, path.data(), n, nullptr, nullptr);
     return path;
+#elif defined(__vita__)
+    return {};   // the device has no file dialog: the disc is the fixed ux0:data path (runner/te_vita.cpp)
 #elif defined(__APPLE__)
     return FirstLineOf("/usr/bin/osascript -e 'POSIX path of (choose file with prompt "
                        "\"Crash Twinsanity: choose your PAL disc image (SLES-52568)\")' 2>/dev/null");

@@ -8,6 +8,8 @@ add_executable(ps2r_disc_extract
     ${CMAKE_SOURCE_DIR}/engine/core/hash/sha256.cpp)
 target_include_directories(ps2r_disc_extract PRIVATE ${CMAKE_SOURCE_DIR})
 target_compile_options(ps2r_disc_extract PRIVATE -Wall -Wextra -Werror)
+# IsoFs reads the image through the host descriptor API (FdOpen / FdPread / FdSize); ps2r_host needs nothing generated
+target_link_libraries(ps2r_disc_extract PRIVATE ps2r_host)
 
 # DiscExtractSynthetic: a synthetic volume (tests/lib make_synthetic_iso) carrying a fake
 # SLUS_123.45 and a nested DATA/SYS/STREAM.IRX; the extractor copies both byte-exact,

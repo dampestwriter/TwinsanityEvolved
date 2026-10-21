@@ -43,6 +43,11 @@ public:
 
     bool Running() const;
 
+    // A listener of every buffer handed to the device (interleaved stereo float, `frames` frames), called on the device
+    // thread after the ring filled it: what the speakers get, gaps and pads included. Set before Open; null = none.
+    using Tap = void (*)(void* user, const float* interleaved, int frames);
+    void SetTap(Tap tap, void* user) { tap_ = tap; tap_user_ = user; }
+
     // Format actually negotiated (equal to the request when Open returned true).
     int DeviceSampleRate() const;
     int DeviceChannels() const;
@@ -55,6 +60,8 @@ private:
     bool           audio_subsystem_ = false;  // SDL_INIT_AUDIO held by this sink
     bool           paused_ = false;
     AudioPullRing* ring_          = nullptr;
+    Tap            tap_           = nullptr;
+    void*          tap_user_      = nullptr;
     int            got_freq_      = 0;
     int            got_channels_  = 0;
     int            got_samples_   = 0;

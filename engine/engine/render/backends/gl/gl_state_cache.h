@@ -11,10 +11,13 @@
 // re-used after glGenTextures starts with a clean record. Single GL thread.
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <unordered_map>
 #include <utility>
 #include <vector>
+
+#include "engine/platform/host/platform.h"   // PS2R_HOST_VITA
 
 namespace ps2r {
 namespace render {
@@ -32,6 +35,12 @@ public:
     // texture units / objects
     void ActiveTexture(uint32_t unit_enum);
     void BindTex2D(uint32_t tex);
+#if PS2R_HOST_VITA
+    // The current program's te_size_<sampler> uniforms from the textures bound on the samplers' units (0-4: the PS2
+    // program's samplers, u_frame on 0): the Vita's fragment profile has no textureSize, and its texelFetch is a sample at the texel centre
+    // (gl_shader_library.cpp VitaGlsl). Call right before a draw, after the textures are bound.
+    void ApplyVitaSamplerSizes();
+#endif
     void TexParami(uint32_t pname, int param);
     void TexParamf(uint32_t pname, float param);
     void DeleteTextures(int n, const uint32_t* ids);
@@ -70,6 +79,9 @@ private:
     uint32_t tex2d_[kMaxUnits] = {kUnknown, kUnknown, kUnknown, kUnknown,
                                   kUnknown, kUnknown, kUnknown, kUnknown};
     std::unordered_map<uint32_t, TexParamBucket> tex_params_;
+#if PS2R_HOST_VITA
+    std::unordered_map<uint32_t, std::array<int32_t, 6>> vita_size_locs_;   // program -> te_size_* locations
+#endif
 
     uint32_t program_ = kUnknown;
     uint32_t array_buffer_ = kUnknown;

@@ -64,6 +64,10 @@ public:
     // Divide with the VU's by-zero rule; operands and quotient clamped.
     static float VuDiv(float num, float den);
 
+    // a * b + c rounded once -- std::fmaf's result -- without the library call (a software routine on a CPU or build
+    // without fused multiply-add hardware: the C runtime's on an x86-64 build for the baseline, newlib's on the Vita)
+    static float Fma(float a, float b, float c);
+
     // Float -> int32 with the VU saturation rule (source already scaled).
     static uint32_t FtoiSat(float f);
     // FTOI0 of a clamped source lane (the HLE library form; equals the raw

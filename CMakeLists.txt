@@ -359,7 +359,7 @@ endif()
 if(TE_VITA)
     # The engine's ps2e draw surface without a GL 4.1 context (engine/platform/ps2e: PS2R_PS2E_DRAW_BACKEND); the
     # engine's own configure reads the same toolchain file (forwarded above) and so builds its vita target folder.
-    list(APPEND TE_ENGINE_FORWARDED_ARGS -DPS2R_PS2E_DRAW_BACKEND=null)
+    list(APPEND TE_ENGINE_FORWARDED_ARGS -DPS2R_PS2E_DRAW_BACKEND=gl)
 endif()
 if(TE_DIST)
     set(PS2R_FETCH_SDL2 ON CACHE BOOL "" FORCE)
@@ -412,6 +412,10 @@ if(NOT TE_VITA)
     # draw surface and before the SDL half, where the link order wants it.
     list(FIND TE_ENGINE_LIB_DIRS engine/platform/sdl:ps2r_platform_sdl _te_sdl_index)
     list(INSERT TE_ENGINE_LIB_DIRS ${_te_sdl_index} engine/render/backends/gl:ps2r_render_gl)
+else()
+    # the GL arm's backend (vitaGL on the Vita, the desktop GL driver elsewhere)
+    list(FIND TE_ENGINE_LIB_DIRS engine/platform/sdl:ps2r_platform_sdl _te_sdl_index)
+    list(INSERT TE_ENGINE_LIB_DIRS ${_te_sdl_index} engine/render/backends/gl:ps2r_render_gl)
 endif()
 set(TE_ENGINE_LIB_TARGETS "")
 set(TE_ENGINE_LIB_FILES "")
@@ -452,7 +456,7 @@ find_package(Threads REQUIRED)
 # TE_DIST / PS2R_FETCH_SDL2 the pinned release fetched and built statically -- the target SDL2::SDL2 either way.
 include("${TE_ENGINE}/cmake/Sdl2Dependency.cmake")
 if(TE_VITA)
-    # No system GL (the null draw arm draws nothing); FFmpeg is the VitaSDK package's static build, whose libavcodec
+    # vitaGL (and the kernel stubs it calls); FFmpeg is the VitaSDK package's static build, whose libavcodec
     # also wants libswresample and the mp3 encoder it was configured with (its pkg-config Libs line).
     include("${TE_ENGINE}/cmake/FindFFmpeg.cmake")
     set(TE_HAVE_SDL_INPUT 1)
@@ -461,7 +465,8 @@ if(TE_VITA)
     # libpthread WHOLE: libstdc++'s std::thread / mutex / condition_variable test `__gthread_active_p()` through weak
     # pthread symbols -- an archive pulled in piecemeal leaves them unresolved and every std::thread throws
     # "Enable multithreading to use std::thread".
-    target_link_libraries(nativeee_libs INTERFACE SDL2::SDL2 FFmpeg::avcodec FFmpeg::swscale swresample FFmpeg::avutil mp3lame mpg123 m)
+    include("${TE_ENGINE}/cmake/OpenGlDependency.cmake")
+    target_link_libraries(nativeee_libs INTERFACE SDL2::SDL2 OpenGL::GL FFmpeg::avcodec FFmpeg::swscale swresample FFmpeg::avutil mp3lame mpg123 m)
     target_link_options(nativeee_libs INTERFACE "LINKER:--whole-archive,-lpthread,--no-whole-archive")
 else()
 find_package(OpenGL REQUIRED)
@@ -500,7 +505,7 @@ else()
 endif()
 add_executable(twinsanityevolved runner/main.cpp runner/te_env.cpp runner/te_run.c runner/te_startup.cpp
     runner/te_fiber.c ${TE_FIBER_SWITCH} runner/te_game.cpp ${TE_SAVESTATE_RUNNER}
-    runner/te_probe.cpp runner/te_autopilot.cpp)
+    runner/te_probe.cpp runner/te_autopilot.cpp runner/te_profile.cpp)
 set_target_properties(twinsanityevolved PROPERTIES C_STANDARD 99 C_EXTENSIONS ON)   # te_run.c: as tegame (above)
 if(TE_VITA)
     # The Vita runner: the baked arguments + the heap size + the log file (runner/te_vita.cpp), the AAPCS32 fiber switch

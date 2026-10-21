@@ -6,6 +6,7 @@
 #include "games/slus_20909_crash_twinsanity/hle/graphics/rounding_guard.h"
 
 #include "engine/platform/host/platform.h"
+#include "engine/vu/vu_float.h"
 
 PS2R_FENV_ACCESS_ON
 
@@ -25,7 +26,7 @@ float Finite(float value) {
 float Product(float a, float b) { return Finite(Finite(a) * Finite(b)); }
 float Sum(float a, float b) { return Finite(Finite(a) + Finite(b)); }
 float Difference(float a, float b) { return Finite(Finite(a) - Finite(b)); }
-float Fma(float a, float b, float c) { return Finite(std::fmaf(Finite(a), Finite(b), Finite(c))); }
+float Fma(float a, float b, float c) { return Finite(VuFloat::Fma(Finite(a), Finite(b), Finite(c))); }
 float Reciprocal(float value) {
     value = Finite(value);
     return value == 0 ? Float((Bits(value) & 0x80000000) | 0x7f7fffff) : Finite(1.f / value);

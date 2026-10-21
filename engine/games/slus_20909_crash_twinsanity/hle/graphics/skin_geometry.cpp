@@ -287,7 +287,9 @@ SkinGeometry::Result BuildBatches(const SkinGeometry::Part& part, const SkinGeom
     const uint32_t top = buffer + 0x60;
     const uint32_t list = top + 3 + 4 * SkinGeometry::kMaxBatchVertices + 1;
     if (list + 1 + 3 * SkinGeometry::kMaxBatchVertices > kQwCount) return Result::InvalidGeometry;
-    std::vector<uint8_t> memory(kQwCount * 16);
+    // one image per thread, cleared for every skin as a fresh one would be (the programs read what they were given)
+    thread_local std::vector<uint8_t> memory(kQwCount * 16);
+    std::fill(memory.begin(), memory.end(), uint8_t(0));
     QwPtr m{memory.data()};
     const auto set = [&](uint32_t qw, const Qw& value) { for (int k = 0; k < 4; ++k) m.SetW(qw, k, value[k]); };
     const auto f2bits = [](float value) { uint32_t bits; std::memcpy(&bits, &value, 4); return bits; };

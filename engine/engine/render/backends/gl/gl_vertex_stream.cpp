@@ -37,7 +37,11 @@ bool GlVertexStream::Init(GlStateCache& st) {
 }
 
 void GlVertexStream::Shutdown(GlStateCache& st) {
+#if !PS2R_HOST_VITA
     if (fence_) { glDeleteSync(static_cast<GLsync>(fence_)); fence_ = nullptr; }
+#else
+    fence_ = nullptr;
+#endif
     ready_ = false;
     offset_ = 0;
     if (vbo_) { st.DeleteBuffers(1, &vbo_); vbo_ = 0; }
@@ -69,15 +73,20 @@ int GlVertexStream::Upload(const GpuVertex* verts, size_t n) {
     }
     size_t off = (offset_ + 31) & ~static_cast<size_t>(31);
     if (off + bytes > kRingSize) {
+#if !PS2R_HOST_VITA
         if (fence_) {
             glClientWaitSync(static_cast<GLsync>(fence_), GL_SYNC_FLUSH_COMMANDS_BIT,
                              1000000000ull);
             glDeleteSync(static_cast<GLsync>(fence_));
             fence_ = nullptr;
         }
+#endif
         glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(kRingSize), nullptr, GL_STREAM_DRAW);
         generation_++;
+        fence_ = nullptr;
+#if !PS2R_HOST_VITA
         fence_ = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+#endif
         off = 0;
     }
     void* p = glMapBufferRange(GL_ARRAY_BUFFER, static_cast<GLintptr>(off),

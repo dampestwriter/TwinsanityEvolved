@@ -6,6 +6,7 @@
 #include "games/slus_20909_crash_twinsanity/hle/graphics/rounding_guard.h"
 
 #include "engine/platform/host/platform.h"
+#include "engine/vu/vu_float.h"
 
 PS2R_FENV_ACCESS_ON
 
@@ -66,7 +67,7 @@ ps2r::gs::VertexRec Project(const WaveGeometry::Vertex& vertex,
         // a different lookup and loses the source deformation.
         const uint32_t row = Bits(Product(vertex.position[axis], Float(0x39c38f36))) & 15;
         const float offset = Product(waves.rows[row][axis], waves.amplitude);
-        const float position = Finite(std::fmaf(Finite(vertex.position[axis]), 1, offset));
+        const float position = Finite(VuFloat::Fma(Finite(vertex.position[axis]), 1, offset));
         *screen[axis] = float(Integer(Product(position, 16)) & 0xffff) / 16 - float(offsets[axis]);
     }
     result.z = float(vertex.depth);

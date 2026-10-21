@@ -1,5 +1,6 @@
 // vu_float.inl -- the hot scalar helpers of VuFloat, inlined for the tiers.
 // Included from vu_float.h only.
+#include <cmath>
 #include <cstring>
 
 inline float VuFloat::Bits2F(uint32_t bits) {
@@ -60,6 +61,46 @@ inline uint32_t VuFloat::Itof0(uint32_t lane_bits) {
     return F2Bits(static_cast<float>(static_cast<int32_t>(lane_bits)));
 }
 
+inline float VuFloat::VuDiv(float num, float den) {
+    num = ClampFloat(num);
+    den = ClampFloat(den);
+    if (den == 0.0f) {
+        const uint32_t sign = (std::signbit(num) != std::signbit(den)) ? kSignBit : 0u;
+        return Bits2F(sign | kMaxFloatBits);
+    }
+    return ClampFloat(num / den);  // under the caller's rounding mode (FE_TOWARDZERO inside the guard)
+}
+
+inline uint32_t VuFloat::Ftoi0(uint32_t lane_bits) {
+    return FtoiSat(ClampFloat(Bits2F(lane_bits)));
+}
+
+inline uint32_t VuFloat::Ftoi4(uint32_t lane_bits) {
+    return FtoiSat(Bits2F(lane_bits) * 16.0f);
+}
+
+inline uint32_t VuFloat::Ftoi12(uint32_t lane_bits) {
+    return FtoiSat(Bits2F(lane_bits) * 4096.0f);
+}
+
+inline uint32_t VuFloat::Ftoi15(uint32_t lane_bits) {
+    return FtoiSat(Bits2F(lane_bits) * 32768.0f);
+}
+
+inline uint32_t VuFloat::ClipNf(uint32_t xb_u, uint32_t yb_u, uint32_t zb_u, uint32_t wb_u) {
+    const int32_t wb = (int32_t)wb_u;
+    const int32_t value = (wb & 0x7f800000) ? (int32_t)(wb_u & 0x7fffffff) : 0x007fffff;
+    uint32_t nf = 0;
+    const int32_t xb = (int32_t)xb_u, yb = (int32_t)yb_u, zb = (int32_t)zb_u;
+    if ((int32_t)(xb ^ (int32_t)0x00000000) > value) nf |= 0x01;
+    if ((int32_t)(xb ^ (int32_t)0x80000000) > value) nf |= 0x02;
+    if ((int32_t)(yb ^ (int32_t)0x00000000) > value) nf |= 0x04;
+    if ((int32_t)(yb ^ (int32_t)0x80000000) > value) nf |= 0x08;
+    if ((int32_t)(zb ^ (int32_t)0x00000000) > value) nf |= 0x10;
+    if ((int32_t)(zb ^ (int32_t)0x80000000) > value) nf |= 0x20;
+    return nf;
+}
+
 #if defined(PS2R_SIMD) && PS2R_SIMD && defined(__aarch64__)
 inline uint32x4_t VuFloat::ClampBits4(uint32x4_t bits) {
     const uint32x4_t expm = vdupq_n_u32(kExpMask);
@@ -89,3 +130,21 @@ inline uint16_t VuFloat::MacFlags4(uint32x4_t bits, uint8_t mask) {
     return static_cast<uint16_t>(vaddvq_u32(acc));  // lane bits are disjoint: the sum is the OR
 }
 #endif
+
+// The float product is exact in double and the sum rounds once there; rounding that double to float again is the fused
+// result unless it lies exactly halfway between two floats (round to nearest would then round twice) or outside the normal
+// float range (a subnormal's coarser grid): those rare sums go to std::fmaf. Under the VU's round toward zero the double
+// path is always exact.
+inline float VuFloat::Fma(float a, float b, float c) {
+#if defined(__FMA__) || defined(__ARM_FEATURE_FMA)
+    return __builtin_fmaf(a, b, c);
+#else
+    const double r = double(a) * double(b) + double(c);
+    uint64_t bits;
+    std::memcpy(&bits, &r, sizeof(bits));
+    const uint64_t mag = bits & 0x7FFFFFFFFFFFFFFFull;
+    const bool normal = (mag >= 0x3810000000000000ull && mag <= 0x47EFFFFFE0000000ull) || mag == 0;   // 2^-126 .. FLT_MAX
+    if (normal && (bits & 0x1FFFFFFFull) != 0x10000000ull) return static_cast<float>(r);
+    return std::fmaf(a, b, c);
+#endif
+}

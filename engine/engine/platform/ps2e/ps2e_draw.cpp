@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "engine/gs/format/pixel_convert.h"
+#include "engine/platform/host/platform.h"
 #include "engine/gs/hle/ir/draw_ir.h"
 #include "engine/gs/hle/texsrc/texture_source.h"
 #include "engine/platform/ps2e/ps2e_draw_backend.h"
@@ -326,6 +327,12 @@ int ps2e_draw_pump(ps2e_draw* d) {
 
 int ps2e_draw_bind_thread(ps2e_draw* d, int bind) {
     if (!d || !d->context.IsCreated()) return 0;
+#if PS2R_HOST_VITA
+    // vitaGL's one context stays with the thread that created it (SDL's Vita video has no GL to hand over): the frames are
+    // drawn on that thread
+    (void)bind;
+    return 0;
+#endif
     if (bind) return d->context.MakeCurrent(d->window) ? 1 : 0;
     return SDL_GL_MakeCurrent(d->window.Handle(), nullptr) == 0 ? 1 : 0;
 }

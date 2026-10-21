@@ -8,11 +8,12 @@
 
 #include "games/slus_20909_crash_twinsanity/hle/graphics/rounding_guard.h"
 
-#if defined(__ARM_NEON) || defined(__ARM_NEON__)
+#if (defined(__ARM_NEON) || defined(__ARM_NEON__)) && defined(__aarch64__)
 #include <arm_neon.h>
 #endif
 
 #include "engine/platform/host/platform.h"
+#include "engine/vu/vu_float.h"
 
 PS2R_FENV_ACCESS_ON
 
@@ -45,7 +46,7 @@ float Finite(float value) {
 float Product(float a, float b) { return Finite(Finite(a) * Finite(b)); }
 float Sum(float a, float b) { return Finite(Finite(a) + Finite(b)); }
 float MultiplyAdd(float a, float b, float c) {
-    return Finite(std::fmaf(Finite(a), Finite(b), Finite(c)));
+    return Finite(VuFloat::Fma(Finite(a), Finite(b), Finite(c)));
 }
 float Reciprocal(float value) {
     value = Finite(value);
@@ -351,7 +352,9 @@ MeshGeometry::Result MeshGeometry::Build(const Mesh& mesh, const std::vector<Vie
 // multiply-add per lane (the AArch64 SIMD unit rounds by FPCR like the scalar one; the rounding guard
 // covers both) with the flush as integer selects.
 namespace {
-#if defined(__ARM_NEON) || defined(__ARM_NEON__)
+// AArch64 only: ARMv7's NEON has no fused multiply-add (vfmaq_n_f32), so the 32-bit ARM targets (the Vita) take the
+// scalar path, which is the same fused arithmetic per lane.
+#if (defined(__ARM_NEON) || defined(__ARM_NEON__)) && defined(__aarch64__)
 #define TITLE_MESH_NEON 1
 #else
 #define TITLE_MESH_NEON 0
@@ -390,7 +393,7 @@ inline Vector TransformFlushed(const Matrix& matrix, const Vector& point, bool s
     Vector result;
     for (unsigned lane = 0; lane != 4; ++lane) {
         float value = matrix[3][lane];
-        for (unsigned row : order) value = Finite(std::fmaf(matrix[row][lane], point[row], value));
+        for (unsigned row : order) value = Finite(VuFloat::Fma(matrix[row][lane], point[row], value));
         result[lane] = value;
     }
     return result;

@@ -344,6 +344,13 @@ void GlDevice::FinishMipChain(SurfaceId id, int authored_levels, bool synthesize
     auto it = surfaces_.find(id.id);
     if (it == surfaces_.end() || authored_levels <= 0) return;
     GlSurface& s = it->second;
+#if PS2R_HOST_VITA
+    (void)synthesize_tail;
+    s.levels = static_cast<uint8_t>(authored_levels);
+    s.synth_levels = 0;
+    state_.BindTex2D(0);
+    return;
+#else
     state_.ActiveTexture(GL_TEXTURE0);
     state_.BindTex2D(s.tex);
     int syn = 0;
@@ -378,6 +385,7 @@ void GlDevice::FinishMipChain(SurfaceId id, int authored_levels, bool synthesize
     state_.BindTex2D(0);
     s.levels = static_cast<uint8_t>(authored_levels);
     s.synth_levels = static_cast<uint8_t>(syn);
+#endif
 }
 
 uint32_t GlDevice::BindTarget(SurfaceId color, SurfaceId depth) {
@@ -417,7 +425,9 @@ uint32_t GlDevice::BindStencilTarget(SurfaceId color, SurfaceId stencil) {
         state_.BindFb(GL_FRAMEBUFFER, sten_fbo_);
         if (sten_fbo_rbo_ != st->rbo) {
             glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, st->rbo);
+#if !PS2R_HOST_VITA
             glDrawBuffer(GL_NONE);
+#endif
             glReadBuffer(GL_NONE);
             if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) return 0;
             sten_fbo_rbo_ = st->rbo;
@@ -430,7 +440,11 @@ uint32_t GlDevice::BindStencilTarget(SurfaceId color, SurfaceId stencil) {
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, c->tex, 0);
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, st->rbo);
         const GLenum bufs[1] = {GL_COLOR_ATTACHMENT0};
+#if !PS2R_HOST_VITA
         glDrawBuffers(1, bufs);
+#else
+        (void)bufs;
+#endif
         if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) return 0;
         res_fbo_tex_ = c->tex;
         res_fbo_rbo_ = st->rbo;
@@ -521,6 +535,9 @@ bool GlDevice::MarkStencilWhereOpaque(SurfaceId color, SurfaceId stencil, uint8_
     glStencilFunc(GL_ALWAYS, static_cast<GLint>(bits), 0xFF);
     glStencilMask(bits);
     glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+#if PS2R_HOST_VITA
+    state_.ApplyVitaSamplerSizes();
+#endif
     glDrawArrays(GL_TRIANGLES, 0, 3);
     ResetStencil();
     state_.BindVertexArray(0);
@@ -534,7 +551,13 @@ bool GlDevice::ReadbackStencil(SurfaceId stencil, const Rect& rect, uint8_t* out
     if (!out || rect.w <= 0 || rect.h <= 0) return false;
     if (!BindStencilTarget(SurfaceId{}, stencil)) return false;
     glPixelStorei(GL_PACK_ALIGNMENT, 1);
-    glReadPixels(rect.x, rect.y, rect.w, rect.h, GL_STENCIL_INDEX, GL_UNSIGNED_BYTE, out);
+    glReadPixels(rect.x, rect.y, rect.w, rect.h,
+#if PS2R_HOST_VITA
+                 GL_STENCIL_INDEX8,
+#else
+                 GL_STENCIL_INDEX,
+#endif
+                 GL_UNSIGNED_BYTE, out);
     return glGetError() == GL_NO_ERROR;
 }
 
@@ -577,12 +600,31 @@ void GlDevice::Readback(SurfaceId id, const Rect& rect, void* out, size_t stride
         state_.BindFb(GL_READ_FRAMEBUFFER, fbo);
     }
     const size_t bpp = depth ? 4 : 4;
-    glPixelStorei(GL_PACK_ROW_LENGTH, stride ? static_cast<GLint>(stride / bpp) : 0);
-    if (depth)
-        glReadPixels(rect.x, rect.y, rect.w, rect.h, GL_DEPTH_COMPONENT, GL_FLOAT, out);
-    else
-        glReadPixels(rect.x, rect.y, rect.w, rect.h, GL_RGBA, GL_UNSIGNED_BYTE, out);
+    const size_t row_bytes = static_cast<size_t>(rect.w) * bpp;
+    const bool packed_rows = stride == 0 || stride == row_bytes;
+#if !PS2R_HOST_VITA
+    glPixelStorei(GL_PACK_ROW_LENGTH, packed_rows ? 0 : static_cast<GLint>(stride / bpp));
+#else
+    if (!packed_rows) {
+        auto* rows = static_cast<uint8_t*>(out);
+        for (int y = 0; y < rect.h; ++y) {
+            auto* row = rows + static_cast<size_t>(y) * stride;
+            if (depth)
+                glReadPixels(rect.x, rect.y + y, rect.w, 1, GL_DEPTH_COMPONENT, GL_FLOAT, row);
+            else
+                glReadPixels(rect.x, rect.y + y, rect.w, 1, GL_RGBA, GL_UNSIGNED_BYTE, row);
+        }
+    }
+#endif
+    if (packed_rows) {
+        if (depth)
+            glReadPixels(rect.x, rect.y, rect.w, rect.h, GL_DEPTH_COMPONENT, GL_FLOAT, out);
+        else
+            glReadPixels(rect.x, rect.y, rect.w, rect.h, GL_RGBA, GL_UNSIGNED_BYTE, out);
+    }
+#if !PS2R_HOST_VITA
     glPixelStorei(GL_PACK_ROW_LENGTH, 0);
+#endif
     state_.BindFb(GL_READ_FRAMEBUFFER, 0);
     if (tmp) state_.DeleteFramebuffers(1, &tmp);
 }
@@ -720,12 +762,18 @@ bool GlDevice::CaptureTarget(int w, int h) {
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+#if !PS2R_HOST_VITA
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+#endif
     if (!capture_fbo_) glGenFramebuffers(1, &capture_fbo_);
     state_.BindFb(GL_FRAMEBUFFER, capture_fbo_);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, capture_tex_, 0);
     const GLenum bufs[1] = {GL_COLOR_ATTACHMENT0};
+#if !PS2R_HOST_VITA
     glDrawBuffers(1, bufs);
+#else
+    (void)bufs;
+#endif
     const bool complete = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
     state_.BindFb(GL_FRAMEBUFFER, 0);
     capture_w_ = complete ? w : 0;

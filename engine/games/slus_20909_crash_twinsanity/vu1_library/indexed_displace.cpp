@@ -3,6 +3,7 @@
 #include "games/slus_20909_crash_twinsanity/vu1_library/vu1_loaded_programs.h"
 
 #include "engine/vu/vu_chop_round_guard.h"
+#include "engine/vu/vu_float.h"
 
 using namespace vu1lib;
 
@@ -56,7 +57,7 @@ void IndexedDisplace::RunIndexPrepass(QwPtr m, u32 node, u32 top, u32 nverts, bo
             const float s = componentwise ? CF(bits2f(nscale.b[k]))    // MULA vf16
                                           : CF(bits2f(payload.b[3]));  // MULAw vf05w
             const float acc = CF(CF(bits2f(gather[k])) * s);
-            pending[k] = f2bits(CF(std::fmaf(CF(bits2f(pos.b[k])), 1.0f, acc)));
+            pending[k] = f2bits(CF(VuFloat::Fma(CF(bits2f(pos.b[k])), 1.0f, acc)));
         }
         pending_qw = vq;
         have_pending = true;

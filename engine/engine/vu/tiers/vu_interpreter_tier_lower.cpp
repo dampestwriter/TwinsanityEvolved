@@ -361,7 +361,7 @@ void VuInterpreterTier::RunEfu(VuUnit& u, uint32_t l, uint32_t funct2, uint32_t 
     const float lane = VuFloat::ClampFloat(regs.VF[fs].F[fsf]);
     auto push = [&](float value, int cycles) { pipes.PushP(regs, value, cycles); };
     // Sum of squares as the fused chain the reference's compiler formed.
-    auto sum_sq = [&]() { return std::fmaf(v.z, v.z, std::fmaf(v.x, v.x, v.y * v.y)); };
+    auto sum_sq = [&]() { return VuFloat::Fma(v.z, v.z, VuFloat::Fma(v.x, v.x, v.y * v.y)); };
 
     switch (funct2) {
         case 0x1C:

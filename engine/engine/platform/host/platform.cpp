@@ -9,6 +9,11 @@
 namespace ps2r::platform::host {
 namespace { using Target = PlatformMacos; }
 }  // namespace ps2r::platform::host
+#elif PS2R_HOST_VITA
+#include "engine/platform/vita/platform_vita.h"
+namespace ps2r::platform::host {
+namespace { using Target = PlatformVita; }
+}  // namespace ps2r::platform::host
 #elif PS2R_HOST_LINUX
 #include "engine/platform/linux/platform_linux.h"
 namespace ps2r::platform::host {

@@ -4,7 +4,8 @@
 //
 //  * AgeDecal: the retail decal set's VU0 microprogram (.vutext D_002E5BD0 in the retail image, program 0x1C0 for decals in
 //    the camera's chunk, 0x360 for ones placed in another chunk -- their place taken through that chunk's matrix first)
-//    on the engine's VU interpreter, over a VU0 data image laid out as LoadDecalView / LoadDecalType filled it: the far
+//    as the engine's title::DecalMath (the two programs as values, bit-identical to the retail micro on the engine's
+//    interpreter: test_vu0_decal_age), over a VU0 data image laid out as LoadDecalView / LoadDecalType filled it: the far
 //    frustum's four side planes in the chunk's space (transposed, quadwords 0-3), the near plane four times (4-7), the other
 //    chunk's matrix (8-11), each type's variants from quadword 0x10 (eight each: four colour keys, four size keys). The
 //    decal in vf01 (its place, w its life left in seconds), vf02 / vf03 (its frame's half words), vi01 the variant's address;
@@ -30,8 +31,7 @@
 
 #include "engine/ee/cpu/cpu_state.h"
 #include "engine/vu/hle/vu1_hle_contract.h"
-#include "engine/vu/tiers/vu_interpreter_tier.h"
-#include "engine/vu/vu_unit.h"
+#include "games/slus_20909_crash_twinsanity/hle/math/decal_math.h"
 #include "games/slus_20909_crash_twinsanity/vu1_library/zero_kick.h"
 #include "graphics_internal.h"
 #include "ps2e_seam.h"
@@ -63,8 +63,7 @@ constexpr int kNearPlane = 0, kFirstSidePlane = 1, kFarPlane = 5;
 // ---- the PS2 renderer's constants (particles.cpp) ------------------------------------------------------------------------------
 constexpr uint32_t kVuMatrixAddress = 0x4F, kVuHeadAddress = 0x53;
 constexpr uint32_t kVu0VariantsAddress = 0x10, kVariantQuadwords = kVariantBytes / 16;
-constexpr uint32_t kSameChunkProgram = 0x1C0, kOtherChunkProgram = 0x360;
-constexpr uint32_t kDecalVu0Programs = 0x002E5BD0;   // g_DecalVu0Programs: the DMA chain to VIF0 (.vutext)
+constexpr uint32_t kSameChunkProgram = title::DecalMath::kSameChunk, kOtherChunkProgram = title::DecalMath::kOtherChunk;
 // InitDecalBlock / InitDecalUvPacket's words
 constexpr uint32_t kPlacesUnpack = 0x6C208000, kSizesUnpack = 0x6D408020, kColoursUnpack = 0x6E208060, kStartProgram = 0x17000000;
 constexpr uint64_t kUvGifTag = 0xC002400000008008ull;
@@ -78,60 +77,20 @@ template <typename T>
 const T* Guest(uint32_t address) { return reinterpret_cast<const T*>(te::GuestPointer(address, sizeof(T))); }
 uint32_t ReadU32(uint32_t address) { const uint32_t* p = Guest<uint32_t>(address); return p ? *p : 0; }
 
-// ---- the VU0 side: the retail decal set on the engine's interpreter ----------------------------------------------------------
+// ---- the VU0 side: the decal set's data image and the program LoadDecalView chose ----------------------------------------
 struct DecalVu0 {
-    bool tried = false, ready = false;
-    std::unique_ptr<VuUnit> vu;
-    std::unique_ptr<VuInterpreterTier> tier;
+    std::array<title::DecalMath::Vector, title::DecalMath::kDataQuadwords> data{};
     uint32_t program = kSameChunkProgram;
     bool viewLoaded = false;
-
-    // The set's DMA chain (CNT tags; VIF codes in the tag's upper words then the body) parsed for its MPG payloads
-    bool Load() {
-        if (tried) return ready;
-        tried = true;
-        std::array<uint8_t, 4096> image{};
-        bool any = false;
-        uint32_t at = kDecalVu0Programs;
-        for (int tags = 0; tags < 16; ++tags) {
-            const uint32_t* tag = reinterpret_cast<const uint32_t*>(te::GuestPointer(at, 16));
-            if (!tag) break;
-            const uint32_t qwc = tag[0] & 0xFFFF, id = (tag[0] >> 28) & 7;
-            const uint8_t* body = te::GuestPointer(at + 16, size_t(qwc) * 16);
-            if (!body) break;
-            std::vector<uint8_t> stream(8 + size_t(qwc) * 16);
-            std::memcpy(stream.data(), tag + 2, 8);
-            std::memcpy(stream.data() + 8, body, size_t(qwc) * 16);
-            for (size_t p = 0; p + 4 <= stream.size();) {
-                uint32_t code;
-                std::memcpy(&code, stream.data() + p, 4);
-                p += 4;
-                const uint32_t cmd = (code >> 24) & 0x7F, num = (code >> 16) & 0xFF, imm = code & 0xFFFF;
-                if (cmd == 0x4A) {   // MPG
-                    const size_t n = num ? num : 256, a = size_t(imm) * 8;
-                    if (a + n * 8 <= image.size() && p + n * 8 <= stream.size()) { std::memcpy(image.data() + a, stream.data() + p, n * 8); any = true; }
-                    p += n * 8;
-                }
-            }
-            at += 16 + qwc * 16;
-            if (id == 6 || id == 7) break;
-        }
-        // The two programs' first bundles (LQ.w vf28, 5(vi01) / ITOF15 vf02 + LQ.xyz vf31, 8(vi00)) must be there
-        uint32_t first1c0, first360;
-        std::memcpy(&first1c0, image.data() + kSameChunkProgram, 4);
-        std::memcpy(&first360, image.data() + kOtherChunkProgram, 4);
-        if (!any || first1c0 != 0x003C0805u || first360 != 0x01DF0008u) {
-            std::fprintf(stderr, "[te.gfx] decals: the retail VU0 decal set is not in the image (%#x: %08x / %#x: %08x); AgeDecal keeps every decal unaged\n",
-                         kSameChunkProgram, first1c0, kOtherChunkProgram, first360);
-            return false;
-        }
-        vu = std::make_unique<VuUnit>(0);
-        tier = std::make_unique<VuInterpreterTier>();
-        vu->WriteMicroMem(0, image.data(), image.size());
-        ready = true;
-        return true;
+    void Write(uint32_t byteAddress, const void* bytes, size_t size) {
+        if (byteAddress + size <= sizeof(data)) std::memcpy(reinterpret_cast<uint8_t*>(data.data()) + byteAddress, bytes, size);
     }
 } g_vu0;
+
+// The diagnosis switches, read once (AgeDecal runs for every decal of every frame)
+const bool kDecalDiag = std::getenv("TE_DECAL_DIAG") != nullptr;
+const char* const kDecalDiagFrom = std::getenv("TE_DECAL_DIAG_FROM");
+const char* const kDiagPresent = std::getenv("TE_GFX_DIAG_PRESENT");
 
 // The game's TransformPlane (math.cpp): the normal through the three rotation rows, d less the normal at the translation
 void TransformPlane(const float plane[4], const float (*m)[4], float out[4]) {
@@ -231,7 +190,6 @@ void ps2e_graphics_init_decal_uv_packet(ps2e_u32 packetAddress) {
 // four copies of the near plane, each four transposed; then the other chunk's matrix when there is one; the program to run on
 // each decal (0x1C0 same chunk / 0x360 other chunk)
 void ps2e_graphics_load_decal_view(ps2e_u32 chunkMatrices, ps2e_u32 fromChunk) {
-    if (!g_vu0.Load()) return;
     const auto* chunk = reinterpret_cast<const float(*)[4]>(te::GuestPointer(chunkMatrices, 64));
     const float* far = reinterpret_cast<const float*>(te::GuestPointer(kFarViewPlanes, 6 * 16));
     const float* view = reinterpret_cast<const float*>(te::GuestPointer(kViewPlanes, 6 * 16));
@@ -243,17 +201,17 @@ void ps2e_graphics_load_decal_view(ps2e_u32 chunkMatrices, ps2e_u32 fromChunk) {
     for (auto& copy : copies) std::memcpy(copy, near, 16);
     Transpose(rows);
     Transpose(copies);
-    g_vu0.vu->WriteDataMem(0, reinterpret_cast<const uint8_t*>(rows), 64);
-    g_vu0.vu->WriteDataMem(64, reinterpret_cast<const uint8_t*>(copies), 64);
+    g_vu0.Write(0, rows, 64);
+    g_vu0.Write(64, copies, 64);
     g_vu0.program = kSameChunkProgram;
     if (fromChunk) {
         if (const uint8_t* from = te::GuestPointer(fromChunk, 64)) {
-            g_vu0.vu->WriteDataMem(128, from, 64);
+            g_vu0.Write(128, from, 64);
             g_vu0.program = kOtherChunkProgram;
         }
     }
     g_vu0.viewLoaded = true;
-    if (std::getenv("TE_DECAL_DIAG")) {
+    if (kDecalDiag) {
         static int said = 0;
         if (said++ < 8) {
             std::fprintf(stderr, "[te.gfx.diag] decal view: chunk rows (%.2f %.2f %.2f %.2f) (%.2f %.2f %.2f %.2f) (%.2f %.2f %.2f %.2f) (%.2f %.2f %.2f %.2f) from %#x\n",
@@ -270,14 +228,13 @@ void ps2e_graphics_load_decal_view(ps2e_u32 chunkMatrices, ps2e_u32 fromChunk) {
 
 // LoadDecalType: the type's variants (eight quadwords each: the colour keys then the size keys) into VU0's memory from 0x10
 void ps2e_graphics_load_decal_type(ps2e_u32 typeAddress) {
-    if (!g_vu0.Load()) return;
     const uint8_t* type = te::GuestPointer(typeAddress, kTypeBytes);
     if (!type) return;
     int32_t count;
     std::memcpy(&count, type + kTypeVariantCount, 4);
     if (count <= 0) return;
     const uint32_t variants = std::min<uint32_t>(uint32_t(count), kMostVariants);
-    g_vu0.vu->WriteDataMem(kVu0VariantsAddress * 16, type + kTypeVariants, size_t(variants) * kVariantBytes);
+    g_vu0.Write(kVu0VariantsAddress * 16, type + kTypeVariants, size_t(variants) * kVariantBytes);
 }
 
 // AgeDecal: the decal in vf01-vf03 and its variant's address in vi01 through the view's program; its place in vf28, its colour
@@ -289,43 +246,40 @@ void ps2e_graphics_age_decal(ps2e_u32 placeAddress, ps2e_u32 frameAddress, ps2e_
     if (!place || !frame || !look) return;
     auto& scene = te::gfx::Scene();
     scene.decals_aged++;
-    if (!g_vu0.Load() || !g_vu0.viewLoaded) {
-        // No microprogram: the decal keeps its place, drawn white and full size (the game still ages its life)
+    if (!g_vu0.viewLoaded) {
+        // No view loaded yet: the decal keeps its place, drawn white and full size (the game still ages its life)
         std::memcpy(look, place, 16);
         std::memset(look + 16, 0x80, 4);
         std::memset(look + 20, 0, 12);
         return;
     }
-    VUregs& r = g_vu0.vu->regs();
-    r.Reset();
+    title::DecalMath::Decal decal;
+    std::memcpy(decal.place.data(), place, 16);
     for (int k = 0; k < 4; ++k) {
-        std::memcpy(&r.VF[1].I[k], &place[k], 4);
-        r.VF[2].I[k] = uint32_t(frame[k]);
-        r.VF[3].I[k] = uint32_t(frame[4 + k]);
+        decal.frame[k] = frame[k];
+        decal.more[k] = frame[4 + k];
     }
-    const uint32_t address = uint32_t(std::max(variant, 0)) * kVariantQuadwords + kVu0VariantsAddress;
-    r.VI[1] = uint16_t(address);
-    g_vu0.tier->Run(*g_vu0.vu, g_vu0.program);
+    decal.variant = uint16_t(uint32_t(std::max(variant, 0)) * kVariantQuadwords + kVu0VariantsAddress);
+    const title::DecalMath::Look aged = title::DecalMath::Age(g_vu0.data.data(), g_vu0.program, decal);
     // DecalLook: f32 place[4]; u8 colour[4]; s16 sizes[4]; s16 moreSizes[4]
     for (int k = 0; k < 4; ++k) {
-        std::memcpy(look + k * 4, &r.VF[28].I[k], 4);
-        look[16 + k] = uint8_t(r.VF[29].I[k]);
-        const int16_t size = int16_t(r.VF[31].I[k] & 0xFFFF), more = int16_t(r.VF[30].I[k] & 0xFFFF);
+        std::memcpy(look + k * 4, &aged.place[k], 4);
+        look[16 + k] = uint8_t(aged.colour[k]);
+        const int16_t size = int16_t(aged.offsets[k] & 0xFFFF), more = int16_t(aged.more[k] & 0xFFFF);
         std::memcpy(look + 20 + k * 2, &size, 2);
         std::memcpy(look + 28 + k * 2, &more, 2);
     }
-    if (r.VF[31].I[3] & 0xFFFF) scene.decals_culled++;
-    if (std::getenv("TE_DECAL_DIAG")) {
+    if (aged.offsets[3] & 0xFFFF) scene.decals_culled++;
+    if (kDecalDiag) {
         extern uint64_t te_graphics_presents();
         static int said = 0;
-        const char* window = std::getenv("TE_DECAL_DIAG_FROM");
-        const bool in = window && te_graphics_presents() + 1 >= uint64_t(std::atol(window));
+        const bool in = kDecalDiagFrom && te_graphics_presents() + 1 >= uint64_t(std::atol(kDecalDiagFrom));
         if (said++ < 64 || in)
             std::fprintf(stderr, "[te.gfx.diag] present %llu decal aged: place (%.2f %.2f %.2f life %.3f) frame (%d %d %d | %d %d %d) variant %d prog %#x -> place (%.2f %.2f %.2f) colour (%u %u %u %u) sizes (%d %d %d w %d) more (%d %d %d)\n",
                          (unsigned long long)te_graphics_presents() + 1, place[0], place[1], place[2], place[3], frame[0], frame[1], frame[2], frame[4], frame[5], frame[6], variant, g_vu0.program,
                          *reinterpret_cast<float*>(look), *reinterpret_cast<float*>(look + 4), *reinterpret_cast<float*>(look + 8),
-                         look[16], look[17], look[18], look[19], int16_t(r.VF[31].I[0]), int16_t(r.VF[31].I[1]), int16_t(r.VF[31].I[2]), int16_t(r.VF[31].I[3]),
-                         int16_t(r.VF[30].I[0]), int16_t(r.VF[30].I[1]), int16_t(r.VF[30].I[2]));
+                         look[16], look[17], look[18], look[19], int16_t(aged.offsets[0]), int16_t(aged.offsets[1]), int16_t(aged.offsets[2]), int16_t(aged.offsets[3]),
+                         int16_t(aged.more[0]), int16_t(aged.more[1]), int16_t(aged.more[2]));
     }
 }
 
@@ -388,7 +342,7 @@ void ps2e_graphics_draw_decals(ps2e_u32 decalsAddress) {
                     d.verts.insert(d.verts.end(), verts.begin(), verts.end());
                     te::gfx::CloseDraw(bucket);
                     scene.decal_quads += verts.size() / 6;
-                    if (std::getenv("TE_DECAL_DIAG")) {
+                    if (kDecalDiag) {
                         extern uint64_t te_graphics_presents();
                         float x0 = 1e9f, y0 = 1e9f, x1 = -1e9f, y1 = -1e9f;
                         double a = 0;
@@ -399,7 +353,7 @@ void ps2e_graphics_draw_decals(ps2e_u32 decalsAddress) {
                     }
                 }
                 scene.decal_blocks++;
-                if (const char* diag = std::getenv("TE_GFX_DIAG_PRESENT")) {
+                if (const char* diag = kDiagPresent) {
                     extern uint64_t te_graphics_presents();
                     if (te_graphics_presents() + 1 == uint64_t(std::atol(diag))) {
                         float x0 = 1e9f, y0 = 1e9f, x1 = -1e9f, y1 = -1e9f;

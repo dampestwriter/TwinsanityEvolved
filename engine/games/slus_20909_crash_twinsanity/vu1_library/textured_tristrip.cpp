@@ -3,6 +3,7 @@
 #include "games/slus_20909_crash_twinsanity/vu1_library/vu1_loaded_programs.h"
 
 #include "engine/vu/vu_chop_round_guard.h"
+#include "engine/vu/vu_float.h"
 
 using namespace vu1lib;
 
@@ -313,8 +314,8 @@ bool TexturedTristrip::RunEnvCall(QwPtr m, u32 node, u32 top, ClipGate::GateRegs
             float wn[3];
             for (int k = 0; k < 3; ++k) {
                 float acc = CF(CF(bits2f(nrmR[0].b[k])) * nx);
-                acc = CF(std::fmaf(CF(bits2f(nrmR[1].b[k])), ny, acc));
-                wn[k] = CF(std::fmaf(CF(bits2f(nrmR[2].b[k])), nz, acc));
+                acc = CF(VuFloat::Fma(CF(bits2f(nrmR[1].b[k])), ny, acc));
+                wn[k] = CF(VuFloat::Fma(CF(bits2f(nrmR[2].b[k])), nz, acc));
             }
 
             // h = eye*rsq + n_in; h2 = h*0.5; env = envR * h2 (MULAy/MADDAz/MADDx).
@@ -327,8 +328,8 @@ bool TexturedTristrip::RunEnvCall(QwPtr m, u32 node, u32 top, ClipGate::GateRegs
             float env[3];
             for (int k = 0; k < 3; ++k) {
                 float acc = CF(CF(bits2f(envR[1].b[k])) * h2[1]);
-                acc = CF(std::fmaf(CF(bits2f(envR[2].b[k])), h2[2], acc));
-                env[k] = CF(std::fmaf(CF(bits2f(envR[0].b[k])), h2[0], acc));
+                acc = CF(VuFloat::Fma(CF(bits2f(envR[2].b[k])), h2[2], acc));
+                env[k] = CF(VuFloat::Fma(CF(bits2f(envR[0].b[k])), h2[0], acc));
             }
             float ensq[3];
             for (int k = 0; k < 3; ++k) ensq[k] = CF(CF(env[k]) * CF(env[k]));
@@ -368,9 +369,9 @@ bool TexturedTristrip::RunEnvCall(QwPtr m, u32 node, u32 top, ClipGate::GateRegs
                 const float wcz = bits2f(Fmax_raw(f2bits(wn[2]), 0u));
                 for (int k = 0; k < 3; ++k) {
                     float acc = CF(CF(bits2f(litR[3].b[k])) * 1.0f);
-                    acc = CF(std::fmaf(CF(bits2f(litR[0].b[k])), CF(wcx), acc));
-                    acc = CF(std::fmaf(CF(bits2f(litR[1].b[k])), CF(wcy), acc));
-                    lit[k] = CF(std::fmaf(CF(bits2f(litR[2].b[k])), CF(wcz), acc));
+                    acc = CF(VuFloat::Fma(CF(bits2f(litR[0].b[k])), CF(wcx), acc));
+                    acc = CF(VuFloat::Fma(CF(bits2f(litR[1].b[k])), CF(wcy), acc));
+                    lit[k] = CF(VuFloat::Fma(CF(bits2f(litR[2].b[k])), CF(wcz), acc));
                 }
                 for (int k = 0; k < 3; ++k) {
                     const float s = (float)(int32_t)st_col.b[k];  // ITOF0

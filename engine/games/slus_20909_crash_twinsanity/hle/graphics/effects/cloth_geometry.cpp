@@ -6,6 +6,7 @@
 #include "games/slus_20909_crash_twinsanity/hle/graphics/rounding_guard.h"
 
 #include "engine/platform/host/platform.h"
+#include "engine/vu/vu_float.h"
 
 PS2R_FENV_ACCESS_ON
 
@@ -52,7 +53,7 @@ ClothGeometry::Result ClothGeometry::Build(const MeshGeometry::Mesh& original, c
                 const float offset = Product(wave, amplitude);
                 // The product is committed before position*1 + offset. Fusing
                 // wave*amplitude+position changes the original vertex bits.
-                vertex.position[axis] = Finite(std::fmaf(Finite(position), 1.f, offset));
+                vertex.position[axis] = Finite(VuFloat::Fma(Finite(position), 1.f, offset));
             }
         }
     }

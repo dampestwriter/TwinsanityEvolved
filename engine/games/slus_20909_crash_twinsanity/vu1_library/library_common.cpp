@@ -2,6 +2,7 @@
 #include "games/slus_20909_crash_twinsanity/vu1_library/library_common.h"
 
 #include <cstring>
+#include "engine/vu/vu_float.h"
 
 namespace vu1lib {
 
@@ -9,9 +10,9 @@ V4 XformEmit(const V4& r1, const V4& r2, const V4& r3, const V4& r4, float vx, f
     V4 out;
     for (int k = 0; k < 4; ++k) {
         float acc = CF(CF(bits2f(r4.b[k])) * 1.0f);
-        acc = CF(std::fmaf(CF(bits2f(r2.b[k])), vy, acc));
-        acc = CF(std::fmaf(CF(bits2f(r3.b[k])), vz, acc));
-        out.b[k] = f2bits(CF(std::fmaf(CF(bits2f(r1.b[k])), vx, acc)));
+        acc = CF(VuFloat::Fma(CF(bits2f(r2.b[k])), vy, acc));
+        acc = CF(VuFloat::Fma(CF(bits2f(r3.b[k])), vz, acc));
+        out.b[k] = f2bits(CF(VuFloat::Fma(CF(bits2f(r1.b[k])), vx, acc)));
     }
     return out;
 }
@@ -20,9 +21,9 @@ V4 XformClip(const V4& r0, const V4& r1, const V4& r2, const V4& r3, float vx, f
     V4 out;
     for (int k = 0; k < 4; ++k) {
         float acc = CF(CF(bits2f(r3.b[k])) * 1.0f);
-        acc = CF(std::fmaf(CF(bits2f(r0.b[k])), vx, acc));
-        acc = CF(std::fmaf(CF(bits2f(r1.b[k])), vy, acc));
-        out.b[k] = f2bits(CF(std::fmaf(CF(bits2f(r2.b[k])), vz, acc)));
+        acc = CF(VuFloat::Fma(CF(bits2f(r0.b[k])), vx, acc));
+        acc = CF(VuFloat::Fma(CF(bits2f(r1.b[k])), vy, acc));
+        out.b[k] = f2bits(CF(VuFloat::Fma(CF(bits2f(r2.b[k])), vz, acc)));
     }
     return out;
 }
@@ -37,7 +38,7 @@ u32 CrossZSign(const V4& e16, const V4& e17) {
     const float ax = CF(bits2f(e16.b[0])), ay = CF(bits2f(e16.b[1]));
     const float bx = CF(bits2f(e17.b[0])), by = CF(bits2f(e17.b[1]));
     const float accz = CF(ax * by);  // OPMULA ACC.z (write-clamped)
-    const float crz = CF(std::fmaf(-bx, ay, accz));  // OPMSUB result.z, fused
+    const float crz = CF(VuFloat::Fma(-bx, ay, accz));  // OPMSUB result.z, fused
     return std::signbit(crz) ? 32u : 0u;
 }
 
@@ -46,7 +47,7 @@ V4 CrossXYZ(const V4& e16, const V4& e17) {
     for (int k = 0; k < 3; ++k) {
         const int k1 = (k + 1) % 3, k2 = (k + 2) % 3;
         const float acc = CF(CF(bits2f(e16.b[k1])) * CF(bits2f(e17.b[k2])));
-        r.b[k] = f2bits(CF(std::fmaf(-CF(bits2f(e17.b[k1])), CF(bits2f(e16.b[k2])), acc)));
+        r.b[k] = f2bits(CF(VuFloat::Fma(-CF(bits2f(e17.b[k1])), CF(bits2f(e16.b[k2])), acc)));
     }
     return r;
 }

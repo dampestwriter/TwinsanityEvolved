@@ -38,10 +38,13 @@
 // every picture whatever the setting (there is no pacer clock to interpolate on).
 #include <algorithm>
 #include <atomic>
+#include <cfenv>
 #include <chrono>
 #include <cmath>
 #include <condition_variable>
+#include <deque>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <thread>
 #include <cstdio>
@@ -84,6 +87,7 @@ struct Vector2 {
 using te::gfx::RenderTargetDescription;
 using te::gfx::MaterialView;
 using te::gfx::Draw;
+using te::gfx::DeferredBuild;
 // Retail globals the PS2 renderer read (game/symbol_addrs.txt, PAL SLES-52568): the current render target pointer
 // (G_FontRendererRel) and the game's screen size (D_00309AE4/8).
 constexpr uint32_t kRenderTargetPointer = 0x00309BDC;
@@ -128,6 +132,10 @@ struct Gfx {
         size_t used = 0;
     };
     Bucket buckets[TE_GFX_BUCKET_COUNT];
+    // The frame's deferred builds (ReserveDeferred): `deferred_used` of `deferred` are this frame's; they travel with the
+    // buckets at the hand-over (their addresses are what the placeholders and the workers hold)
+    std::vector<std::unique_ptr<DeferredBuild>> deferred;
+    size_t deferred_used = 0;
     std::unordered_map<uint32_t, uint32_t> textures;   // GameTexture guest address -> ps2e_draw texture
     // The texture resources as the game handed them (header + upload packet): what a save state carries so a loaded
     // process can decode them again (the game frees the packet's disk-manager block after the upload, as the PS2 did).
@@ -147,6 +155,8 @@ struct Gfx {
     // Deterministic / headless / dumping runs keep the synchronous path (their frames are judged by present number).
     struct Frame {
         Bucket buckets[TE_GFX_BUCKET_COUNT];
+        std::vector<std::unique_ptr<DeferredBuild>> deferred;
+        size_t deferred_used = 0;
         bool send = false;
         int screen_w = 0, screen_h = 0;
         uint64_t harness_key = 0;                 // the boundary this present precedes (te_harness.h's key)
@@ -232,6 +242,8 @@ struct Gfx {
     std::vector<uint64_t> harness_keys;
     long dump_from = 0, dump_to = 0;   // TE_GFX_DUMP_FROM / TE_GFX_DUMP_TO: the pictures dumped (every dump_every) lie in [from, to]; 0 = unbounded
 } g;
+
+void ExpandDeferred(Gfx::Bucket* buckets, std::vector<std::unique_ptr<DeferredBuild>>& deferred, size_t& used);
 
 void ReadOptions();
 std::string PresentCensus();
@@ -417,6 +429,7 @@ void RenderLoop() {
                 rt.delay_ms_max = std::max(rt.delay_ms_max, double(rt.delay_ns) / 1e6);
             }
             lock.unlock();
+            ExpandDeferred(f.buckets, f.deferred, f.deferred_used);   // the frame's builds, done by the workers meanwhile
             if (ps2r::ps2e::PresentPacer::PacedBySlots(rate)) {
                 // the cadence is the slot train's: the picture is resolved for a judge's capture only (its hash and dump are
                 // the same at every rate); the slots show it, and the frames between it and the previous one
@@ -735,6 +748,7 @@ Draw& OpenDraw(uint32_t bucket, const ps2e_draw_state& state, bool copy_frame = 
     d.state = state;
     d.verts.clear();
     d.copy_frame = copy_frame;
+    d.pending = nullptr;
     d.tag = g.tag;
     d.has_transform = g.tag_has_transform;
     if (g.tag_has_transform) d.transform = g.tag_transform;
@@ -773,6 +787,179 @@ void Record(uint32_t bucket, Draw&& d) {
     CloseDraw(bucket);
 }
 
+// ---- the builds off the game thread (graphics_internal.h DeferredBuild) ---------------------------------------------------
+// A few workers (TE_GFX_BUILD_THREADS; by default the logical processors less the game, render and audio threads, from one
+// to four, none on a machine of two) take the posted builds in order.
+struct BuildPool {
+    std::vector<std::thread> threads;
+    std::mutex mutex;
+    std::condition_variable wake, finished;
+    std::deque<std::function<void()>> jobs;
+    size_t active = 0;
+    bool stop = false, started = false;
+    void Start() {
+        started = true;
+        int n;
+        if (const char* v = std::getenv("TE_GFX_BUILD_THREADS")) {
+            n = std::max(0, std::min(8, std::atoi(v)));
+        } else {
+            int cpus = int(std::thread::hardware_concurrency());
+#if defined(__vita__)
+            if (cpus <= 0) cpus = 3;   // the three cores an application gets (the fourth is the system's)
+#endif
+            n = cpus >= 3 ? std::max(1, std::min(4, cpus - 3)) : 0;
+        }
+        for (int i = 0; i < n; ++i) threads.emplace_back([this, i] { Run(i); });
+        if (n) std::fprintf(stderr, "[te.gfx] geometry builds: %d worker thread%s\n", n, n == 1 ? "" : "s");
+    }
+    void Run(int index) {
+        char name[24];
+        std::snprintf(name, sizeof name, "te-build-%d", index);
+        if (!std::getenv("TE_NO_QOS")) ps2r::platform::host::PinCurrentThreadInteractive(name, ps2r::platform::host::ThreadRole::Graphics);
+        std::unique_lock<std::mutex> lock(mutex);
+        for (;;) {
+            wake.wait(lock, [&] { return stop || !jobs.empty(); });
+            if (stop) return;
+            std::function<void()> job = std::move(jobs.front());
+            jobs.pop_front();
+            ++active;
+            lock.unlock();
+            job();
+            lock.lock();
+            --active;
+            finished.notify_all();
+        }
+    }
+    void Post(std::function<void()> job) {
+        { std::lock_guard<std::mutex> lock(mutex); jobs.push_back(std::move(job)); }
+        wake.notify_one();
+    }
+    void Wait(const DeferredBuild& build) {
+        if (build.done.load(std::memory_order_acquire)) return;
+        std::unique_lock<std::mutex> lock(mutex);
+        finished.wait(lock, [&] { return build.done.load(std::memory_order_acquire); });
+    }
+    void Drain() {
+        if (threads.empty()) return;
+        std::unique_lock<std::mutex> lock(mutex);
+        finished.wait(lock, [&] { return jobs.empty() && active == 0; });
+    }
+    ~BuildPool() {
+        { std::lock_guard<std::mutex> lock(mutex); stop = true; }
+        wake.notify_all();
+        for (auto& t : threads) t.join();
+    }
+};
+BuildPool& Builds() {
+    static BuildPool pool;
+    if (!pool.started) pool.Start();
+    return pool;
+}
+
+bool DeferringBuilds() { return !Builds().threads.empty(); }
+
+DeferredBuild& ReserveDeferred(uint32_t bucket, const ps2e_draw_state& state) {
+    auto& b = g.buckets[bucket < TE_GFX_BUCKET_COUNT ? bucket : TE_GFX_BUCKET_UI];
+    if (b.used == b.draws.size()) b.draws.emplace_back();
+    Draw& d = b.draws[b.used++];
+    d.state = state;
+    d.verts.clear();
+    d.copy_frame = false;
+    d.tag = g.tag;
+    d.has_transform = g.tag_has_transform;
+    if (g.tag_has_transform) d.transform = g.tag_transform;
+    if (g.deferred_used == g.deferred.size()) g.deferred.push_back(std::make_unique<DeferredBuild>());
+    DeferredBuild& build = *g.deferred[g.deferred_used++];
+    build.state = state;
+    build.verts.clear();
+    build.segments.clear();
+    build.done.store(false, std::memory_order_relaxed);
+    d.pending = &build;
+    return build;
+}
+
+void PostBuild(DeferredBuild& build, std::function<void()> job) {
+    std::fenv_t env;
+    std::fegetenv(&env);
+    BuildPool& pool = Builds();
+    pool.Post([&pool, &build, env, job = std::move(job)] {
+        std::fenv_t saved;
+        std::fegetenv(&saved);
+        std::fesetenv(&env);
+        job();
+        std::fesetenv(&saved);
+        { std::lock_guard<std::mutex> lock(pool.mutex); build.done.store(true, std::memory_order_release); }
+        pool.finished.notify_all();
+    });
+}
+
+void DrainBuilds() { Builds().Drain(); }
+
+// OpenDraw's joining rule for a draw of this state and tag appended after `out`'s last draw
+bool Joins(const Gfx::Bucket& out, const ps2e_draw_state& state, bool copy_frame, const ps2r::ps2e::InterpTag& tag, bool interp) {
+    if (!out.used || state.blend != 0 || copy_frame) return false;
+    const Draw& last = out.draws[out.used - 1];
+    if (last.verts.size() < 3 || !SameState(last.state, state)) return false;
+    return !interp || (last.tag.id == tag.id && last.tag.kind == tag.kind &&
+                       (tag.kind != ps2r::ps2e::InterpKind::Vertices || last.tag.part == tag.part));
+}
+Draw& NextDraw(Gfx::Bucket& out) {
+    if (out.used == out.draws.size()) out.draws.emplace_back();
+    return out.draws[out.used++];
+}
+
+// The frame's placeholders replaced by what their builds recorded, every bucket replayed through the joining rule (the draw
+// list the game thread would have recorded building them itself); waits for the frame's builds
+void ExpandDeferred(Gfx::Bucket* buckets, std::vector<std::unique_ptr<DeferredBuild>>& deferred, size_t& used) {
+    if (!used) return;
+    for (size_t i = 0; i < used; ++i) Builds().Wait(*deferred[i]);
+    used = 0;
+    const bool interp = g.interp_active.load(std::memory_order_relaxed);
+    thread_local Gfx::Bucket scratch[TE_GFX_BUCKET_COUNT];   // each bucket's own: storage does not wander between buckets
+    for (int b = 0; b < TE_GFX_BUCKET_COUNT; ++b) {
+        Gfx::Bucket& in = buckets[b];
+        Gfx::Bucket& out = scratch[b];
+        bool any = false;
+        for (size_t i = 0; i < in.used && !any; ++i) any = in.draws[i].pending != nullptr;
+        if (!any) continue;
+        out.used = 0;
+        for (size_t i = 0; i < in.used; ++i) {
+            Draw& d = in.draws[i];
+            if (!d.pending) {
+                if (Joins(out, d.state, d.copy_frame, d.tag, interp)) {
+                    Draw& last = out.draws[out.used - 1];
+                    last.verts.insert(last.verts.end(), d.verts.begin(), d.verts.end());
+                } else {
+                    std::swap(NextDraw(out), d);
+                }
+                continue;
+            }
+            const DeferredBuild& build = *d.pending;
+            size_t at = 0;
+            for (const uint32_t count : build.segments) {
+                const auto first = build.verts.begin() + std::ptrdiff_t(at), end = first + std::ptrdiff_t(count);
+                at += count;
+                if (Joins(out, build.state, false, d.tag, interp)) {
+                    Draw& last = out.draws[out.used - 1];
+                    last.verts.insert(last.verts.end(), first, end);
+                } else {
+                    Draw& o = NextDraw(out);
+                    o.state = build.state;
+                    o.verts.assign(first, end);
+                    o.copy_frame = false;
+                    o.pending = nullptr;
+                    o.tag = d.tag;
+                    o.has_transform = d.has_transform;
+                    if (d.has_transform) o.transform = d.transform;
+                }
+            }
+            d.pending = nullptr;
+        }
+        std::swap(in.draws, out.draws);
+        std::swap(in.used, out.used);
+    }
+}
+
 // A quad of GS-pixel corners (the GS origin taken off) as two triangles
 void RecordQuad(uint32_t bucket, const ps2e_draw_state& st, float gx0, float gy0, float gx1, float gy1, float u0, float v0,
                 float u1, float v1, uint32_t colour) {
@@ -808,8 +995,33 @@ void VBlank() {
     te::Services::Get().clock().Boundary();
 }
 
+// The storage kept for the next frames is held to what the frame just drawn needed: the k-th draw of a bucket holds a
+// different draw every frame (a merged run of a whole scene one frame, a sprite the next), so storage left at its largest
+// grows towards (draws x the largest draw ever recorded) in every frame set -- the title's logo took the sets past 1 GB,
+// and the Vita's heap with them. An oversized buffer is replaced by fresh storage of the size it held (its content is
+// spent); the draws past the frame's own keep nothing, and only a few of them are kept at all.
+template <typename Vertices>
+void TrimStorage(Vertices& verts, size_t keep) {
+    if (verts.capacity() <= keep * 2 + 64) return;
+    Vertices fresh;
+    fresh.reserve(keep);
+    verts.swap(fresh);
+}
+
 void ClearBuckets() {
-    for (auto& b : g.buckets) b.used = 0;   // the storage stays
+    constexpr size_t kSpareDraws = 64;
+    for (auto& b : g.buckets) {
+        if (b.draws.size() > b.used + kSpareDraws) b.draws.resize(b.used + kSpareDraws);
+        for (size_t i = 0; i < b.draws.size(); ++i) TrimStorage(b.draws[i].verts, i < b.used ? b.draws[i].verts.size() : 0);
+        b.used = 0;   // the storage stays
+    }
+    for (size_t i = 0; i < g.deferred.size(); ++i) {
+        DeferredBuild& build = *g.deferred[i];
+        const bool held = i < g.deferred_used;
+        TrimStorage(build.verts, held ? build.verts.size() : 0);
+        TrimStorage(build.segments, held ? build.segments.size() : 0);
+    }
+    g.deferred_used = 0;
 }
 
 // The pictures' dumps, numbered by PICTURE (= by present in a synchronous run: the frozen judges' numbering)
@@ -1198,6 +1410,8 @@ void PresentFrame(bool send) {
                 std::swap(g.buckets[b].draws, f.buckets[b].draws);
                 std::swap(g.buckets[b].used, f.buckets[b].used);
             }
+            std::swap(g.deferred, f.deferred);
+            std::swap(g.deferred_used, f.deferred_used);
             f.send = send;
             f.screen_w = ScreenW();
             f.screen_h = ScreenH();
@@ -1231,6 +1445,7 @@ void PresentFrame(bool send) {
         sync.screen_h = ScreenH();
         sync.harness_key = harness_key;
         sync.picture = 0;
+        ExpandDeferred(sync.buckets, g.deferred, g.deferred_used);
         RenderFrame(sync, Show::Present);
         for (int b = 0; b < TE_GFX_BUCKET_COUNT; ++b) {
             std::swap(g.buckets[b].draws, sync.buckets[b].draws);
@@ -1281,6 +1496,10 @@ void CloseDraw(uint32_t bucket) { ::CloseDraw(bucket); }
 void SetDrawTag(const ps2r::ps2e::InterpTag& tag, const float* world16, const float* screen16) { ::SetDrawTag(tag, world16, screen16); }
 void ClearDrawTag() { ::ClearDrawTag(); }
 void Record(uint32_t bucket, Draw&& d) { ::Record(bucket, std::move(d)); }
+bool DeferringBuilds() { return ::DeferringBuilds(); }
+DeferredBuild& ReserveDeferred(uint32_t bucket, const ps2e_draw_state& state) { return ::ReserveDeferred(bucket, state); }
+void PostBuild(DeferredBuild& build, std::function<void()> job) { ::PostBuild(build, std::move(job)); }
+void DrainBuilds() { ::DrainBuilds(); }
 float GsOriginX() { return ::GsOriginX(); }
 float GsOriginY() { return ::GsOriginY(); }
 int ScreenW() { return ::ScreenW(); }

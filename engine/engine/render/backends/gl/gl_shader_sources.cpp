@@ -283,6 +283,20 @@ out vec4 frag_color;
 // (depth fmt=3, idx fmt 4/5/6) must read the ONE texel the native GS pixel
 // reads. Exact for affine mappings (the sprite/tri FST chains these serves
 // carry; the derivative IS the mapping's Jacobian).
+// Integer division and remainder by a value known only at run time. Here they are the operators themselves; a GPU
+// whose shader compiler has no integer divide (the PS Vita's) defines TE_INT_DIVIDE_IN_FLOAT and these exact
+// float forms instead (the operands are non-negative and far below 2^24, so (a + 0.5) / b never rounds across an
+// integer).
+#ifndef TE_INT_DIVIDE_IN_FLOAT
+int te_idiv(int a, int b) { return a / b; }
+ivec2 te_idiv(ivec2 a, int b) { return a / b; }
+int te_imod(int a, int b) { return a % b; }
+#else
+int te_idiv(int a, int b) { return int(floor((float(a) + 0.5) / float(b))); }
+ivec2 te_idiv(ivec2 a, int b) { return ivec2(te_idiv(a.x, b), te_idiv(a.y, b)); }
+int te_imod(int a, int b) { return a - b * te_idiv(a, b); }
+#endif
+
 vec2 S83NativeCenter(vec2 rt) {
     if (u_draw_scale <= 1) return rt;
     float s = float(u_draw_scale);
@@ -299,10 +313,10 @@ void main() {
     // Applied early as a discard to skip all pixel processing for masked rows.
     if (u_scanmsk == 2) {
         // Even Y prohibited: discard pixels on even rows
-        if (int(gl_FragCoord.y) % 2 == 0) discard;
+        if (te_imod(int(gl_FragCoord.y), 2) == 0) discard;
     } else if (u_scanmsk == 3) {
         // Odd Y prohibited: discard pixels on odd rows
-        if (int(gl_FragCoord.y) % 2 != 0) discard;
+        if (te_imod(int(gl_FragCoord.y), 2) != 0) discard;
     }
 
     vec4 result;
@@ -467,7 +481,7 @@ void main() {
             {
                 ivec2 ts4 = (u_idx_self != 0) ? textureSize(u_rt_texture, 0)
                                               : textureSize(u_texture, 0);
-                tc *= max(ts4.x / max(tdim4.x, 1), 1);
+                tc *= max(te_idiv(ts4.x, max(tdim4.x, 1)), 1);
             }
 #endif
             vec4 src = (u_idx_self != 0)
@@ -512,8 +526,8 @@ void main() {
             int lx = tc.x & 63, ly = tc.y & 31;
             int lX = (lx & 7) | 8 | ((ly & 0x18) << 1);
             int lY = (lx & 0x38) | (ly & 7);
-            int X  = (page % ppr)*64 + lX;
-            int Y  = (page / ppr)*64 + lY;
+            int X  = te_imod(page, ppr)*64 + lX;
+            int Y  = te_idiv(page, ppr)*64 + lY;
             int h  = int(u_tex_size.y);
             int wmax = int(u_tex_size.x) - 1;
             vec4 src;
@@ -522,8 +536,8 @@ void main() {
                 if (u_flip_v != 0) t0.y = h - 1 - t0.y;    // fmt=3 flip rule
 #ifdef S83_IDXSCALE
                 // [S83-IDXSCALE] native -> physical (see fmt=4 note).
-                t0 *= max(textureSize(u_texture, 0).x /
-                              max(int(u_tex_size.x), 1), 1);
+                t0 *= max(te_idiv(textureSize(u_texture, 0).x,
+                                  max(int(u_tex_size.x), 1)), 1);
 #endif
                 src = texelFetch(u_texture, t0, 0);
             } else {
@@ -531,8 +545,8 @@ void main() {
                 if (u_flip_v != 0) t1.y = h - 1 - t1.y;    // fmt=3 flip rule
 #ifdef S83_IDXSCALE
                 // [S83-IDXSCALE] partner target scales independently.
-                t1 *= max(textureSize(u_idx_tex2, 0).x /
-                              max(int(u_tex_size.x), 1), 1);
+                t1 *= max(te_idiv(textureSize(u_idx_tex2, 0).x,
+                                  max(int(u_tex_size.x), 1)), 1);
 #endif
                 src = texelFetch(u_idx_tex2, t1, 0);
             }
@@ -594,16 +608,16 @@ void main() {
             int lane = (ly >> 1) & 1;
             int cr = ((ly >> 2) << 1) | (ly & 1);
             int cc = lx ^ ((((ly + 2) >> 2) & 1) << 2);
-            int X  = (page % ppr16)*64 + bc*16 + cc;
-            int Y  = (page / ppr16)*64 + br*8  + cr;
+            int X  = te_imod(page, ppr16)*64 + bc*16 + cc;
+            int Y  = te_idiv(page, ppr16)*64 + br*8  + cr;
             int wmax6 = int(u_tex_size.x) - 1;
             int h6    = int(u_tex_size.y);
             ivec2 t6 = clamp(ivec2(X, Y), ivec2(0), ivec2(wmax6, h6 - 1));
             if (u_flip_v != 0) t6.y = h6 - 1 - t6.y;    // fmt=3 flip rule
 #ifdef S83_IDXSCALE
             // [S83-IDXSCALE] native -> physical (see fmt=4 note).
-            t6 *= max(textureSize(u_texture, 0).x /
-                          max(int(u_tex_size.x), 1), 1);
+            t6 *= max(te_idiv(textureSize(u_texture, 0).x,
+                              max(int(u_tex_size.x), 1)), 1);
 #endif
             vec4 src = texelFetch(u_texture, t6, 0);
             // CT16 encode pack (fmt=5 precedent): hw16 low/high byte is
@@ -811,7 +825,7 @@ void main() {
     if (u_zsrc_en != 0) {
         ivec2 zdim = textureSize(u_zsrc_tex, 0);
         int zn = max(u_zsrc_num, 1), zd = max(u_zsrc_den, 1);
-        ivec2 zc = clamp(ivec2(gl_FragCoord.xy) * zn / zd, ivec2(0),
+        ivec2 zc = clamp(te_idiv(ivec2(gl_FragCoord.xy) * zn, zd), ivec2(0),
                          zdim - ivec2(1));
         vec4 zpix = texelFetch(u_zsrc_tex, zc, 0);
         vec4 zb = floor(zpix * 255.0 + 0.5);
@@ -966,8 +980,8 @@ void main() {
     if (u_ct16q != 0 && (u_blend_enabled == 0 || u_sw_blend != 0)) {
         ivec3 cq = ivec3(result.rgb * 255.0 + 0.5);
         if (u_dthe != 0) {
-            int nx = (int(gl_FragCoord.x) / u_ct16q) & 3;
-            int ny = (int(gl_FragCoord.y) / u_ct16q) & 3;
+            int nx = te_idiv(int(gl_FragCoord.x), u_ct16q) & 3;
+            int ny = te_idiv(int(gl_FragCoord.y), u_ct16q) & 3;
             int sh = ny * 16 + nx * 4;
             uint w = uint((ny < 2) ? u_dimx_lo : u_dimx_hi);
             int dm = int((w >> uint(sh & 31)) & 7u);
@@ -1128,6 +1142,15 @@ uniform int u_datm;             // census: 0
 uniform int u_zsrc_num;
 uniform int u_zsrc_den;
 
+// integer division by a run-time value (see the PS2 fragment shader's te_idiv)
+#ifndef TE_INT_DIVIDE_IN_FLOAT
+ivec2 te_idiv(ivec2 a, int b) { return a / b; }
+#else
+ivec2 te_idiv(ivec2 a, int b) {
+    return ivec2(int(floor((float(a.x) + 0.5) / float(b))), int(floor((float(a.y) + 0.5) / float(b))));
+}
+#endif
+
 void main() {
     // --- PS2 Destination Alpha Test (generic u_date arm verbatim) ---
     {
@@ -1144,7 +1167,7 @@ void main() {
     if (u_zsrc_en != 0) {
         ivec2 zdim = textureSize(u_zsrc_tex, 0);
         int zn = max(u_zsrc_num, 1), zd = max(u_zsrc_den, 1);
-        ivec2 zc = clamp(ivec2(gl_FragCoord.xy) * zn / zd, ivec2(0),
+        ivec2 zc = clamp(te_idiv(ivec2(gl_FragCoord.xy) * zn, zd), ivec2(0),
                          zdim - ivec2(1));
         vec4 zpix = texelFetch(u_zsrc_tex, zc, 0);
         vec4 zb = floor(zpix * 255.0 + 0.5);

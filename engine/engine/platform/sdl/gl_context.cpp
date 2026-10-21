@@ -37,6 +37,24 @@ void GlContext::RequestAttributes() {
 bool GlContext::Create(Window& window) {
     Destroy();
     if (!window.Handle()) return false;
+#if PS2R_HOST_VITA
+    // The result is only whether the requested size fell back to the display's maximum (vitaGL vgl.c), not success.
+    // No MSAA: the frame target and every PS2 target are plain single-sampled framebuffers.
+    const GLboolean resolution_fallback = vglInitExtended(0, 960, 544, 32 * 1024 * 1024, SCE_GXM_MULTISAMPLE_NONE);
+    std::fprintf(stderr, "[gl] vitaGL ready (resolution fallback: %s)\n", resolution_fallback ? "yes" : "no");
+    std::fflush(stderr);
+    // compile each shader in glCompileShader (a vertex shader then its fragment shader, as GlShaderLibrary builds them),
+    // so a shader Sony's compiler refuses is reported there instead of failing inside glLinkProgram
+    vglSetSemanticBindingMode(VGL_MODE_SHADER_PAIR);
+    // the runtime shader compiler's messages (the GLSL translation and Sony's Cg compiler) into the log
+    shark_install_log_cb([](const char* msg, shark_log_level level, int line) {
+        std::fprintf(stderr, "[gl] shader compiler %s (line %d): %s\n",
+                     level == SHARK_LOG_ERROR ? "error" : level == SHARK_LOG_WARNING ? "warning" : "info", line, msg ? msg : "");
+        std::fflush(stderr);
+    });
+    vita_initialized_ = true;
+    return true;
+#endif
     context_ = SDL_GL_CreateContext(window.Handle());
     if (!context_) {
         std::fprintf(stderr, "[gl] SDL_GL_CreateContext failed: %s\n", SDL_GetError());
@@ -58,30 +76,47 @@ bool GlContext::Create(Window& window) {
     }
 #endif
     SetSwapInterval(0);
+#if !PS2R_HOST_VITA
     const GLubyte* v = glGetString(GL_VERSION);
     const GLubyte* r = glGetString(GL_RENDERER);
     version_ = v ? reinterpret_cast<const char*>(v) : "";
     renderer_ = r ? reinterpret_cast<const char*>(r) : "";
+#endif
     return true;
 }
 
 void GlContext::Destroy() {
+#if PS2R_HOST_VITA
+    vita_initialized_ = false;
+#else
     if (context_) {
         SDL_GL_DeleteContext(static_cast<SDL_GLContext>(context_));
         context_ = nullptr;
     }
+#endif
 }
 
 bool GlContext::MakeCurrent(Window& window) {
+#if PS2R_HOST_VITA
+    (void)window;
+    return vita_initialized_;
+#else
     if (!context_ || !window.Handle()) return false;
     if (SDL_GL_MakeCurrent(window.Handle(), static_cast<SDL_GLContext>(context_)) != 0) {
         std::fprintf(stderr, "[gl] SDL_GL_MakeCurrent failed: %s\n", SDL_GetError());
         return false;
     }
     return true;
+#endif
 }
 
-void GlContext::SetSwapInterval(int interval) { SDL_GL_SetSwapInterval(interval); }
+void GlContext::SetSwapInterval(int interval) {
+#if PS2R_HOST_VITA
+    (void)interval;
+#else
+    SDL_GL_SetSwapInterval(interval);
+#endif
+}
 
 }  // namespace platform
 }  // namespace ps2r

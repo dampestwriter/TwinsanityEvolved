@@ -114,6 +114,12 @@ private:
     void Finish(Completion completion);
     Config config_;
     Snapshot state_;
+    // A present slot's walk of its directory (Inspect) is redone once a second of boundaries while idle, and after anything
+    // this storage changed: the menus poll the slot every frame, and the walk is file-system work on the game thread. An
+    // absent slot is asked again at every poll (that answer costs no walk).
+    static constexpr uint64_t kInspectBoundaries = 60;
+    std::array<uint64_t, 4> inspected_at_{};
+    std::array<bool, 4> inspected_{};
     int32_t last_submit_error_ = 0;
     uint64_t completed_ = 0, committed_ = 0;
 };

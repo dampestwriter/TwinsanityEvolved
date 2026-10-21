@@ -28,7 +28,7 @@
 //        section 1  COMPILER SHIMS   (keyed on the compiler, not the OS; shared)
 //        section 2  HOST API         (the declarations both arms implement; shared)
 //        section 3  WINDOWS ARM      host_windows.cpp  (Windows)
-//        section 4  POSIX ARM        host_posix.cpp    (Linux + macOS)
+//        section 4  POSIX ARM        host_posix.cpp    (Linux + macOS; the Vita's newlib with its __vita__ branches)
 //      A Windows-only or POSIX-only detail belongs in the arm's .cpp, never in a caller.
 //
 // 128-bit: the EE register file is engine/core/types.h's u128/s128 (two 64-bit halves),
@@ -58,6 +58,15 @@
 #define PS2R_GL_HEADER <OpenGL/gl3.h>
 #define PS2R_HOST_MACOS 1
 #define PS2R_HOST_LINUX 0
+#define PS2R_HOST_VITA 0
+#elif defined(__vita__)
+// The PlayStation Vita target (engine/platform/vita/; VitaSDK's arm-vita-eabi GCC over newlib). The GL a Vita build
+// can reach is vitaGL (GL ES 2-class over sceGxm, its GLSL translated to Cg and compiled at run time by Sony's compiler);
+// engine/platform/vita/gl_vita.h adds the texture sizes the Vita's fragment profile cannot query.
+#define PS2R_GL_HEADER "engine/platform/vita/gl_vita.h"
+#define PS2R_HOST_MACOS 0
+#define PS2R_HOST_LINUX 0
+#define PS2R_HOST_VITA 1
 #elif defined(__linux__)
 #ifndef GL_GLEXT_PROTOTYPES
 #define GL_GLEXT_PROTOTYPES 1
@@ -65,6 +74,7 @@
 #define PS2R_GL_HEADER <GL/glcorearb.h>
 #define PS2R_HOST_MACOS 0
 #define PS2R_HOST_LINUX 1
+#define PS2R_HOST_VITA 0
 #elif defined(_WIN32)
 // The Windows target (engine/platform/windows/): opengl32.dll exports GL 1.1 only, so the GL
 // header is the GENERATED loader -- Khronos' glcorearb.h for the types and every entry point the
@@ -74,6 +84,7 @@
 #define PS2R_GL_HEADER "engine/platform/windows/gl_loader.h"
 #define PS2R_HOST_MACOS 0
 #define PS2R_HOST_LINUX 0
+#define PS2R_HOST_VITA 0
 #else
 #error "engine/platform/host: no host target for this operating system (add engine/platform/<target>/)"
 #endif
@@ -267,6 +278,8 @@ SSize FdWrite(int fd, const void* buf, size_t n);
 // so no other thread's seek can land between a seek and this read (the pread guarantee).
 SSize FdPread(int fd, void* buf, size_t n, uint64_t offset);
 int FdSync(int fd);          // fsync / _commit
+// The size in bytes of the file open on fd (fstat / _filelengthi64; 64-bit on every arm, the Vita's too); -1 on failure.
+int64_t FdSize(int fd);
 int FdClose(int fd);
 int FdOfStream(std::FILE* f);   // fileno / _fileno
 // Directory sync: POSIX fsyncs the directory fd after a rename; NTFS has no directory

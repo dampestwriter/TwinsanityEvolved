@@ -151,7 +151,15 @@ bool SaveStorage::Submit(Request request, uint64_t boundary) {
 }
 SaveStorage::Operation SaveStorage::Update(unsigned port, unsigned slot, uint64_t boundary) {
     if (!Busy()) {
-        if (port < 2 && slot < 2) state_.info[port * 2 + slot] = Inspect(port, slot);
+        if (port < 2 && slot < 2) {
+            const unsigned index = port * 2 + slot;
+            if (!inspected_[index] || state_.info[index].type != 2 || boundary < inspected_at_[index] ||
+                boundary - inspected_at_[index] >= kInspectBoundaries) {
+                state_.info[index] = Inspect(port, slot);
+                inspected_[index] = true;
+                inspected_at_[index] = boundary;
+            }
+        }
         return Operation::None;
     }
     // Repeated polls within one boundary do not advance storage time.
@@ -183,6 +191,7 @@ void SaveStorage::Finish(Completion completion) {
     state_.active = Operation::None;
     state_.pending = {};
     state_.progress = 0;
+    inspected_.fill(false);   // the operation may have changed what the slots hold
 }
 std::optional<SaveStorage::Completion> SaveStorage::TakeCompletion() {
     auto completion = std::move(state_.completion);
@@ -363,12 +372,14 @@ int32_t SaveStorage::AtomicWrite(const fs::path& file, const std::vector<uint8_t
 }
 void SaveStorage::SetPresent(unsigned port, unsigned slot, bool present) {
     if (port < 2 && slot < 2) config_.present[port * 2 + slot] = present;
+    inspected_.fill(false);
 }
 void SaveStorage::Reset() {
     const uint64_t generation = state_.generation == UINT64_MAX ? UINT64_MAX : state_.generation + 1;
     state_ = Snapshot{};
     state_.generation = generation;
     last_submit_error_ = 0;
+    inspected_.fill(false);
 }
 bool SaveStorage::CanCheckpoint() const { return !Busy() || !Mutation(state_.pending.operation); }
 std::optional<SaveStorage::Snapshot> SaveStorage::Capture() const {
@@ -434,6 +445,7 @@ bool SaveStorage::Restore(const Snapshot& snapshot, uint64_t new_boundary) {
     state_.generation = generation + 1;
     state_.last_boundary = new_boundary;
     if (state_.completion) state_.completion->generation = state_.generation;
+    inspected_.fill(false);
     return true;
 }
 

@@ -5,7 +5,11 @@
 
 #include <cstdio>
 
+#include "engine/platform/host/platform.h"
 #include "engine/platform/sdl/gl_context.h"
+#if PS2R_HOST_VITA
+#include PS2R_GL_HEADER
+#endif
 
 namespace ps2r {
 namespace platform {
@@ -25,9 +29,18 @@ bool Window::Create(bool headless, int w, int h, const char* title) {
     // video subsystem exists and BEFORE the window is created.
     GlContext::RequestAttributes();
     headless_ = headless;
+#if PS2R_HOST_VITA
+    // SDL's Vita video driver has no OpenGL: a plain window (the screen) for the Vita's own draw arm. It is the whole
+    // 960x544 screen vitaGL draws to -- the present takes its size as the drawable size.
+    (void)w; (void)h;
+    const int cw = 960;
+    const int ch = 544;
+    Uint32 flags = 0;
+#else
     const int cw = headless ? 64 : (w > 0 ? w : 640);
     const int ch = headless ? 64 : (h > 0 ? h : 448);
     Uint32 flags = SDL_WINDOW_OPENGL;
+#endif
     flags |= headless ? SDL_WINDOW_HIDDEN : (SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
     window_ = SDL_CreateWindow(title ? title : "NativeEE", SDL_WINDOWPOS_CENTERED,
                                SDL_WINDOWPOS_CENTERED, cw, ch, flags);
@@ -68,7 +81,11 @@ void Window::Resize(int w, int h) {
 }
 
 void Window::Swap() {
+#if PS2R_HOST_VITA
+    vglSwapBuffers(GL_FALSE);
+#else
     if (window_) SDL_GL_SwapWindow(window_);
+#endif
 }
 
 }  // namespace platform

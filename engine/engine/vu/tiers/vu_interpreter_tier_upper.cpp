@@ -22,7 +22,7 @@ using vu_status::DS;
 using vu_status::I;
 using vu_status::IS;
 
-inline float Fma(float a, float b, float c) { return std::fmaf(a, b, c); }
+inline float Fma(float a, float b, float c) { return VuFloat::Fma(a, b, c); }
 
 // result.k = op(src1.k, scalar) for the four lanes.
 template <typename Op>

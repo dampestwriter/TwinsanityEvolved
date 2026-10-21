@@ -146,6 +146,9 @@ DrawResult GlDrawExecutor::Draw(const gs::DrawIr& ir, const gs::TextureSource& t
     // typed-draw surface's shadow-volume counter); the register program itself never touches
     // the stencil, so the state is set around this one draw and reset after it.
     if (p.stencil_state.enabled) GlDevice::ApplyStencil(p.stencil_state);
+#if PS2R_HOST_VITA
+    st.ApplyVitaSamplerSizes();
+#endif
     glDrawArrays(GL_TRIANGLES, s.first, static_cast<GLsizei>(s.tri_verts));
     if (p.stencil_state.enabled) GlDevice::ResetStencil();
     // Masks return to their open defaults after every draw, so any raw GL pass
@@ -211,6 +214,9 @@ DrawResult GlDrawExecutor::DrawStripCount(const gs::DrawIr& ir, const gs::Textur
     s.first = dev_.Vertices().Upload(scratch_.data(), s.tri_verts);
     st.ColorMask(false, false, false, false);
     GlDevice::ApplyStencil(p.stencil_state);
+#if PS2R_HOST_VITA
+    st.ApplyVitaSamplerSizes();
+#endif
     glDrawArrays(GL_TRIANGLES, s.first, static_cast<GLsizei>(s.tri_verts));
     GlDevice::ResetStencil();
     st.ColorMask(true, true, true, true);
@@ -250,6 +256,9 @@ DrawResult GlDrawExecutor::DrawInvert(const gs::DrawIr& ir, const gs::TextureSou
     dev_.Vertices().BindForDraw(st);
     s.first = dev_.Vertices().Upload(scratch_.data(), s.tri_verts);
     st.ColorMask(true, true, true, true);
+#if PS2R_HOST_VITA
+    st.ApplyVitaSamplerSizes();
+#endif
     glDrawArrays(GL_TRIANGLES, s.first, static_cast<GLsizei>(s.tri_verts));
     st.DepthMask(true);
     return MakeResult(ir, p, s);

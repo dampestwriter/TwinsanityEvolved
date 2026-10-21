@@ -1,7 +1,11 @@
 # engine/platform -- the ONE Platform interface, the ONE host header
 # (host/platform.h) and the target folder this build is for. The OS choice is
 # made HERE and in host/platform.h, nowhere else in the tree (ARCH section 16).
-if(APPLE)
+if(VITA)
+    # VitaSDK's toolchain file (CMAKE_SYSTEM_NAME Generic, VITA set): the PlayStation Vita
+    set(PS2R_HOST_TARGET vita)
+    set(PS2R_HOST_TARGET_SOURCES vita/platform_vita.cpp vita/gl_vita.cpp)
+elseif(APPLE)
     set(PS2R_HOST_TARGET macos)
     set(PS2R_HOST_TARGET_SOURCES macos/platform_macos.cpp)
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -30,6 +34,9 @@ add_library(ps2r_host STATIC platform.cpp)
 if(WIN32)
     target_sources(ps2r_host PRIVATE host/host_windows.cpp)
     target_link_libraries(ps2r_host PUBLIC dbghelp psapi winmm)   # winmm: timeBeginPeriod (RaiseTimerResolution)
+elseif(VITA)
+    target_sources(ps2r_host PRIVATE host/host_posix.cpp vita/fiber_vita.cpp)
+    target_link_libraries(ps2r_host PUBLIC SceIofilemgr_stub SceSysmem_stub SceKernelThreadMgr_stub)
 else()
     target_sources(ps2r_host PRIVATE host/host_posix.cpp posix/fiber_posix.cpp)
 endif()
@@ -43,7 +50,7 @@ target_link_libraries(ps2r_host PUBLIC Threads::Threads)
 add_library(ps2r_platform STATIC
     host/platform.cpp
     ${PS2R_HOST_TARGET_SOURCES})
-if(NOT WIN32)
+if(NOT WIN32 AND NOT VITA)   # the Vita has no signals to catch (the kernel ends the application on a fault)
     target_sources(ps2r_platform PRIVATE posix/crash_handler.cpp)
 endif()
 target_include_directories(ps2r_platform PUBLIC ${CMAKE_SOURCE_DIR})

@@ -20,6 +20,7 @@ void SdlAudioSink::Callback(void* userdata, uint8_t* stream, int len) {
     float* out = reinterpret_cast<float*>(stream);
     const int frames = len / (AudioPullRing::kChannels * static_cast<int>(sizeof(float)));
     self->ring_->Pull(out, frames);
+    if (self->tap_) self->tap_(self->tap_user_, out, frames);
 }
 
 bool SdlAudioSink::Open(const AudioSpec& spec, AudioPullRing& ring) {

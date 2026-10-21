@@ -3,6 +3,7 @@
 #include "games/slus_20909_crash_twinsanity/vu1_library/zero_kick.h"
 
 #include "engine/vu/vu_chop_round_guard.h"
+#include "engine/vu/vu_float.h"
 
 using namespace vu1lib;
 
@@ -260,7 +261,7 @@ bool ZeroKick::RunCCont(const Vu1HleInput& in, Vu1HleOutput& out) {
         u32 raw[4] = {0, 0, 0, 0};
         for (int k = 0; k < 4; ++k)
             if (mask & (8u >> k)) {
-                const float f = std::fmaf(CF(bits2f(W(vfs, k))), bc, CF(bits2f(r.ACC.I[k])));
+                const float f = VuFloat::Fma(CF(bits2f(W(vfs, k))), bc, CF(bits2f(r.ACC.I[k])));
                 raw[k] = f2bits(f);
                 r.ACC.I[k] = f2bits(CF(f));
             }
@@ -272,7 +273,7 @@ bool ZeroKick::RunCCont(const Vu1HleInput& in, Vu1HleOutput& out) {
         u32 raw[4] = {0, 0, 0, 0};
         for (int k = 0; k < 4; ++k)
             if (mask & (8u >> k)) {
-                const float f = std::fmaf(CF(bits2f(W(vfs, k))), bc, CF(bits2f(r.ACC.I[k])));
+                const float f = VuFloat::Fma(CF(bits2f(W(vfs, k))), bc, CF(bits2f(r.ACC.I[k])));
                 raw[k] = f2bits(f);
                 W(vfd, k) = f2bits(CF(f));
             }
@@ -543,7 +544,7 @@ bool ZeroKick::RunACont(const Vu1HleInput& in, Vu1HleOutput& out) {
         u32 raw[4] = {0, 0, 0, 0};
         for (int k = 0; k < 4; ++k)
             if (mask & (8u >> k)) {
-                const float f = std::fmaf(CF(bits2f(W(vfs, k))), bc, CF(bits2f(r.ACC.I[k])));
+                const float f = VuFloat::Fma(CF(bits2f(W(vfs, k))), bc, CF(bits2f(r.ACC.I[k])));
                 raw[k] = f2bits(f);
                 r.ACC.I[k] = f2bits(CF(f));
             }
@@ -554,7 +555,7 @@ bool ZeroKick::RunACont(const Vu1HleInput& in, Vu1HleOutput& out) {
         u32 raw[4] = {0, 0, 0, 0};
         for (int k = 0; k < 4; ++k)
             if (mask & (8u >> k)) {
-                const float f = std::fmaf(CF(bits2f(W(vfs, k))), bc, CF(bits2f(r.ACC.I[k])));
+                const float f = VuFloat::Fma(CF(bits2f(W(vfs, k))), bc, CF(bits2f(r.ACC.I[k])));
                 raw[k] = f2bits(f);
                 W(vfd, k) = f2bits(CF(f));
             }

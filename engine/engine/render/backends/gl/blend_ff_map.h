@@ -16,6 +16,8 @@
 
 #include <cstdint>
 
+#include "engine/platform/host/platform.h"
+
 namespace ps2r {
 namespace render {
 
@@ -25,8 +27,14 @@ constexpr uint32_t kGlZero = 0;
 constexpr uint32_t kGlOne = 1;
 constexpr uint32_t kGlSrcAlpha = 0x0302;
 constexpr uint32_t kGlOneMinusSrcAlpha = 0x0303;
-constexpr uint32_t kGlConstantAlpha = 0x8003;
+constexpr uint32_t kGlConstantAlpha =
+#if PS2R_HOST_VITA
+    kGlSrcAlpha;                       // vitaGL has no constant-colour blend factor
+constexpr uint32_t kGlOneMinusConstantAlpha = kGlOneMinusSrcAlpha;
+#else
+    0x8003;
 constexpr uint32_t kGlOneMinusConstantAlpha = 0x8004;
+#endif
 constexpr uint32_t kGlFuncAdd = 0x8006;
 constexpr uint32_t kGlFuncSubtract = 0x800A;
 constexpr uint32_t kGlFuncReverseSubtract = 0x800B;

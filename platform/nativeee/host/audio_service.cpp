@@ -46,6 +46,15 @@ AudioService::AudioService()
     for (uint32_t group = 0; group < ps2r::sound::AudioMixer::kGroups; ++group) mixer_.SetGroup(group, gain, gain);
     // The clock contract's rule 4: a late game thread is padded with the previous tail, never a gap or a skip.
     ring_->SetPadWithTail(true);
+    // TE_AUDIO_TAP=FILE: every buffer the device plays, appended as raw 48 kHz stereo float (diagnosis: what the speakers
+    // got -- the pads of a late game thread included -- on any platform's device)
+    if (const char* tap = std::getenv("TE_AUDIO_TAP")) {
+        if (FILE* f = std::fopen(tap, "wb")) {
+            sink_->SetTap([](void* user, const float* interleaved, int frames) {
+                std::fwrite(interleaved, sizeof(float) * 2, size_t(frames), static_cast<FILE*>(user));
+            }, f);
+        }
+    }
 }
 
 AudioService::~AudioService() { CloseDevice(); }

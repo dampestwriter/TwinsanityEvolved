@@ -23,7 +23,7 @@ inline uint32_t Le32(const uint8_t* p) {
 }
 inline void StoreLe32(uint8_t* p, uint32_t v) { std::memcpy(p, &v, sizeof(v)); }
 
-inline float Fma(float a, float b, float c) { return std::fmaf(a, b, c); }
+inline float Fma(float a, float b, float c) { return VuFloat::Fma(a, b, c); }
 
 inline VR_reg Clamp4(const VR_reg& v) {
     VR_reg r;

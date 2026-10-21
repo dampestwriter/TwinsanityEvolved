@@ -1,5 +1,6 @@
 #include "games/slus_20909_crash_twinsanity/hle/stream/stream_state.h"
 
+#include <array>
 #include <cstring>
 #include <limits>
 #include <utility>
@@ -215,8 +216,10 @@ bool StreamState::Decode(const std::vector<uint8_t>& bytes, LoaderFileIo::State&
                                         StreamLibrary::FileState{sample != 0, registered != 0}).second)
             return Error(error, "invalid file ownership entry");
     }
-    for (const auto& pair : {std::make_pair(completed, &state.streams.completed_reads),
-                            std::make_pair(audio, &state.streams.audio_reads)}) {
+    // a named array, not a braced list in the range-for: GCC's -Wdangling-reference reads the latter as a temporary
+    const std::array lists{std::make_pair(completed, &state.streams.completed_reads),
+                           std::make_pair(audio, &state.streams.audio_reads)};
+    for (const auto& pair : lists) {
         for (uint32_t i = 0; i < pair.first; ++i) {
             uint32_t object = 0, handle = 0;
             if (!get(object) || !get(handle) || handle > INT32_MAX ||

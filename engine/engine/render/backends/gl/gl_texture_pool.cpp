@@ -17,11 +17,15 @@ uint32_t GlTexturePool::Acquire(int width, int height, bool* storage_idle) {
         Entry& e = entries_[i];
         if (e.w != static_cast<uint16_t>(width) || e.h != static_cast<uint16_t>(height)) continue;
         if (e.fence) {
+#if !PS2R_HOST_VITA
             const GLenum r = glClientWaitSync(static_cast<GLsync>(e.fence), 0, 0);
             if (r == GL_ALREADY_SIGNALED || r == GL_CONDITION_SATISFIED) {
                 glDeleteSync(static_cast<GLsync>(e.fence));
                 e.fence = nullptr;
             }
+#else
+            e.fence = nullptr;
+#endif
         }
         if (!e.fence) {
             found = static_cast<int>(i);
@@ -35,7 +39,9 @@ uint32_t GlTexturePool::Acquire(int width, int height, bool* storage_idle) {
     entries_[static_cast<size_t>(found)] = entries_.back();
     entries_.pop_back();
     bytes_ -= static_cast<uint64_t>(taken.w) * taken.h * 4ull;
+#if !PS2R_HOST_VITA
     if (taken.fence) glDeleteSync(static_cast<GLsync>(taken.fence));
+#endif
     return taken.tex;
 }
 
@@ -49,7 +55,10 @@ void GlTexturePool::Retire(uint32_t tex, int width, int height, GlStateCache& st
     e.tex = tex;
     e.w = static_cast<uint16_t>(width);
     e.h = static_cast<uint16_t>(height);
+    e.fence = nullptr;
+#if !PS2R_HOST_VITA
     e.fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+#endif
     e.retire_seq = ++seq_;
     entries_.push_back(e);
     bytes_ += static_cast<uint64_t>(e.w) * e.h * 4ull;
@@ -58,7 +67,9 @@ void GlTexturePool::Retire(uint32_t tex, int width, int height, GlStateCache& st
         for (size_t i = 1; i < entries_.size(); i++)
             if (entries_[i].retire_seq < entries_[oldest].retire_seq) oldest = i;
         Entry& v = entries_[oldest];
+#if !PS2R_HOST_VITA
         if (v.fence) glDeleteSync(static_cast<GLsync>(v.fence));
+#endif
         st.DeleteTextures(1, &v.tex);
         bytes_ -= static_cast<uint64_t>(v.w) * v.h * 4ull;
         entries_[oldest] = entries_.back();
@@ -68,7 +79,9 @@ void GlTexturePool::Retire(uint32_t tex, int width, int height, GlStateCache& st
 
 void GlTexturePool::DropAll(GlStateCache& st) {
     for (Entry& e : entries_) {
+#if !PS2R_HOST_VITA
         if (e.fence) glDeleteSync(static_cast<GLsync>(e.fence));
+#endif
         st.DeleteTextures(1, &e.tex);
     }
     entries_.clear();

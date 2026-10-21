@@ -8,7 +8,6 @@
 # written as std::fmaf so the setting cannot move a result.
 
 add_library(ps2r_title_vu1_library STATIC
-    qw_ptr.cpp
     library_common.cpp
     clip_gate.cpp
     near_clipper.cpp

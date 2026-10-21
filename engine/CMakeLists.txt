@@ -29,6 +29,10 @@ if(WIN32)
     # defines neither the min/max macros nor the GDI/winsock surface.
     add_compile_definitions(_CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_WARNINGS _USE_MATH_DEFINES
                             NOMINMAX WIN32_LEAN_AND_MEAN)
+elseif(VITA)
+    # newlib (VitaSDK) hides the POSIX names the tree uses (pread, fileno, fseeko, strcasecmp, ...) under the strict
+    # -std=c++17 CMAKE_CXX_EXTENSIONS OFF selects; _GNU_SOURCE opens them for every TU.
+    add_compile_definitions(_GNU_SOURCE)
 endif()
 
 option(PS2R_SIMD "BlockDecode: vectorized (NEON) inner loop, proven byte-identical to the scalar path by tests/gs/format/test_block_decode" OFF)

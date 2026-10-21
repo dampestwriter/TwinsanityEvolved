@@ -2,7 +2,9 @@
 // the materials' reading from guest memory and the GS-valued draw state; graphics_scene.cpp (models, culling, sky, shadows)
 // records its draws through these. Not a public header: platform/nativeee/host only.
 #pragma once
+#include <atomic>
 #include <cstdint>
+#include <functional>
 #include <vector>
 
 #include "engine/platform/ps2e/ps2e_draw.h"
@@ -34,10 +36,13 @@ struct MaterialView {
 // One recorded draw: a triangle list under a GS-valued state, drawn at Present in its bucket's order. `copy_frame`
 // The frame is copied for the screen-copy texture right before this draw (TR WriteScreenCopy at a screen-copy
 // material's packet) -- the draw samples what every draw before it in bucket order left in the frame.
+struct DeferredBuild;
+
 struct Draw {
     ps2e_draw_state state;
     std::vector<ps2e_draw_vertex> verts;
     bool copy_frame = false;
+    DeferredBuild* pending = nullptr;   // a placeholder whose triangles a worker builds (ReserveDeferred); expanded before drawing
     // What the draw IS, for the presenter's interpolation between two pictures (the engine's SceneInterpolator): a rigid
     // object by instance identity with its matrices as drawn, a vertex run paired by identity and part, or the newest
     // picture's draw as it is (untagged). Stamped from the current tag at OpenDraw (SetDrawTag).
@@ -63,6 +68,24 @@ ps2e_draw_state StateOf(const MaterialView& m);
 Draw& OpenDraw(uint32_t bucket, const ps2e_draw_state& state, bool copy_frame = false);
 void CloseDraw(uint32_t bucket);
 void Record(uint32_t bucket, Draw&& d);
+// Builds off the game thread. A model's or a skin's geometry is pure work over host-side data (the decoded parts) and the
+// draw's inputs, so the game thread records a PLACEHOLDER in the bucket where its triangles go -- the state and the tag
+// stamped as OpenDraw would -- and a worker builds them into the placeholder's DeferredBuild, one segment per Append (what
+// each OpenDraw / CloseDraw would have received). Before the frame is drawn every bucket is replayed through OpenDraw's own
+// joining rule with the placeholders' segments in their places, so the draw list is the one the game thread would have
+// recorded building them itself. The job runs under the game thread's floating-point environment (its rounding mode). The
+// parts a job reads must outlive it: whatever releases or reloads them drains the builds first.
+struct DeferredBuild {
+    ps2e_draw_state state{};
+    std::vector<ps2e_draw_vertex> verts;
+    std::vector<uint32_t> segments;   // the vertex count of each Append, in order (whole triangles, at least one)
+    std::atomic<bool> done{false};
+};
+bool DeferringBuilds();   // workers are running (TE_GFX_BUILD_THREADS: their count; 0 builds on the game thread)
+DeferredBuild& ReserveDeferred(uint32_t bucket, const ps2e_draw_state& state);
+void PostBuild(DeferredBuild& build, std::function<void()> job);
+void DrainBuilds();       // every posted build finished
+
 // The tag the next OpenDraw stamps (a producer sets it around its draws and clears it after): a rigid object with its
 // model->world and model->screen matrices (16 floats each, the title's row-vector convention), a vertex run (no matrices),
 // or none. While the presenter interpolates, draws of different tags are not merged into one.

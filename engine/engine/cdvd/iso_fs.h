@@ -44,7 +44,7 @@ public:
     // Opens the image and parses the PVD. False (with *error) when the file is
     // missing or is not an ISO9660 volume.
     bool Open(const std::string& path, std::string* error = nullptr);
-    bool IsOpen() const { return file_ != nullptr; }
+    bool IsOpen() const { return fd_ >= 0; }
     void Close();
 
     // Path lookup from the root, in any of the shapes a title uses:
@@ -78,7 +78,7 @@ private:
     bool FindInDirectory(const Entry& dir, const std::string& component, Entry& out) const;
     static bool IdentifierMatches(const std::string& recorded, const std::string& wanted);
 
-    FILE* file_ = nullptr;
+    int fd_ = -1;   // the host descriptor (engine/platform/host: positioned 64-bit reads on every target)
     uint64_t image_bytes_ = 0;
     uint64_t file_bytes_ = 0;
     uint32_t sector_stride_ = kSectorSize;   // 2048 (plain) or 2352 (raw)

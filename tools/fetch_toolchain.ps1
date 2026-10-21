@@ -99,6 +99,18 @@ $tar = Join-Path $env:SystemRoot "System32\tar.exe"
 if (-not (Test-Path $tar)) { $tar = (Get-Command tar -ErrorAction SilentlyContinue).Source }
 if (-not $tar) { throw "fetch_toolchain.ps1: no tar.exe (Windows 10 1803+ ships bsdtar in System32; or install Git for Windows and put its usr\bin on PATH)" }
 
+# A freshly extracted tree is often still open in an antivirus scan for a few seconds: renaming it then fails with "being
+# used by another process" (and a move across the scan leaves half the files behind). Rename the folder whole, retrying.
+function Move-Folder([string]$from, [string]$to) {
+    for ($try = 1; ; $try++) {
+        try { [System.IO.Directory]::Move($from, $to); return }
+        catch {
+            if ($try -ge 30) { throw "fetch_toolchain.ps1: could not rename $from to $to ($($_.Exception.Message))" }
+            Start-Sleep -Seconds 2
+        }
+    }
+}
+
 function Extract-Tgz([string]$name, [string]$dirName, [string]$probe) {
     $dir = Join-Path $Dest $dirName
     if (-not $Force -and (Test-Path (Join-Path $dir $probe))) { return }
@@ -111,7 +123,7 @@ function Extract-Tgz([string]$name, [string]$dirName, [string]$probe) {
     & $tar -xzf (Join-Path $Dest $name) -C $tmp --strip-components=1
     if ($LASTEXITCODE -ne 0) { throw "fetch_toolchain.ps1: tar failed on $name ($LASTEXITCODE)" }
     if (-not (Test-Path (Join-Path $tmp $probe))) { throw "fetch_toolchain.ps1: $name did not contain $probe after extraction (archive layout changed?)" }
-    Move-Item -Force $tmp $dir
+    Move-Folder $tmp $dir
 }
 
 Extract-Tgz $WasiTgz "wasi-sdk" "bin\clang.exe"
@@ -129,7 +141,7 @@ if ($Force -or -not (Test-Path $libclangProbe)) {
     Copy-Item -Force (Join-Path $Dest $LibclangWhl) $zip
     try { Expand-Archive -Path $zip -DestinationPath $tmp -Force } finally { Remove-Item -Force $zip }
     if (-not (Test-Path (Join-Path $tmp "libclang-$LibclangVersion.data\platlib\clang\cindex.py"))) { throw "fetch_toolchain.ps1: the libclang wheel did not contain clang/cindex.py" }
-    Move-Item -Force $tmp $libclangDir
+    Move-Folder $tmp $libclangDir
 }
 
 # wasm2c.exe loads libcrypto-3-x64.dll: the one from MinGit beside it (Windows looks in the exe's own folder first)

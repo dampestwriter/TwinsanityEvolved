@@ -107,6 +107,11 @@ target_link_libraries(test_vu0_ray_triangle PRIVATE ps2r_private_fixtures ps2r_t
 ps2r_vu_test(test_vu0_particle_view Vu0ParticleView)
 target_link_libraries(test_vu0_particle_view PRIVATE ps2r_private_fixtures ps2r_title_hle)
 
+# Vu0DecalAge: the decal set's AgeDecal micro (entries 0x1C0 / 0x360) on the interpreter over the private micro image
+# pins title::DecalMath bit for bit (hand cases + 20k randomised decals per program); SKIPs without the fixture.
+ps2r_vu_test(test_vu0_decal_age Vu0DecalAge)
+target_link_libraries(test_vu0_decal_age PRIVATE ps2r_private_fixtures ps2r_title_hle)
+
 # VuInterpSmoke: bundle-loop rules on hand-encoded programs (E-bit delay slot
 # + TPC, branch delay slot + the ignored delay-slot branch, I-bit ordering,
 # VF0/VI0 pins, discard_lower / hide_upper, NOP-sled stop, cycle cap, XTOP
