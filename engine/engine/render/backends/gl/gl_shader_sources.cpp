@@ -48,10 +48,46 @@ noperspective out vec3 v_texcoord;
 out vec4 v_color;
 out float v_fog;
 
+#ifdef NATIVE_MESH
+// A native mesh draw (u_native 1): a_position / a_texcoord are the model's position and STQ, transformed here as the
+// title's unclipped strip program does on the CPU -- the screen matrix (rows u_mesh[0..3], row-vector convention), the
+// divide, the 12.4 screen position truncated and the GS origin taken off, Z truncated, S / T (scrolled) and Q divided
+// -- and, lit (u_mesh_lit 1), the lit colour times the ambient plus three directional lights. Each array is one upload.
+layout(location = 4) in vec3 a_normal;
+layout(location = 5) in vec4 a_litcolor;
+layout(location = 6) in float a_q;   // a raw draw's Q (u_native 2: S / T on a_texcoord, their prescale u_uv_mode's)
+uniform int u_native;
+uniform int u_mesh_lit;
+uniform vec4 u_mesh[5];         // the matrix's rows, then the shift: xy the GS origin taken off after the divide, zw the
+                                // UV scroll added before it
+uniform vec4 u_mesh_light[7];   // the three directions, the three colours, the ambient (xyz)
+#endif
+
 void main() {
+    vec3 position = a_position;
+    vec3 texcoord = a_texcoord;
+    vec4 color = a_color;
+#ifdef NATIVE_MESH
+    if (u_native == 1) {
+        vec4 c = u_mesh[3] + u_mesh[0] * a_position.x + u_mesh[1] * a_position.y + u_mesh[2] * a_position.z;
+        float rq = 1.0 / c.w;
+        position = vec3(floor(c.xy * rq) / 16.0 - u_mesh[4].xy, floor(c.z * rq));
+        texcoord = vec3((a_texcoord.xy + u_mesh[4].zw) * rq, a_texcoord.z * rq);
+        // a vertex without a Q reads texel 0 affinely, as the CPU build's vertices do (S, T and Q 0, then Q 1)
+        if (a_texcoord.z == 0.0) texcoord = vec3(0.0, 0.0, 1.0);
+        if (u_mesh_lit == 1) {
+            vec3 lit = u_mesh_light[6].xyz + u_mesh_light[3].xyz * max(0.0, dot(a_normal, u_mesh_light[0].xyz))
+                                           + u_mesh_light[4].xyz * max(0.0, dot(a_normal, u_mesh_light[1].xyz))
+                                           + u_mesh_light[5].xyz * max(0.0, dot(a_normal, u_mesh_light[2].xyz));
+            color = vec4(min(a_litcolor.rgb * lit, vec3(1.0)), a_litcolor.a);
+        }
+    } else if (u_native == 2) {
+        texcoord = vec3(a_texcoord.xy, a_q == 0.0 ? 1.0 : a_q);
+    }
+#endif
     // PS2 screen-space coords to NDC: x in [0, width] -> [-1, 1]
     // Y: [0, height] -> [-1, 1] (PS2 top at GL bottom, scanout flips for display)
-    vec2 ndc = (a_position.xy / u_screen_size) * 2.0 - 1.0;
+    vec2 ndc = (position.xy / u_screen_size) * 2.0 - 1.0;
     // [R112-Z-PRECISION] Z mapping: z_ndc = z/2^31 - 1  =>  window
     // d = 0.5*z_ndc + 0.5 = z/2^32 (Sterbenz-exact viewport transform,
     // default glDepthRange [0,1]). The old mapping (z/(2^32-1), NDC z in
@@ -65,16 +101,22 @@ void main() {
     // exact away from 256-boundaries and both parities are reachable.
     // PCSX2 grounding: tfx_vgs.glsl:43,:86 gl_Position.z = z*exp2(-32)
     // with glClipControl(GL_ZERO_TO_ONE) (GSDeviceOGL.cpp:629,:785) —
-    // macOS GL4.1 lacks clip control, hence the 128-step floor here.
-    float z_ndc = a_position.z / 2147483648.0 - 1.0;
+    // macOS GL4.1 lacks clip control, hence the 128-step floor here; a
+    // context with it (ZERO_TO_ONE_DEPTH) takes z/2^32 as is, every Z24
+    // value exact, so coplanar surfaces keep their order as on the GS.
+#ifdef ZERO_TO_ONE_DEPTH
+    float z_ndc = position.z / 4294967296.0;
+#else
+    float z_ndc = position.z / 2147483648.0 - 1.0;
+#endif
     gl_Position = vec4(ndc, z_ndc, 1.0);
     // [R169-GLRUN] P2.1 raw-attribute UV transform (see uniform docs above).
-    vec3 tc = a_texcoord;
-    if (u_uv_mode == 1)      tc = vec3(a_texcoord.xy * 0.0625, 1.0);
-    else if (u_uv_mode == 2) tc = vec3(a_texcoord.xy * u_uv_scale, a_texcoord.z);
+    vec3 tc = texcoord;
+    if (u_uv_mode == 1)      tc = vec3(texcoord.xy * 0.0625, 1.0);
+    else if (u_uv_mode == 2) tc = vec3(texcoord.xy * u_uv_scale, texcoord.z);
     else if (u_uv_mode == 3) tc = vec3(0.0, 0.0, 1.0);
     v_texcoord = tc;
-    v_color = a_color;
+    v_color = color;
     v_fog = a_fog;
 }
 )GLSL";

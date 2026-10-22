@@ -4,8 +4,15 @@
 #include <cmath>
 #include <cstring>
 
+#include "engine/vu/vu_float.h"
+
 namespace title {
 
+// The Vita: the operations as the CPU does them, unclamped and in its own rounding -- the exact form (operands and
+// results clamped through memory, the VU's rounding) cost the game thread milliseconds a frame there; elsewhere exact.
+#if defined(__vita__)
+class JointMath::Rounding { public: Rounding() {} };
+#else
 class JointMath::Rounding {
 public:
     Rounding() : previous_(std::fegetround()) {
@@ -17,6 +24,7 @@ public:
 private:
     int previous_;
 };
+#endif
 
 float JointMath::Float(uint32_t bits) {
     float result;
@@ -31,6 +39,12 @@ float JointMath::Finite(float value) {
     else if (magnitude < 0x00800000) bits &= 0x80000000;
     return Float(bits);
 }
+#if defined(__vita__)
+float JointMath::Product(float a, float b) { return a * b; }
+float JointMath::Sum(float a, float b) { return a + b; }
+float JointMath::Difference(float a, float b) { return a - b; }
+float JointMath::MultiplyAdd(float a, float b, float sum) { return a * b + sum; }
+#else
 float JointMath::Product(float a, float b) {
     volatile float left = Finite(a), right = Finite(b), result = left * right;
     return Finite(result);
@@ -45,8 +59,10 @@ float JointMath::Difference(float a, float b) {
 }
 float JointMath::MultiplyAdd(float a, float b, float sum) {
     volatile float left = Finite(a), right = Finite(b), accumulated = Finite(sum);
-    return Finite(std::fma(left, right, accumulated));
+    // VuFloat::Fma: std::fma's result (the Vita: its product and sum rounded apart; newlib's fmaf is software)
+    return Finite(::VuFloat::Fma(left, right, accumulated));
 }
+#endif
 float JointMath::Reciprocal(float value) {
     volatile float divisor = Finite(value);
     if (divisor == 0) return Float(std::signbit(divisor) ? 0xff7fffff : 0x7f7fffff);

@@ -99,7 +99,7 @@ void Apply() {
     p.vsync = EffectiveVSync() ? 1 : 0;   // uncapped forces the swap interval off for the session
     p.window_mode = headless ? PS2E_DRAW_WINDOWED : g_settings.fullscreen;
     p.scale = g_settings.scale;
-    p.window_scale = 0;   // the window keeps its size (2x the frame at creation; the player resizes it)
+    p.window_scale = 0;   // the window keeps its size (2x the frame at creation, fitted to the screen; the player resizes it)
     p.texture_filter = g_settings.texture_filter == 0 ? 0 : g_settings.texture_filter == 1 ? 1 : 2;
     gfx::SetPresentation(p);
     gfx::SetFrameRate(g_settings.frame_rate);

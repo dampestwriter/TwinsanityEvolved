@@ -49,6 +49,9 @@ struct Draw {
     ps2r::ps2e::InterpTag tag;
     ps2r::ps2e::InterpTransform transform;
     bool has_transform = false;
+    // a native mesh's draw (RecordMesh): no vertices here, the device transforms the mesh through mesh_params
+    uint32_t mesh = 0;
+    ps2e_draw_mesh_params mesh_params{};
 };
 
 bool EnsureDevice();
@@ -79,6 +82,10 @@ struct DeferredBuild {
     ps2e_draw_state state{};
     std::vector<ps2e_draw_vertex> verts;
     std::vector<uint32_t> segments;   // the vertex count of each Append, in order (whole triangles, at least one)
+    // A build whose segments take one of two states (the shadow volumes' counting up and down): alt_state for the
+    // segments whose flag in `alternate` is set (none when the vector is empty)
+    ps2e_draw_state alt_state{};
+    std::vector<uint8_t> alternate;
     std::atomic<bool> done{false};
 };
 bool DeferringBuilds();   // workers are running (TE_GFX_BUILD_THREADS: their count; 0 builds on the game thread)
@@ -91,6 +98,22 @@ void DrainBuilds();       // every posted build finished
 // or none. While the presenter interpolates, draws of different tags are not merged into one.
 void SetDrawTag(const ps2r::ps2e::InterpTag& tag, const float* world16 = nullptr, const float* screen16 = nullptr);
 void ClearDrawTag();
+// Whether the presenter interpolates: the rigid tags' matrices (a double-precision inverse per instance) only serve it
+bool Interpolating();
+// Native meshes (ps2e_draw_mesh_*): the models' triangles kept on the device, drawn through a matrix. NativeMeshes() is
+// whether they are in use (a device with the native transform; TE_GFX_NATIVE_MESH=0 turns them off). CreateMeshes makes
+// each listed mesh on the drawing thread (0 where the device declines, which turns them off for the session);
+// RecordMesh records one draw in a bucket; RetireMesh destroys one once no frame handed over can still draw it.
+bool NativeMeshes();
+struct MeshRequest {
+    std::vector<ps2e_draw_mesh_vertex> vertices;
+    uint32_t handle = 0;
+};
+void CreateMeshes(std::vector<MeshRequest>& requests);
+void RecordMesh(uint32_t bucket, const ps2e_draw_state& state, uint32_t mesh, const ps2e_draw_mesh_params& params);
+void RetireMesh(uint32_t mesh);
+// graphics_scene.cpp: the meshes the frame's draws asked for, made once per picture (before its hand-over)
+void FlushNativeMeshes();
 // The frame's camera for the interpolator (graphics_scene.cpp: the game's current RenderView's world->camera and
 // camera->screen, and its camera object); false without a view.
 bool CurrentCamera(ps2r::ps2e::InterpCamera& out, uint32_t* camera_object);

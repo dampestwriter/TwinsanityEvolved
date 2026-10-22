@@ -8,6 +8,7 @@
 #include <cstring>
 
 #include "engine/render/backends/gl/gl_state_cache.h"
+#include "engine/render/backend.h"
 
 namespace ps2r {
 namespace render {
@@ -31,6 +32,21 @@ bool GlVertexStream::Init(GlStateCache& st) {
     glVertexAttribPointer(3, 1, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(GpuVertex),
                           reinterpret_cast<void*>(offsetof(GpuVertex, fog)));
     st.BindVertexArray(0);
+#if PS2R_HOST_VITA
+    // the raw layout over the same buffer: S / T on attribute 1 (its Q read from attribute 6), no fog
+    glGenVertexArrays(1, &raw_vao_);
+    st.BindVertexArray(raw_vao_);
+    st.BindArrayBuffer(vbo_);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(RawVertex), reinterpret_cast<void*>(offsetof(RawVertex, x)));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(RawVertex), reinterpret_cast<void*>(offsetof(RawVertex, s)));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(RawVertex), reinterpret_cast<void*>(offsetof(RawVertex, r)));
+    glEnableVertexAttribArray(6);
+    glVertexAttribPointer(6, 1, GL_FLOAT, GL_FALSE, sizeof(RawVertex), reinterpret_cast<void*>(offsetof(RawVertex, q)));
+    st.BindVertexArray(0);
+#endif
     ready_ = false;
     offset_ = 0;
     return vao_ != 0 && vbo_ != 0;
@@ -46,6 +62,7 @@ void GlVertexStream::Shutdown(GlStateCache& st) {
     offset_ = 0;
     if (vbo_) { st.DeleteBuffers(1, &vbo_); vbo_ = 0; }
     if (vao_) { st.DeleteVertexArrays(1, &vao_); vao_ = 0; }
+    if (raw_vao_) { st.DeleteVertexArrays(1, &raw_vao_); raw_vao_ = 0; }
 }
 
 void GlVertexStream::BindForDraw(GlStateCache& st) {
@@ -53,8 +70,16 @@ void GlVertexStream::BindForDraw(GlStateCache& st) {
     st.BindArrayBuffer(vbo_);
 }
 
+void GlVertexStream::BindRawForDraw(GlStateCache& st) {
+    st.BindVertexArray(raw_vao_);
+    st.BindArrayBuffer(vbo_);
+}
+
 int GlVertexStream::Upload(const GpuVertex* verts, size_t n) {
-    const size_t bytes = n * sizeof(GpuVertex);
+    return UploadRaw(verts, n * sizeof(GpuVertex), sizeof(GpuVertex));
+}
+
+int GlVertexStream::UploadRaw(const void* verts, size_t bytes, size_t stride) {
     if (bytes == 0) return 0;
     if (bytes > kRingSize) {
         // A single draw larger than the ring: plain re-specification; the ring
@@ -71,7 +96,8 @@ int GlVertexStream::Upload(const GpuVertex* verts, size_t n) {
         offset_ = 0;
         generation_++;
     }
-    size_t off = (offset_ + 31) & ~static_cast<size_t>(31);
+    // the next multiple of the stride (32-byte records: the next 32-byte boundary, as before)
+    size_t off = (offset_ + stride - 1) / stride * stride;
     if (off + bytes > kRingSize) {
 #if !PS2R_HOST_VITA
         if (fence_) {
@@ -102,7 +128,7 @@ int GlVertexStream::Upload(const GpuVertex* verts, size_t n) {
                         verts);
     }
     offset_ = off + bytes;
-    return static_cast<int>(off / sizeof(GpuVertex));
+    return static_cast<int>(off / stride);
 }
 
 void GlVertexStream::BeginDrawRun() { in_run_ = true; }

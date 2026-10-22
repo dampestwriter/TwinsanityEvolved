@@ -6,9 +6,10 @@
 
 #include <cstdio>
 #include <cstring>
+#include <cstdlib>   // XBISECT
+#include <string>
 #if PS2R_HOST_VITA
 #include <regex>
-#include <string>
 #include <vector>
 #endif
 
@@ -195,6 +196,9 @@ uint32_t GlShaderLibrary::LinkProgram(uint32_t vert, uint32_t frag) {
     glBindAttribLocation(program, 1, "a_texcoord");
     glBindAttribLocation(program, 2, "a_color");
     glBindAttribLocation(program, 3, "a_fog");
+    glBindAttribLocation(program, 4, "a_normal");
+    glBindAttribLocation(program, 5, "a_litcolor");
+    glBindAttribLocation(program, 6, "a_q");
     std::fflush(stderr);
 #endif
     glLinkProgram(program);
@@ -215,7 +219,22 @@ uint32_t GlShaderLibrary::LinkProgram(uint32_t vert, uint32_t frag) {
 
 bool GlShaderLibrary::Build(GlUniformCache& uniforms) {
     Destroy();
-    GLuint vs = CompileShader(GL_VERTEX_SHADER, VertexSource());
+    std::string vertex = VertexSource();
+    std::string defines;
+    if (zero_to_one_depth_) defines += "#define ZERO_TO_ONE_DEPTH 1\n";
+#if PS2R_HOST_VITA
+    // the models' transform on the GPU: the Vita's CPU cannot afford it per vertex
+    if (!std::getenv("TE_X_NO_NMSHADER")) {   // XBISECT
+    native_mesh_ = true;
+    defines += "#define NATIVE_MESH 1\n";
+    }
+#endif
+    if (!defines.empty()) {
+        const size_t version = vertex.find("#version");
+        const size_t line = version == std::string::npos ? std::string::npos : vertex.find('\n', version);
+        if (line != std::string::npos) vertex.insert(line + 1, defines);
+    }
+    GLuint vs = CompileShader(GL_VERTEX_SHADER, vertex.c_str());
     if (!vs) return false;
     GLuint fs = CompileShader(GL_FRAGMENT_SHADER, FragmentSource());
     if (!fs) { glDeleteShader(vs); return false; }
@@ -354,6 +373,10 @@ void GlShaderLibrary::LookupLocations() {
     loc_.tex_size = L("u_tex_size");
     loc_.uv_scale = L("u_uv_scale");
     loc_.uv_mode = L("u_uv_mode");
+    loc_.native = L("u_native");
+    loc_.mesh_lit = L("u_mesh_lit");
+    loc_.mesh = L("u_mesh");
+    loc_.mesh_light = L("u_mesh_light");
     loc_.sw_blend = L("u_sw_blend");
     loc_.rt_sampler = L("u_rt_texture");
     loc_.flip_v = L("u_flip_v");
@@ -403,6 +426,7 @@ void GlShaderLibrary::PrimeUniforms(GlUniformCache& uniforms) {
     uniforms.Set1i(loc_.dthe, 0);
     uniforms.Set1i(loc_.clut_raw, 0);
     uniforms.Set1i(loc_.uv_mode, 0);
+    if (loc_.native >= 0) uniforms.Set1i(loc_.native, 0);
     uniforms.Set1i(loc_.tex_lod_hw, 0);
     uniforms.Set2f(loc_.uv_scale, 1.0f, 1.0f);
     glUseProgram(0);

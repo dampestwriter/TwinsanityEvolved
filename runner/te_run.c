@@ -51,21 +51,31 @@ void te_run_tls_save(void* out) {
     unsigned char* p = (unsigned char*)out;
     memcpy(p, &g_wasm_rt_jmp_buf, sizeof(g_wasm_rt_jmp_buf));
     p += sizeof(g_wasm_rt_jmp_buf);
+#if WASM_RT_STACK_DEPTH_COUNT
     memcpy(p, &wasm_rt_call_stack_depth, sizeof(uint32_t));
     p += sizeof(uint32_t);
     memcpy(p, &wasm_rt_saved_call_stack_depth, sizeof(uint32_t));
+#else
+    memset(p, 0, sizeof(uint32_t) * 2);   // no counters (the Vita: the stack's depth unchecked)
+#endif
 }
 
 void te_run_tls_restore(const void* in) {
     const unsigned char* p = (const unsigned char*)in;
     memcpy(&g_wasm_rt_jmp_buf, p, sizeof(g_wasm_rt_jmp_buf));
     p += sizeof(g_wasm_rt_jmp_buf);
+#if WASM_RT_STACK_DEPTH_COUNT
     memcpy(&wasm_rt_call_stack_depth, p, sizeof(uint32_t));
     p += sizeof(uint32_t);
     memcpy(&wasm_rt_saved_call_stack_depth, p, sizeof(uint32_t));
+#endif
     wasm_rt_set_unwind_target(&g_wasm_rt_jmp_buf);   // the unwind target is a pointer into THIS process's TLS
 }
 
 uint32_t te_run_call_depth(void) {
+#if WASM_RT_STACK_DEPTH_COUNT
     return wasm_rt_call_stack_depth;
+#else
+    return 0;
+#endif
 }

@@ -78,6 +78,10 @@ int ps2e_draw_texture_upload(ps2e_draw* device, uint32_t texture, int x, int y, 
 /* The same with GPU alpha bytes already (0xFF opaque): what the engine's TextureDecoder produces. */
 uint32_t ps2e_draw_texture_create_gpu_alpha(ps2e_draw* device, int width, int height, const void* rgba8);
 void ps2e_draw_texture_destroy(ps2e_draw* device, uint32_t texture);
+/* A texture's levels below the first, as the PS2 kept them (MIPTBP1/2): `count` images of halving size (at least 1x1),
+ * each `max(width >> i, 1) * max(height >> i, 1) * 4` bytes with the device's GPU alpha (as
+ * ps2e_draw_texture_create_gpu_alpha takes them). Replaces any levels the texture had. Returns 1 on success. */
+int ps2e_draw_texture_set_mips(ps2e_draw* device, uint32_t texture, int count, const void* const* levels);
 
 /* ---- a frame ------------------------------------------------------------------------------------------------- */
 typedef struct ps2e_draw_clear {
@@ -130,7 +134,15 @@ typedef struct ps2e_draw_state {
     int stencil;                /* ps2e_draw_stencil: the shadow-volume counter (0 = off) */
     int fba;                    /* FRAME alpha forced: the written alpha's top bit set (an unblended draw; see below) */
     int dest_alpha_test;        /* on a COUNT_UP / COUNT_DOWN draw: TEST.DATE with DATM 0 against the frame's alpha at the clear */
+    /* TEX1's mipmapping over the texture's levels (ps2e_draw_texture_set_mips); all zero = level 0 only */
+    int mip_max_level;          /* TEX1.MXL: the deepest level the draw may use (0 = no mipmapping) */
+    int mip_k;                  /* TEX1.K, signed 7.4 fixed point */
+    int mip_l;                  /* TEX1.L */
+    int mip_minify;             /* TEX1.MMIN with mipmaps: 2..5 (the GS numbering) */
 } ps2e_draw_state;
+
+/* The draw state carries TEX1's mipmapping and the textures their levels (ps2e_draw_texture_set_mips). */
+#define PS2E_DRAW_HAS_MIPS 1
 
 /* The casters' exclusion (shadows.cpp StartShadows). The GS shrank the frame's alpha into the half-size buffer
  * and counted the volume strips only where that alpha's top bit was 0 (DATE, DATM 0): the lit world writes alpha 0x7E
@@ -157,6 +169,36 @@ enum ps2e_draw_stencil { PS2E_DRAW_STENCIL_OFF = 0, PS2E_DRAW_STENCIL_COUNT_UP =
 /* One draw of `count` vertices (a multiple of 3: a triangle list). Returns the number of triangles rasterised, or a
  * negative value when the state or the vertices were refused (nothing drawn). */
 int ps2e_draw_submit(ps2e_draw* device, const ps2e_draw_state* state, const ps2e_draw_vertex* vertices, int count);
+
+/* NATIVE MESHES: a model's triangles kept on the device and drawn through a matrix, the transform to the GS's 12.4 screen,
+ * the divide and the lighting done per vertex by the device (the CPU builds nothing per frame). ps2e_draw_mesh_create
+ * takes a triangle list and returns its handle, or 0 when the backend has no native transform (the producer then builds
+ * the triangles itself and submits them). A mesh is destroyed only once no submitted frame still draws it. */
+#define PS2E_DRAW_HAS_MESH 1
+typedef struct ps2e_draw_mesh_vertex {
+    float x, y, z;              /* the model's space */
+    float s, t, q;              /* the vertex's STQ as the model has it (a draw's UV scroll is added before the divide) */
+    uint8_t r, g, b, a;         /* the colour an unlit draw shows */
+    uint8_t fog, pad[3];        /* 0 */
+    float nx, ny, nz;           /* the normal in the model's space (0 without one: a lit draw then shows the ambient) */
+    uint8_t lr, lg, lb, la;     /* the colour a lit draw lights */
+} ps2e_draw_mesh_vertex;        /* 48 bytes */
+typedef struct ps2e_draw_mesh_params {
+    float screen[16];           /* model -> GS screen (x / y in 12.4 fixed pixels, depth), the title's row-vector
+                                   convention: rows 0..3, position = row3 + x.row0 + y.row1 + z.row2 */
+    float offset[2];            /* the GS origin taken off after the divide (frame pixels) */
+    float scroll[2];            /* added to S and T before the divide */
+    int lit;                    /* colour = lit colour x (ambient + sum colour_i max(0, normal . dir_i)), clamped */
+    float light_dir[3][3];
+    float light_colour[3][3];
+    float ambient[3];
+    float box[4];               /* the draw's screen box (frame pixels x0, y0, x1, y1): the area a blend reading the
+                                   destination copies */
+} ps2e_draw_mesh_params;
+uint32_t ps2e_draw_mesh_create(ps2e_draw* device, const ps2e_draw_mesh_vertex* vertices, int count);
+void ps2e_draw_mesh_destroy(ps2e_draw* device, uint32_t mesh);
+/* One draw of a mesh under `state` (its texture, blend, tests; never the stencil clear). Returns > 0 drawn, < 0 refused. */
+int ps2e_draw_submit_mesh(ps2e_draw* device, const ps2e_draw_state* state, uint32_t mesh, const ps2e_draw_mesh_params* params);
 
 /* The SCREEN COPY (TwinsanityEvolved; TR shaders.cpp WriteScreenCopy / shadersettings.cpp MakeScreenCopySettings): the
  * screen-copy shader types (0x10 / 0x11, and 0x18's distortion) began their material's packet by copying the frame as

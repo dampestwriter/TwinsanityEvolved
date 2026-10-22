@@ -3,10 +3,17 @@
 #include <cfenv>
 #include <cmath>
 #include <cstring>
+
+#include "engine/vu/vu_float.h"
 #include <limits>
 
 namespace title {
 
+// The Vita: the operations as the CPU does them, unclamped and in its own rounding -- the exact form (operands and
+// results clamped through memory, the VU's rounding) cost the game thread milliseconds a frame there; elsewhere exact.
+#if defined(__vita__)
+class CullingMath::Rounding { public: Rounding() {} };
+#else
 class CullingMath::Rounding {
 public:
     Rounding() : previous_(std::fegetround()) {
@@ -18,6 +25,7 @@ public:
 private:
     int previous_;
 };
+#endif
 
 float CullingMath::Finite(float value) {
     uint32_t bits;
@@ -29,6 +37,12 @@ float CullingMath::Finite(float value) {
     return value;
 }
 
+#if defined(__vita__)
+float CullingMath::Product(float a, float b) { return a * b; }
+float CullingMath::Add(float a, float b) { return a + b; }
+float CullingMath::Difference(float a, float b) { return a - b; }
+float CullingMath::MultiplyAdd(float a, float b, float sum) { return a * b + sum; }
+#else
 float CullingMath::Product(float a, float b) {
     volatile float left = Finite(a), right = Finite(b);
     volatile float result = left * right;
@@ -49,8 +63,10 @@ float CullingMath::Difference(float a, float b) {
 
 float CullingMath::MultiplyAdd(float a, float b, float sum) {
     volatile float left = Finite(a), right = Finite(b), accumulated = Finite(sum);
-    return Finite(std::fma(left, right, accumulated));
+    // VuFloat::Fma: std::fma's result (the Vita: its product and sum rounded apart; newlib's fmaf is software)
+    return Finite(::VuFloat::Fma(left, right, accumulated));
 }
+#endif
 
 CullingMath::Vector CullingMath::Transform(const Matrix& basis, const Vector& coordinates) {
     Vector result;

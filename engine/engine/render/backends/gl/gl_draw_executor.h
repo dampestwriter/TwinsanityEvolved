@@ -37,6 +37,15 @@ class GlDrawExecutor {
 public:
     explicit GlDrawExecutor(GlDevice& device);
     DrawResult Draw(const gs::DrawIr& ir, const gs::TextureSource& tex, const DrawParams& p);
+    // A native mesh (GlDevice::DrawMesh): `ir`'s state over the mesh's `count` vertices in `vao`, transformed by the shader
+    DrawResult DrawMesh(const gs::DrawIr& ir, const gs::TextureSource& tex, const DrawParams& p, uint32_t vao, size_t count,
+                        const MeshDrawParams& mp);
+    // A mesh under the last DrawMesh's state, when the caches show nothing moved since (GlDevice::DrawMeshAgain)
+    DrawResult DrawMeshAgain(uint32_t vao, size_t count, const MeshDrawParams& mp);
+    // A raw draw (GlDevice::DrawRaw): the producer's vertices uploaded as they are, read by the raw arrays
+    bool DrawsRaw(const gs::DrawIr& ir, const gs::TextureSource& tex, const DrawParams& p) const;
+    DrawResult DrawRaw(const gs::DrawIr& ir, const gs::TextureSource& tex, const DrawParams& p, const RawVertex* verts,
+                       size_t n, const float* box);
 
     // Pure helpers (unit-testable without a context).
     static uint32_t Fbmsk16From32(uint32_t m);
@@ -102,8 +111,17 @@ private:
     void ColorMaskState(const gs::DrawIr& ir, const Step& s);
     DrawResult MakeResult(const gs::DrawIr& ir, const DrawParams& p, const Step& s) const;
 
+    void MeshUniforms(const MeshDrawParams& mp);
+
     GlDevice& dev_;
     std::vector<GpuVertex> scratch_;
+    // the last mesh draw, while another may take its state: its step, record and parameters, and the caches' counts
+    // after it
+    bool run_valid_ = false;
+    Step run_step_;
+    const gs::DrawIr* run_ir_ = nullptr;
+    DrawParams run_params_;
+    uint64_t run_state_ = 0, run_uniforms_ = 0;
 };
 
 }  // namespace render

@@ -182,6 +182,43 @@ struct ScanoutDesc {
     bool to_window = true;
 };
 
+
+// A native mesh's vertex (Backend::CreateMesh): the model's position and STQ as decoded, the colour an unlit draw shows,
+// the normal and the colour a lit draw lights. The first 32 bytes are GpuVertex's layout (position, STQ, colour, fog).
+struct MeshVertex {
+    float x, y, z;
+    float s, t, q;
+    uint8_t r, g, b, a;
+    uint8_t fog, pad[3];
+    float nx, ny, nz;
+    uint8_t lr, lg, lb, la;
+};
+static_assert(sizeof(MeshVertex) == 48, "MeshVertex is the 48-byte attribute layout");
+
+// One mesh draw's transform (Backend::DrawMesh): model -> GS screen (12.4 fixed x / y, depth; the title's row-vector
+// convention, rows 0..3), the GS origin taken off after the divide, the UV scroll added to S / T before it, and the
+// lighting: colour = lit colour x (ambient + sum colour_i max(0, n . dir_i)), clamped.
+struct MeshDrawParams {
+    float screen[16] = {};
+    float offset[2] = {};
+    float scroll[2] = {};
+    bool lit = false;
+    float light_dir[3][3] = {};
+    float light_colour[3][3] = {};
+    float ambient[3] = {};
+    // the draw's screen box (frame pixels: x0, y0, x1, y1), for the destination copy a shader-side blend reads
+    float box[4] = {};
+};
+
+// A vertex as the producer gives it (Backend::DrawRaw): frame pixels, depth, S and T, the colour, Q (0 = 1)
+struct RawVertex {
+    float x, y, z;
+    float s, t;
+    uint8_t r, g, b, a;
+    float q;
+};
+static_assert(sizeof(RawVertex) == 28, "RawVertex is the 28-byte producer layout");
+
 class Backend {
 public:
     virtual ~Backend() = default;
@@ -199,6 +236,23 @@ public:
     virtual void FinishMipChain(SurfaceId id, int authored_levels, bool synthesize_tail) = 0;
     virtual DrawResult Draw(const gs::DrawIr& ir, const gs::TextureSource& tex,
                             const DrawParams& params) = 0;
+    // Native meshes: a model's triangles kept on the device (MeshVertex, a triangle list) and drawn through a matrix --
+    // the transform, the divide to the GS's 12.4 screen and the lighting done per vertex by the device instead of on
+    // the CPU. CreateMesh returns 0 on a backend without them (the caller then builds the triangles itself); DrawMesh
+    // takes `ir` for the draw's state only (its vertices are not read).
+    virtual uint32_t CreateMesh(const MeshVertex*, size_t) { return 0; }
+    virtual void DestroyMesh(uint32_t) {}
+    virtual DrawResult DrawMesh(const gs::DrawIr&, const gs::TextureSource&, const DrawParams&, uint32_t,
+                                const MeshDrawParams&) { return DrawResult{}; }
+    // Another mesh under the state of the mesh draw just made (nothing drawn or bound since): its transform and its
+    // draw only. drew is false when the device cannot vouch for that state (the caller then makes the full DrawMesh).
+    virtual DrawResult DrawMeshAgain(uint32_t, const MeshDrawParams&) { return DrawResult{}; }
+    // Raw draws: the producer's vertices uploaded as they are (no records, no conversion pass: the device reads Q and
+    // scales S / T itself) for a draw whose texture needs no per-vertex rebase. DrawsRaw says whether this draw may;
+    // DrawRaw takes `ir` for the state only and `box` as the vertices' screen box (x0, y0, x1, y1).
+    virtual bool DrawsRaw(const gs::DrawIr&, const gs::TextureSource&, const DrawParams&) const { return false; }
+    virtual DrawResult DrawRaw(const gs::DrawIr&, const gs::TextureSource&, const DrawParams&, const RawVertex*, size_t,
+                               const float*) { return DrawResult{}; }
     // Stencil-composite primitives. ClearStencil writes `value` to every stencil
     // texel of a DepthStencil24_8 surface. DrawConstQuad rasterises a constant
     // colour over `scissor` (logical texels of the stencil surface) under the

@@ -138,6 +138,11 @@ inline uint16_t VuFloat::MacFlags4(uint32x4_t bits, uint8_t mask) {
 inline float VuFloat::Fma(float a, float b, float c) {
 #if defined(__FMA__) || defined(__ARM_FEATURE_FMA)
     return __builtin_fmaf(a, b, c);
+#elif defined(__vita__)
+    // The Vita's Cortex-A9 has no fused multiply-add: the exact route below is two double-precision operations and a
+    // check per multiply-add, the largest single cost of its geometry. The Vita takes the product and the sum rounded
+    // apart instead (within a unit in the last place of the fused result; the projection keeps 1/16 pixel).
+    return a * b + c;
 #else
     const double r = double(a) * double(b) + double(c);
     uint64_t bits;

@@ -10,6 +10,7 @@
 // (DrawDistortionBlock, the frame copied as their texture) are not drawn yet.
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -331,6 +332,51 @@ void ps2e_graphics_draw_particle_block(ps2e_u32 blockAddress, ps2e_u32 tableAddr
     const float th = textured ? float(1 << m.texture->texture.heightPower) : 1.f;
     const float offX = te::gfx::GsOriginX(), offY = te::gfx::GsOriginY();
     auto& scene = te::gfx::Scene();
+    static const char* const diagPresent = std::getenv("TE_GFX_DIAG_PRESENT");
+    // the counts a worker's blocks reached, folded in here (the census is the game thread's)
+    static std::atomic<uint64_t> deferredTriangles{0}, deferredRefused{0};
+    scene.particle_triangles += deferredTriangles.exchange(0, std::memory_order_relaxed);
+    scene.particle_refused += deferredRefused.exchange(0, std::memory_order_relaxed);
+    if (!diagPresent && te::gfx::DeferringBuilds()) {
+        // the chain's blocks run on a worker: the blocks, the table and the matrix copied as they are now (the game
+        // re-fills the pool next frame); each block one draw, as below
+        std::vector<uint8_t> blocks;
+        for (int guard = 0; guard < 4096 && blockAddress; ++guard) {
+            const uint8_t* block = te::GuestPointer(blockAddress, kParticleBlockBytes);
+            if (!block) break;
+            blocks.insert(blocks.end(), block, block + kParticleBlockBytes);
+            scene.particle_blocks++;
+            uint32_t tag, next;
+            std::memcpy(&tag, block, 4);
+            std::memcpy(&next, block + 4, 4);
+            blockAddress = ((tag >> 28) & 7) == 2 ? next : 0;   // NEXT goes on, RET ends the chain
+        }
+        if (blocks.empty()) return;
+        std::array<float, 16> m16;
+        for (int r = 0; r < 4; ++r)
+            for (int c = 0; c < 4; ++c) m16[size_t(r * 4 + c)] = matrix[r][c];
+        te::gfx::DeferredBuild& build = te::gfx::ReserveDeferred(bucket, state);
+        te::gfx::PostBuild(build, [&build, blocks = std::move(blocks), table = *t, m16, time, offX, offY, tw, th, textured] {
+            thread_local std::vector<std::vector<uint8_t>> kicks;
+            thread_local std::vector<ps2e_draw_vertex> verts;
+            const auto* mat = reinterpret_cast<const float(*)[4]>(m16.data());
+            for (size_t at = 0; at + kParticleBlockBytes <= blocks.size(); at += kParticleBlockBytes) {
+                kicks.clear();
+                if (!RunBlock(blocks.data() + at, table, mat, time, kicks)) {
+                    deferredRefused++;
+                    break;
+                }
+                verts.clear();
+                for (const auto& packet : kicks) te::gfx::LowerPackedPacket(packet, offX, offY, tw, th, textured, verts);
+                const size_t n = verts.size() / 3 * 3;
+                if (!n) continue;
+                build.verts.insert(build.verts.end(), verts.begin(), verts.begin() + std::ptrdiff_t(n));
+                build.segments.push_back(uint32_t(n));
+                deferredTriangles += n / 3;
+            }
+        });
+        return;
+    }
     static std::vector<std::vector<uint8_t>> kicks;
     static std::vector<ps2e_draw_vertex> verts;
     uint32_t address = blockAddress;
@@ -361,7 +407,7 @@ void ps2e_graphics_draw_particle_block(ps2e_u32 blockAddress, ps2e_u32 tableAddr
             te::gfx::CloseDraw(bucket);
             scene.particle_triangles += verts.size() / 3;
         }
-        if (const char* diag = std::getenv("TE_GFX_DIAG_PRESENT")) {
+        if (const char* diag = diagPresent) {
             extern uint64_t te_graphics_presents();
             if (te_graphics_presents() + 1 == uint64_t(std::atol(diag))) {
                 float x0 = 1e9f, y0 = 1e9f, x1 = -1e9f, y1 = -1e9f;

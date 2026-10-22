@@ -12,6 +12,8 @@ void ps2r_vita_TexImage2D(GLenum target, GLint level, GLint internal_format, GLs
                           GLenum format, GLenum type, const void* data);
 // The size of texture `tex`'s level 0 as last defined; false when it was never defined through glTexImage2D.
 bool ps2r_vita_TexSize(uint32_t tex, int* width, int* height);
+// Changes whenever a level-0 image is defined: a size answered under the same generation still holds.
+uint32_t ps2r_vita_TexGeneration();
 
 #ifndef PS2R_GL_VITA_NO_WRAP
 #define glTexImage2D ps2r_vita_TexImage2D

@@ -38,6 +38,9 @@ public:
     static bool RunClipMark0B30(QwPtr m, vu1lib::u32 top);
     // One 0x1720 lit-strip emitter call.
     static bool RunSkinnedLitCall(QwPtr m, vu1lib::u32 node, vu1lib::u32 top, Vu1HleOutput& out);
+    // Its body alone: the strip packet written to the output list in memory, QW1 not rotated, nothing kicked (a caller
+    // that reads the vertices back from memory)
+    static bool RunSkinnedLitBody(QwPtr m, vu1lib::u32 node, vu1lib::u32 top);
     // One 0x1aa0 specular / env-mapped second-material call (pinned image).
     static bool RunSkinEnv1aa0(QwPtr m, vu1lib::u32 node, vu1lib::u32 top, Vu1HleOutput& out);
 };

@@ -302,6 +302,16 @@ bool SkinnedLitStrip::RunClipMark0B30(QwPtr m, u32 top) {
 }
 
 bool SkinnedLitStrip::RunSkinnedLitCall(QwPtr m, u32 node, u32 top, Vu1HleOutput& out) {
+    if (!RunSkinnedLitBody(m, node, top)) return false;
+    const u32 out_base = m.W(1, 0) & 0xFFFF;   // read before the rotation, as the body read it
+    // QW1 MR32 rotation BEFORE the kicks here; node+3 then main, BOTH unconditional.
+    RotateQw1(m);
+    if (!KickAt(m, node + 3, out)) return false;
+    if (!KickAt(m, out_base, out)) return false;
+    return true;
+}
+
+bool SkinnedLitStrip::RunSkinnedLitBody(QwPtr m, u32 node, u32 top) {
     auto load = [&](u32 qw) { return Load(m, qw); };
 
     const V4 payload = load(node + 2);     // LQ vf12, 2(vi14)
@@ -375,11 +385,6 @@ bool SkinnedLitStrip::RunSkinnedLitCall(QwPtr m, u32 node, u32 top, Vu1HleOutput
         m.SetW(st_qw + 2, 2, Ftoi0(f2bits(CF(CF(bits2f(T.b[2])) * Q))));
         m.SetW(st_qw + 2, 3, nrm.b[3]);
     }
-
-    // QW1 MR32 rotation BEFORE the kicks here; node+3 then main, BOTH unconditional.
-    RotateQw1(m);
-    if (!KickAt(m, node + 3, out)) return false;
-    if (!KickAt(m, out_base, out)) return false;
     return true;
 }
 

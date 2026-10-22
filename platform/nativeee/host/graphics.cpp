@@ -38,6 +38,11 @@
 // every picture whatever the setting (there is no pacer clock to interpolate on).
 #include <algorithm>
 #include <atomic>
+#include <type_traits>
+#if defined(__vita__)
+#include <malloc.h>
+#include <psp2/kernel/threadmgr.h>
+#endif
 #include <cfenv>
 #include <chrono>
 #include <cmath>
@@ -167,11 +172,17 @@ struct Gfx {
         ps2r::ps2e::InterpCamera camera;          // the game's camera this picture was drawn with (the interpolator's)
         uint32_t camera_object = 0;               // the game's camera object: another one = a cut
         std::vector<ps2r::ps2e::InterpItem> items; // the picture's draws as the interpolator reads them (built on the render thread)
+        std::vector<uint32_t> retire;              // native meshes retired before this picture: destroyed when its slot is free
     };
     struct RenderThread {
+#if defined(__vita__)
+        static constexpr int kSlots = 3;           // the Vita (no interpolation, a fixed heap): the two pictures kept + the one
+                                                   // the game thread hands over while the newest is drawn
+#else
         static constexpr int kSlots = 5;           // the two pictures the presenter keeps (newest and the one before, for the
                                                    // frames between them) + one frame drawing + up to two queued: a late frame
                                                    // (a swap the window server held, a preempted render thread) is absorbed
+#endif
         std::thread thread;
         std::mutex mutex;
         std::condition_variable wake, done;
@@ -241,9 +252,12 @@ struct Gfx {
     // them alone) -- a paced run's cadence is then unperturbed by the per-present read-back; the other keys log hash 0
     std::vector<uint64_t> harness_keys;
     long dump_from = 0, dump_to = 0;   // TE_GFX_DUMP_FROM / TE_GFX_DUMP_TO: the pictures dumped (every dump_every) lie in [from, to]; 0 = unbounded
+    std::vector<uint32_t> mesh_retired;   // native meshes retired since the last hand-over (RetireMesh)
+    int native_meshes = -1;               // -1 unknown, 0 off (setting or a device without them), 1 on
 } g;
 
 void ExpandDeferred(Gfx::Bucket* buckets, std::vector<std::unique_ptr<DeferredBuild>>& deferred, size_t& used);
+void ExpandBucket(Gfx::Bucket* buckets, int b);
 
 void ReadOptions();
 std::string PresentCensus();
@@ -352,7 +366,12 @@ using Rate = ps2r::ps2e::PresentPacer::Rate;
 // picture, the one before it the previous; the one before that goes back to the game thread.
 void RetainPicture(int slot) {
     auto& rt = g.rt;
-    if (rt.prev >= 0) rt.free.push_back(rt.prev);
+    if (rt.prev >= 0) {
+        // no picture the presenter can still show draws a mesh retired before this one
+        for (uint32_t mesh : rt.slots[rt.prev].retire) ps2e_draw_mesh_destroy(g.dev, mesh);
+        rt.slots[rt.prev].retire.clear();
+        rt.free.push_back(rt.prev);
+    }
     rt.prev = rt.cur;
     rt.cur = slot;
 }
@@ -429,7 +448,11 @@ void RenderLoop() {
                 rt.delay_ms_max = std::max(rt.delay_ms_max, double(rt.delay_ns) / 1e6);
             }
             lock.unlock();
-            ExpandDeferred(f.buckets, f.deferred, f.deferred_used);   // the frame's builds, done by the workers meanwhile
+            // the frame's builds, done by the workers meanwhile: a picture presented as it arrives takes them bucket by
+            // bucket as it submits (SubmitBuckets), the others here
+            static const bool xNoLazy = std::getenv("TE_X_NO_LAZY") != nullptr;   // XBISECT
+            const bool lazy = !xNoLazy && !ps2r::ps2e::PresentPacer::PacedBySlots(rate) && rt.pacer.ShowsPicture(f.picture);
+            if (!lazy) ExpandDeferred(f.buckets, f.deferred, f.deferred_used);
             if (ps2r::ps2e::PresentPacer::PacedBySlots(rate)) {
                 // the cadence is the slot train's: the picture is resolved for a judge's capture only (its hash and dump are
                 // the same at every rate); the slots show it, and the frames between it and the previous one
@@ -440,6 +463,7 @@ void RenderLoop() {
                 // 60 (every picture) and the shown half of 30: the picture presented as it arrives
                 const int64_t now = NowNs();
                 RenderFrame(f, Show::Present);
+                ExpandDeferred(f.buckets, f.deferred, f.deferred_used);   // any left (a picture not sent)
                 if (f.have_edge) NoteLatency(f.edge_ns, now);
             } else {
                 RenderFrame(f, CaptureArmed() ? Show::Capture : Show::None);   // 30: the picture between two shown ones
@@ -516,6 +540,7 @@ void StartRenderThread() {
     rt.thread = std::thread(RenderLoop);
 }
 
+void PrimeThreadSync();
 bool EnsureDevice() {
     ReadOptions();
     if (!g.summary_armed) {
@@ -527,10 +552,13 @@ bool EnsureDevice() {
     ps2e_draw_config cfg{};
     cfg.frame_width = g.display_w;
     cfg.frame_height = g.display_h;
-    cfg.window_width = g.display_w * 2;
+    // twice the frame's lines in the TV's 4:3 (the shape `auto` shows in a window); the window fits it to the screen
     cfg.window_height = g.display_h * 2;
+    cfg.window_width = (cfg.window_height * 4 + 1) / 3;
     cfg.headless = g.headless ? 1 : 0;
     cfg.title = "TwinsanityEvolved";
+    // the threads' locks made before the device's memory is (the Vita: below)
+    PrimeThreadSync();
     // PS2E_DRAW_STENCIL_DIAG=1 (the cryscave flicker diagnosis): the engine logs the stencil's histogram at the shadow bracket's
     // clear and composite. The toggle lives here because the engine reads no environment outside its config loader.
     cfg.stencil_diag = EnvFlag("PS2E_DRAW_STENCIL_DIAG") ? 1 : 0;
@@ -644,6 +672,30 @@ void AlphaPreset(uint32_t preset, ps2e_draw_state& st) {
 }
 
 // The first shader's settings as the draw state (2D: the texture when the shader has one)
+// A decoded texture as a device texture with its levels (on the drawing thread)
+uint32_t CreateTexture(const te::gfx::DecodedTexture& decoded) {
+    const uint32_t handle = ps2e_draw_texture_create_gpu_alpha(g.dev, decoded.width, decoded.height, decoded.rgba.data());
+    static const bool xNoMips = std::getenv("TE_X_NO_MIPS") != nullptr;   // XBISECT
+    if (handle && !decoded.mips.empty() && !xNoMips) {
+        std::vector<const void*> levels;
+        for (const auto& level : decoded.mips) levels.push_back(level.data());
+        ps2e_draw_texture_set_mips(g.dev, handle, int(levels.size()), levels.data());
+    }
+    return handle;
+}
+
+// The shader types whose settings minify through a texture's mips (shadersettings.cpp: the standard styles and the 2D
+// shader's own; the unfiltered ones, the sky and type 0 do not)
+bool MinifiesThroughMips(uint32_t type) {
+    switch (type) {
+        case 0x01: case 0x02: case 0x04: case 0x0D: case 0x14: case 0x15: case 0x16: case 0x17: case 0x19:
+        case 0x1A: case 0x1B: case 0x1E: case 0x1F: case 0x20:
+            return true;
+        default:
+            return false;
+    }
+}
+
 ps2e_draw_state StateOf(const MaterialView& m) {
     ps2e_draw_state st{};
     st.gouraud = 1;
@@ -694,6 +746,16 @@ ps2e_draw_state StateOf(const MaterialView& m) {
         st.tfx = m.texture ? (m.texture->texture.function & 3) : PS2E_DRAW_TFX_MODULATE;
         st.tcc = m.texture ? (m.texture->texture.hasAlpha ? 1 : 0) : 1;
         st.wrap_u = st.wrap_v = PS2E_DRAW_WRAP_REPEAT;
+        // TEX1 as shadersettings.cpp wrote it: a mipmapped texture minifies LINEAR_MIPMAP_NEAREST through its levels
+        // (MXL its last, the shader's K and L, the LOD per pixel from Q) under the standard settings and the 2D
+        // shader's; the unfiltered, sky and type-0 settings minify with the magnifying filter, level 0 only
+        if (m.texture && m.texture->texture.levels > 1 && MinifiesThroughMips(m.shader->type)) {
+            st.mip_max_level = m.texture->texture.levels - 1;
+            st.mip_k = m.shader->lodK;
+            st.mip_l = m.shader->lodL;
+            st.mip_minify = 4;   // GS_TEX_LINEAR_MIPMAP_NEAREST
+            if (m.shader->type == 0x0D) st.linear = 1;   // the 2D shader magnifies linear whatever its settings say
+        }
     }
     return st;
 }
@@ -716,6 +778,7 @@ ps2e_draw_vertex Vertex(float x, float y, float u, float v, uint32_t colour) {
 bool SameState(const ps2e_draw_state& a, const ps2e_draw_state& b) {
     if (a.stencil != b.stencil) return false;
     if (a.fba != b.fba || a.dest_alpha_test != b.dest_alpha_test) return false;
+    if (a.mip_max_level != b.mip_max_level || a.mip_k != b.mip_k || a.mip_l != b.mip_l || a.mip_minify != b.mip_minify) return false;
     return a.texture == b.texture && a.gouraud == b.gouraud && a.depth_test == b.depth_test && a.depth_write == b.depth_write &&
            a.blend == b.blend && a.blend_a == b.blend_a && a.blend_b == b.blend_b && a.blend_c == b.blend_c &&
            a.blend_d == b.blend_d && a.blend_fix == b.blend_fix && a.alpha_test == b.alpha_test &&
@@ -749,6 +812,7 @@ Draw& OpenDraw(uint32_t bucket, const ps2e_draw_state& state, bool copy_frame = 
     d.verts.clear();
     d.copy_frame = copy_frame;
     d.pending = nullptr;
+    d.mesh = 0;
     d.tag = g.tag;
     d.has_transform = g.tag_has_transform;
     if (g.tag_has_transform) d.transform = g.tag_transform;
@@ -790,13 +854,58 @@ void Record(uint32_t bucket, Draw&& d) {
 // ---- the builds off the game thread (graphics_internal.h DeferredBuild) ---------------------------------------------------
 // A few workers (TE_GFX_BUILD_THREADS; by default the logical processors less the game, render and audio threads, from one
 // to four, none on a machine of two) take the posted builds in order.
+// The build pool's lock and its two conditions. On the Vita they are the kernel's lightweight mutex and conditions with
+// their work areas IN the pool (a static, in .bss): vitaGL maps the whole newlib heap into the GPU's view, and Vita3K's
+// tracking of the GPU's pages made the heap page under a pthread mutex unreadable mid-game (the pool's lock faulted at
+// the hub's loading). Elsewhere the standard ones.
+#if defined(__vita__)
+class PoolMutex {
+public:
+    PoolMutex() { sceKernelCreateLwMutex(&work_, "te-build-pool", 0, 0, nullptr); }
+    ~PoolMutex() { sceKernelDeleteLwMutex(&work_); }
+    PoolMutex(const PoolMutex&) = delete;
+    PoolMutex& operator=(const PoolMutex&) = delete;
+    void lock() { sceKernelLockLwMutex(&work_, 1, nullptr); }
+    void unlock() { sceKernelUnlockLwMutex(&work_, 1); }
+    bool try_lock() { return sceKernelTryLockLwMutex(&work_, 1) == 0; }
+    SceKernelLwMutexWork* Work() { return &work_; }
+private:
+    alignas(8) SceKernelLwMutexWork work_;
+};
+class PoolCondition {
+public:
+    explicit PoolCondition(PoolMutex& m) { sceKernelCreateLwCond(&work_, "te-build-pool-cond", 0, m.Work(), nullptr); }
+    ~PoolCondition() { sceKernelDeleteLwCond(&work_); }
+    PoolCondition(const PoolCondition&) = delete;
+    PoolCondition& operator=(const PoolCondition&) = delete;
+    void wait(std::unique_lock<PoolMutex>&) { sceKernelWaitLwCond(&work_, nullptr); }
+    template <typename Pred>
+    void wait(std::unique_lock<PoolMutex>& lock, Pred pred) { while (!pred()) wait(lock); }
+    void wait_for(std::unique_lock<PoolMutex>&, std::chrono::milliseconds ms) {
+        SceUInt32 us = SceUInt32(ms.count() * 1000);
+        sceKernelWaitLwCond(&work_, &us);
+    }
+    void notify_one() { sceKernelSignalLwCond(&work_); }
+    void notify_all() { sceKernelSignalLwCondAll(&work_); }
+private:
+    alignas(8) SceKernelLwCondWork work_;
+};
+#else
+using PoolMutex = std::mutex;
+class PoolCondition : public std::condition_variable {
+public:
+    explicit PoolCondition(PoolMutex&) {}
+};
+#endif
+
 struct BuildPool {
     std::vector<std::thread> threads;
-    std::mutex mutex;
-    std::condition_variable wake, finished;
+    PoolMutex mutex;
+    PoolCondition wake{mutex}, finished{mutex};
     std::deque<std::function<void()>> jobs;
     size_t active = 0;
     bool stop = false, started = false;
+    std::atomic<int64_t> waited_ns{0}, built_ns{0};   // the waiting thread's time in Wait / Drain; the builds' own time
     void Start() {
         started = true;
         int n;
@@ -804,10 +913,12 @@ struct BuildPool {
             n = std::max(0, std::min(8, std::atoi(v)));
         } else {
             int cpus = int(std::thread::hardware_concurrency());
-#if defined(__vita__)
-            if (cpus <= 0) cpus = 3;   // the three cores an application gets (the fourth is the system's)
-#endif
             n = cpus >= 3 ? std::max(1, std::min(4, cpus - 3)) : 0;
+#if defined(__vita__)
+            // the three cores an application gets, shared by the game thread, the render thread and two builders (the
+            // builders take what the other two leave)
+            n = 2;
+#endif
         }
         for (int i = 0; i < n; ++i) threads.emplace_back([this, i] { Run(i); });
         if (n) std::fprintf(stderr, "[te.gfx] geometry builds: %d worker thread%s\n", n, n == 1 ? "" : "s");
@@ -816,7 +927,7 @@ struct BuildPool {
         char name[24];
         std::snprintf(name, sizeof name, "te-build-%d", index);
         if (!std::getenv("TE_NO_QOS")) ps2r::platform::host::PinCurrentThreadInteractive(name, ps2r::platform::host::ThreadRole::Graphics);
-        std::unique_lock<std::mutex> lock(mutex);
+        std::unique_lock<PoolMutex> lock(mutex);
         for (;;) {
             wake.wait(lock, [&] { return stop || !jobs.empty(); });
             if (stop) return;
@@ -824,28 +935,57 @@ struct BuildPool {
             jobs.pop_front();
             ++active;
             lock.unlock();
-            job();
+            Timed(job);
             lock.lock();
             --active;
             finished.notify_all();
         }
     }
+    void Timed(std::function<void()>& job) {
+        const auto t0 = std::chrono::steady_clock::now();
+        job();
+        built_ns.fetch_add(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count(),
+                           std::memory_order_relaxed);
+    }
+    // A thread that needs the builds done runs the queued ones itself rather than sleep while the workers catch up;
+    // it sleeps only once nothing is left to start (or when it may not run them: `help` false). `ready` is checked with
+    // the lock held.
+    template <typename Ready>
+    void HelpUntil(Ready ready, bool help) {
+        const auto t0 = std::chrono::steady_clock::now();
+        std::unique_lock<PoolMutex> lock(mutex);
+        while (!ready()) {
+            if (jobs.empty() || !help) {
+                finished.wait(lock);
+                continue;
+            }
+            std::function<void()> job = std::move(jobs.front());
+            jobs.pop_front();
+            ++active;
+            lock.unlock();
+            Timed(job);
+            lock.lock();
+            --active;
+            finished.notify_all();
+        }
+        waited_ns.fetch_add(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count(),
+                            std::memory_order_relaxed);
+    }
     void Post(std::function<void()> job) {
-        { std::lock_guard<std::mutex> lock(mutex); jobs.push_back(std::move(job)); }
+        { std::lock_guard<PoolMutex> lock(mutex); jobs.push_back(std::move(job)); }
         wake.notify_one();
     }
     void Wait(const DeferredBuild& build) {
         if (build.done.load(std::memory_order_acquire)) return;
-        std::unique_lock<std::mutex> lock(mutex);
-        finished.wait(lock, [&] { return build.done.load(std::memory_order_acquire); });
+        // the render thread only waits: a build run deep in its frame's call chain outgrew a console thread's stack
+        HelpUntil([&] { return build.done.load(std::memory_order_acquire); }, !OnRenderThread());
     }
     void Drain() {
         if (threads.empty()) return;
-        std::unique_lock<std::mutex> lock(mutex);
-        finished.wait(lock, [&] { return jobs.empty() && active == 0; });
+        HelpUntil([&] { return jobs.empty() && active == 0; }, !OnRenderThread());
     }
     ~BuildPool() {
-        { std::lock_guard<std::mutex> lock(mutex); stop = true; }
+        { std::lock_guard<PoolMutex> lock(mutex); stop = true; }
         wake.notify_all();
         for (auto& t : threads) t.join();
     }
@@ -854,6 +994,23 @@ BuildPool& Builds() {
     static BuildPool pool;
     if (!pool.started) pool.Start();
     return pool;
+}
+// The Vita's pthread locks are made at their first use (a small allocation behind each). Made after vitaGL has set up
+// its memory, one can land beside memory the GPU reads, where Vita3K's tracking of the GPU's pages fails the lock's
+// exclusive store (the build pool's mutex did, mid-game). The render and build threads' locks are therefore used once
+// here, before the device exists; elsewhere this costs a lock and a few notifies.
+void PrimeThreadSync() {
+    const auto prime = [](auto& m, auto& a, auto& b) {
+        std::unique_lock<std::remove_reference_t<decltype(m)>> lock(m);
+        a.wait_for(lock, std::chrono::milliseconds(0));
+        b.wait_for(lock, std::chrono::milliseconds(0));
+        lock.unlock();
+        a.notify_all();
+        b.notify_all();
+    };
+    BuildPool& pool = Builds();
+    prime(pool.mutex, pool.wake, pool.finished);
+    prime(g.rt.mutex, g.rt.wake, g.rt.done);
 }
 
 bool DeferringBuilds() { return !Builds().threads.empty(); }
@@ -865,6 +1022,7 @@ DeferredBuild& ReserveDeferred(uint32_t bucket, const ps2e_draw_state& state) {
     d.state = state;
     d.verts.clear();
     d.copy_frame = false;
+    d.mesh = 0;
     d.tag = g.tag;
     d.has_transform = g.tag_has_transform;
     if (g.tag_has_transform) d.transform = g.tag_transform;
@@ -873,6 +1031,7 @@ DeferredBuild& ReserveDeferred(uint32_t bucket, const ps2e_draw_state& state) {
     build.state = state;
     build.verts.clear();
     build.segments.clear();
+    build.alternate.clear();
     build.done.store(false, std::memory_order_relaxed);
     d.pending = &build;
     return build;
@@ -888,7 +1047,7 @@ void PostBuild(DeferredBuild& build, std::function<void()> job) {
         std::fesetenv(&env);
         job();
         std::fesetenv(&saved);
-        { std::lock_guard<std::mutex> lock(pool.mutex); build.done.store(true, std::memory_order_release); }
+        { std::lock_guard<PoolMutex> lock(pool.mutex); build.done.store(true, std::memory_order_release); }
         pool.finished.notify_all();
     });
 }
@@ -912,21 +1071,27 @@ Draw& NextDraw(Gfx::Bucket& out) {
 // list the game thread would have recorded building them itself); waits for the frame's builds
 void ExpandDeferred(Gfx::Bucket* buckets, std::vector<std::unique_ptr<DeferredBuild>>& deferred, size_t& used) {
     if (!used) return;
+    for (int b = 0; b < TE_GFX_BUCKET_COUNT; ++b) ExpandBucket(buckets, b);
     for (size_t i = 0; i < used; ++i) Builds().Wait(*deferred[i]);
     used = 0;
+}
+
+// One bucket's placeholders replaced by their builds' draws, each build waited for as it is reached (the drawing thread
+// draws a bucket whose builds are done while the workers finish the next one's)
+void ExpandBucket(Gfx::Bucket* buckets, int b) {
     const bool interp = g.interp_active.load(std::memory_order_relaxed);
     thread_local Gfx::Bucket scratch[TE_GFX_BUCKET_COUNT];   // each bucket's own: storage does not wander between buckets
-    for (int b = 0; b < TE_GFX_BUCKET_COUNT; ++b) {
+    {
         Gfx::Bucket& in = buckets[b];
         Gfx::Bucket& out = scratch[b];
         bool any = false;
         for (size_t i = 0; i < in.used && !any; ++i) any = in.draws[i].pending != nullptr;
-        if (!any) continue;
+        if (!any) return;
         out.used = 0;
         for (size_t i = 0; i < in.used; ++i) {
             Draw& d = in.draws[i];
             if (!d.pending) {
-                if (Joins(out, d.state, d.copy_frame, d.tag, interp)) {
+                if (!d.mesh && Joins(out, d.state, d.copy_frame, d.tag, interp)) {
                     Draw& last = out.draws[out.used - 1];
                     last.verts.insert(last.verts.end(), d.verts.begin(), d.verts.end());
                 } else {
@@ -935,16 +1100,19 @@ void ExpandDeferred(Gfx::Bucket* buckets, std::vector<std::unique_ptr<DeferredBu
                 continue;
             }
             const DeferredBuild& build = *d.pending;
+            Builds().Wait(build);
             size_t at = 0;
-            for (const uint32_t count : build.segments) {
+            for (size_t k = 0; k < build.segments.size(); ++k) {
+                const uint32_t count = build.segments[k];
+                const ps2e_draw_state& state = k < build.alternate.size() && build.alternate[k] ? build.alt_state : build.state;
                 const auto first = build.verts.begin() + std::ptrdiff_t(at), end = first + std::ptrdiff_t(count);
                 at += count;
-                if (Joins(out, build.state, false, d.tag, interp)) {
+                if (Joins(out, state, false, d.tag, interp)) {
                     Draw& last = out.draws[out.used - 1];
                     last.verts.insert(last.verts.end(), first, end);
                 } else {
                     Draw& o = NextDraw(out);
-                    o.state = build.state;
+                    o.state = state;
                     o.verts.assign(first, end);
                     o.copy_frame = false;
                     o.pending = nullptr;
@@ -961,12 +1129,21 @@ void ExpandDeferred(Gfx::Bucket* buckets, std::vector<std::unique_ptr<DeferredBu
 }
 
 // A quad of GS-pixel corners (the GS origin taken off) as two triangles
+// A sprite showing a whole texture along an axis samples it clamped there: drawn above the PS2's resolution its edge pixels
+// fall between texels, and a repeating texture's filter then mixes in the opposite edge -- the lines between the tiles of
+// the loading pictures. At the native resolution a pixel's centre is a texel's and the clamp changes nothing.
+void ClampWholeTexture(ps2e_draw_state& st, float u0, float v0, float u1, float v1) {
+    if (std::min(u0, u1) == 0.f && std::max(u0, u1) == 1.f) st.wrap_u = PS2E_DRAW_WRAP_CLAMP;
+    if (std::min(v0, v1) == 0.f && std::max(v0, v1) == 1.f) st.wrap_v = PS2E_DRAW_WRAP_CLAMP;
+}
+
 void RecordQuad(uint32_t bucket, const ps2e_draw_state& st, float gx0, float gy0, float gx1, float gy1, float u0, float v0,
                 float u1, float v1, uint32_t colour) {
     const float ox = GsOriginX(), oy = GsOriginY();
     const float x0 = gx0 - ox, y0 = gy0 - oy, x1 = gx1 - ox, y1 = gy1 - oy;
     Draw d;
     d.state = st;
+    ClampWholeTexture(d.state, u0, v0, u1, v1);
     d.verts = {Vertex(x0, y0, u0, v0, colour), Vertex(x1, y0, u1, v0, colour), Vertex(x0, y1, u0, v1, colour),
                Vertex(x1, y0, u1, v0, colour), Vertex(x1, y1, u1, v1, colour), Vertex(x0, y1, u0, v1, colour)};
     ::Record(bucket, std::move(d));
@@ -1094,7 +1271,25 @@ uint64_t SubmitBuckets(Gfx::Bucket* buckets, int screen_w, int screen_h, bool co
     }
     const bool diag = count_as_picture && diagPresent >= 0 && g.pictures.load() + 1 == uint64_t(diagPresent);
     long submitIndex = 0;
+    static long xLogFrom = -2, xLogTo = -1;   // XBISECT: TE_X_DRAWLOG=A,B lists every draw of pictures A..B
+    if (xLogFrom == -2) {
+        xLogFrom = -1;
+        if (const char* v = std::getenv("TE_X_DRAWLOG")) { xLogFrom = std::atol(v); const char* c = std::strchr(v, ','); xLogTo = c ? std::atol(c + 1) : xLogFrom; }
+    }
+    const long xPic = long(g.pictures.load()) + 1;
+    const bool xLog = count_as_picture && xLogFrom >= 0 && xPic >= xLogFrom && xPic <= xLogTo;
     for (int b = 0; b < TE_GFX_BUCKET_COUNT; ++b) {
+        ExpandBucket(buckets, b);   // its builds, when the picture came with them still running
+        if (xLog) {
+            for (size_t i = 0; i < buckets[b].used; ++i) {
+                const Draw& d = buckets[b].draws[i];
+                float x0 = 1e9f, y0 = 1e9f, x1 = -1e9f, y1 = -1e9f;
+                for (const auto& v : d.verts) { x0 = std::min(x0, v.x); y0 = std::min(y0, v.y); x1 = std::max(x1, v.x); y1 = std::max(y1, v.y); }
+                std::fprintf(stderr, "XD %ld %d %u t%u bl%d(%d%d%d%d) zt%d zw%d at%d m%u v%u box %.0f %.0f %.0f %.0f\n", xPic, b, unsigned(i), d.state.texture, d.state.blend,
+                             d.state.blend_a, d.state.blend_b, d.state.blend_c, d.state.blend_d, d.state.depth_test, d.state.depth_write, d.state.alpha_test,
+                             d.mesh, unsigned(d.verts.size()), x0, y0, x1, y1);
+            }
+        }
         for (size_t i = 0; i < buckets[b].used; ++i) {
             const Draw& d = buckets[b].draws[i];
             if (diag) {
@@ -1116,6 +1311,10 @@ uint64_t SubmitBuckets(Gfx::Bucket* buckets, int screen_w, int screen_h, bool co
             submitIndex++;
             if (diag && diagStop >= 0 && submitIndex > diagStop) continue;
             if (d.copy_frame) ps2e_draw_copy_frame(g.dev);   // the screen copy this draw samples
+            if (d.mesh) {
+                if (ps2e_draw_submit_mesh(g.dev, &d.state, d.mesh, &d.mesh_params) < 0) g.dropped_draws++;
+                continue;
+            }
             if (ps2e_draw_submit(g.dev, &d.state, d.verts.data(), int(d.verts.size())) < 0) g.dropped_draws++;
             triangles += d.verts.size() / 3;
         }
@@ -1124,13 +1323,64 @@ uint64_t SubmitBuckets(Gfx::Bucket* buckets, int screen_w, int screen_h, bool co
     return submitted;
 }
 
-// A shown frame's bookkeeping: the count, the periodic summary
+// The pace over the presents since the last summary: the rate they were shown at, the longest gap between two of them
+// and how many gaps were longer than a 60 Hz field (the running average from the first present hides a slow stretch)
+struct Pace {
+    Steady::time_point start, last;
+    uint64_t frames = 0, slow = 0;
+    double longest_ms = 0, submit_ms = 0, present_ms = 0;
+    int64_t waited_ns = 0, built_ns = 0;   // the build pool's counters at the window's start
+};
+Pace g_pace;
+
+void NotePace(uint64_t presents) {
+    const auto now = Steady::now();
+    BuildPool& pool = Builds();
+    if (g_pace.frames == 0) {
+        g_pace.start = g_pace.last = now;
+        g_pace.waited_ns = pool.waited_ns.load(std::memory_order_relaxed);
+        g_pace.built_ns = pool.built_ns.load(std::memory_order_relaxed);
+    } else {
+        const double gap = std::chrono::duration<double, std::milli>(now - g_pace.last).count();
+        g_pace.longest_ms = std::max(g_pace.longest_ms, gap);
+        if (gap > 1000.0 / 60.0 + 1.0) ++g_pace.slow;
+        g_pace.last = now;
+        g_pace.submit_ms += g.last_submit_ms;
+        g_pace.present_ms += g.last_present_ms;
+    }
+    ++g_pace.frames;
+    if (g.summary_every > 0 && presents % uint64_t(g.summary_every) == 0 && g_pace.frames > 1) {
+        const double s = std::chrono::duration<double>(g_pace.last - g_pace.start).count();
+        const double gaps = double(g_pace.frames - 1);
+        const double frame_ms = s * 1000.0 / gaps;
+        // the frame's time on the drawing thread: the draws' submission, the present (the GPU's finish + the swap); the
+        // rest is the game's own (and, synchronous, the window pump and the pacing park). The geometry builds: their own
+        // time on every thread together, and the drawing / game thread's time on them (helping or waiting)
+        const double built = double(pool.built_ns.load(std::memory_order_relaxed) - g_pace.built_ns) / 1e6 / gaps;
+#if defined(__vita__)
+        // the newlib heap (the Vita's fixed block): in use and the most it has reached
+        const struct mallinfo heap = mallinfo();
+        std::fprintf(stderr, "[te.gfx] heap: %.1f MB in use, %.1f MB reached\n", heap.uordblks / 1048576.0, heap.arena / 1048576.0);
+#endif
+        const double waited = double(pool.waited_ns.load(std::memory_order_relaxed) - g_pace.waited_ns) / 1e6 / gaps;
+        std::fprintf(stderr, "[te.gfx] pace: presents %llu-%llu at %.1f fps, longest gap %.1f ms, %llu of %llu gaps over a field; "
+                     "a frame %.2f ms = submit %.2f + present %.2f + the rest %.2f; builds %.2f ms (waited on %.2f)\n",
+                     (unsigned long long)(presents - g_pace.frames + 1), (unsigned long long)presents,
+                     s > 0 ? gaps / s : 0.0, g_pace.longest_ms, (unsigned long long)g_pace.slow,
+                     (unsigned long long)(g_pace.frames - 1), frame_ms, g_pace.submit_ms / gaps, g_pace.present_ms / gaps,
+                     std::max(0.0, frame_ms - (g_pace.submit_ms + g_pace.present_ms) / gaps), built, waited);
+        g_pace = Pace{};
+    }
+}
+
+// A shown frame's bookkeeping: the count, the pace, the periodic summary
 void NotePresented() {
     const uint64_t presents = ++g.presents;
     if (!g.have_first_present) {
         g.have_first_present = true;
         g.first_present = Steady::now();
     }
+    NotePace(presents);
     // The runner's --run-seconds watchdog leaves with _exit (no atexit): a periodic summary keeps the counts visible
     if (g.summary_every > 0 && presents % uint64_t(g.summary_every) == 0) Summary();
 }
@@ -1392,6 +1642,7 @@ void PresentFrame(bool send) {
     auto& rt = g.rt;
     // The harness leg's key: the boundary this present precedes (read on the game thread, before any hand-over)
     const uint64_t harness_key = te::Services::Get().clock().BoundaryCount() + 1;
+    te::gfx::FlushNativeMeshes();   // the meshes this picture's models asked for, ready for the next picture's draws
     if (rt.started) {
         const auto t0 = Steady::now();
         {
@@ -1412,6 +1663,8 @@ void PresentFrame(bool send) {
             }
             std::swap(g.deferred, f.deferred);
             std::swap(g.deferred_used, f.deferred_used);
+            f.retire.insert(f.retire.end(), g.mesh_retired.begin(), g.mesh_retired.end());
+            g.mesh_retired.clear();
             f.send = send;
             f.screen_w = ScreenW();
             f.screen_h = ScreenH();
@@ -1447,6 +1700,8 @@ void PresentFrame(bool send) {
         sync.picture = 0;
         ExpandDeferred(sync.buckets, g.deferred, g.deferred_used);
         RenderFrame(sync, Show::Present);
+        for (uint32_t mesh : g.mesh_retired) ps2e_draw_mesh_destroy(g.dev, mesh);   // drawn for the last time just now
+        g.mesh_retired.clear();
         for (int b = 0; b < TE_GFX_BUCKET_COUNT; ++b) {
             std::swap(g.buckets[b].draws, sync.buckets[b].draws);
             std::swap(g.buckets[b].used, sync.buckets[b].used);
@@ -1495,6 +1750,42 @@ MaterialView ShaderView(const MaterialView& m, uint32_t k) { return ::ShaderView
 void CloseDraw(uint32_t bucket) { ::CloseDraw(bucket); }
 void SetDrawTag(const ps2r::ps2e::InterpTag& tag, const float* world16, const float* screen16) { ::SetDrawTag(tag, world16, screen16); }
 void ClearDrawTag() { ::ClearDrawTag(); }
+bool Interpolating() { return g.interp_active.load(std::memory_order_relaxed); }
+bool NativeMeshes() {
+    if (g.native_meshes < 0) {
+        const char* v = std::getenv("TE_GFX_NATIVE_MESH");
+        g.native_meshes = (v && v[0] == '0') ? 0 : 1;
+    }
+    return g.native_meshes == 1;
+}
+void CreateMeshes(std::vector<MeshRequest>& requests) {
+    if (requests.empty() || !::EnsureDevice()) return;
+    bool declined = false;
+    OnRender([&] {
+        for (MeshRequest& r : requests) {
+            r.handle = ps2e_draw_mesh_create(g.dev, r.vertices.data(), int(r.vertices.size()));
+            if (!r.handle && r.vertices.size() >= 3) declined = true;
+        }
+    });
+    if (declined) g.native_meshes = 0;   // a device without the native transform: the CPU builds from here on
+}
+void RecordMesh(uint32_t bucket, const ps2e_draw_state& state, uint32_t mesh, const ps2e_draw_mesh_params& params) {
+    auto& b = g.buckets[bucket < TE_GFX_BUCKET_COUNT ? bucket : TE_GFX_BUCKET_UI];
+    g.draws++;
+    if (b.used == b.draws.size()) b.draws.emplace_back();
+    Draw& d = b.draws[b.used++];
+    d.state = state;
+    d.verts.clear();
+    d.copy_frame = false;
+    d.pending = nullptr;
+    d.tag = g.tag;
+    d.has_transform = false;
+    d.mesh = mesh;
+    d.mesh_params = params;
+}
+void RetireMesh(uint32_t mesh) {
+    if (mesh) g.mesh_retired.push_back(mesh);
+}
 void Record(uint32_t bucket, Draw&& d) { ::Record(bucket, std::move(d)); }
 bool DeferringBuilds() { return ::DeferringBuilds(); }
 DeferredBuild& ReserveDeferred(uint32_t bucket, const ps2e_draw_state& state) { return ::ReserveDeferred(bucket, state); }
@@ -1613,7 +1904,7 @@ void RegisterStateSection() {
                         continue;
                     }
                     uint32_t handle = 0;
-                    OnRender([&] { handle = ps2e_draw_texture_create_gpu_alpha(g.dev, decoded.width, decoded.height, decoded.rgba.data()); });
+                    OnRender([&] { handle = CreateTexture(decoded); });
                     if (!handle) continue;
                     g.textures[address] = handle;
                     g.texture_sources[address] = std::move(source);
@@ -1819,6 +2110,7 @@ void ps2e_graphics_draw_turned_sprite(ps2e_u32 material, ps2e_s32 colour, ps2e_u
     g.turned_sprites++;
     Draw d;
     d.state = ::StateOf(m);
+    ClampWholeTexture(d.state, t->x, t->y, t->x + t->width, t->y + t->height);
     d.verts = {v[0], v[1], v[2], v[1], v[3], v[2]};   // the strip 0 1 2 3 as triangles
     ::Record(m.bucket, std::move(d));
 }
@@ -1937,7 +2229,7 @@ ps2e_s32 ps2e_gfx2_texture_loaded(ps2e_u32 texture, ps2e_u32 header, ps2e_u32 im
         }
     }
     uint32_t handle = 0;
-    OnRender([&] { handle = ps2e_draw_texture_create_gpu_alpha(g.dev, decoded.width, decoded.height, decoded.rgba.data()); });
+    OnRender([&] { handle = CreateTexture(decoded); });
     if (!handle) return 0;
     g.textures[texture] = handle;
     g.texture_sources[texture] = Gfx::TextureSource{*h, std::vector<uint8_t>(bytes, bytes + size)};

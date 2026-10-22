@@ -246,11 +246,19 @@ math(EXPR last "${TE_W2C_PARTS} - 1")
 foreach(i RANGE 0 ${last})
     list(APPEND TE_W2C_SOURCES "${TE_W2C}/game_${i}.c")
 endforeach()
+# The Vita lane compiles the loads and stores unchecked (below): its header carries the switch
+set(TE_W2C_UNCHECKED_STEP)
+set(TE_W2C_UNCHECKED_DEP)
+if(TE_VITA)
+    set(TE_W2C_UNCHECKED_STEP COMMAND ${Python3_EXECUTABLE} "${TE_TOOLS}/w2c_unchecked.py" "${TE_W2C}/game-impl.h")
+    set(TE_W2C_UNCHECKED_DEP "${TE_TOOLS}/w2c_unchecked.py")
+endif()
 add_custom_command(OUTPUT ${TE_W2C_SOURCES} "${TE_W2C}/game.h" "${TE_W2C}/game-impl.h"
     COMMAND "${TE_WABT}/bin/wasm2c" "${TE_WASM}/game.wasm" -o "${TE_W2C}/game.c" --module-name=game --num-outputs=${TE_W2C_PARTS}
     COMMAND ${Python3_EXECUTABLE} "${TE_TOOLS}/w2c_diag.py" "${TE_W2C}/game-impl.h" --adapt-header "${TE_GEN}/eabi_adapt.h"
     COMMAND ${Python3_EXECUTABLE} "${TE_TOOLS}/w2c_sigfix.py" "${TE_W2C}/game-impl.h" ${TE_W2C_SOURCES} --json "${TE_W2C}/sigfix.json"
-    DEPENDS "${TE_WASM}/game.wasm" "${TE_TOOLS}/w2c_diag.py" "${TE_TOOLS}/w2c_sigfix.py"
+    ${TE_W2C_UNCHECKED_STEP}
+    DEPENDS "${TE_WASM}/game.wasm" "${TE_TOOLS}/w2c_diag.py" "${TE_TOOLS}/w2c_sigfix.py" ${TE_W2C_UNCHECKED_DEP}
     COMMENT "wasm2c game.wasm (+ call_indirect type-adapter fallback + direct-call signature adapters)")
 add_custom_command(OUTPUT "${TE_GEN}/vtable/vtable_slots_host.c" "${TE_GEN}/vtable/vtable_slots_host.json"
     COMMAND ${Python3_EXECUTABLE} "${TE_TOOLS}/gen_vtable_thunks.py" --tsv "${TE_TOOLS}/vtable_slots.tsv"
@@ -277,14 +285,27 @@ add_library(tegame STATIC
     "${TE_GEN}/retail_functions_host.c")
 target_include_directories(tegame PUBLIC "${TE_W2C}" "${TE_WABT}/include" "${TE_WASM_RT}" "${TE_GEN}/seam" "${TE_GEN}")
 # Software bounds checks: the memory is the engine's array (no guard-page mmap). One thread, no WASI.
+# The Vita runs the module unchecked: on its 32-bit CPU every check is a 64-bit add and compare against the size read
+# from memory, on every load and store, which costs the game a large share of its frame; an access outside the 32 MB the
+# retail game was written for faults the application there instead of trapping (the desktop lanes keep the checks).
 target_compile_definitions(tegame PUBLIC WASM_RT_USE_MMAP=0 WASM_RT_MEMCHECK_BOUNDS_CHECK=1)
+if(TE_VITA)
+    target_compile_definitions(tegame PUBLIC TE_W2C_UNCHECKED_MEMORY=1)   # tools/w2c_unchecked.py
+    # and without the call-depth count: every function's entry and exit would bump a global the Vita reads and writes
+    # back on every call; the retail game's recursion is the game's own (the fiber's stack is its bound)
+    target_compile_definitions(tegame PUBLIC WASM_RT_NONCONFORMING_UNCHECKED_STACK_EXHAUSTION=1)
+endif()
 # C99 on purpose (the save states carry the runtime state): wasm-rt.h makes its per-thread state (call depth, trap jump buffer) `_Thread_local` only under
 # C11; on Apple a TLS variable's address is a per-process malloc'd block that the generated code caches in registers
 # across calls, which a save state cannot carry. Without C11 the runtime state is plain globals (the game is one thread).
 # runner/te_run.c shares the setting (it declares the same variables).
 set_target_properties(tegame PROPERTIES C_STANDARD 99 C_EXTENSIONS ON)
 target_compile_options(tegame PRIVATE -O2 -w)
-set_source_files_properties(${TE_W2C_SOURCES} PROPERTIES COMPILE_OPTIONS "-O1")   # 39 MB of C: -O1 keeps the build minutes, not hours
+if(TE_VITA)
+    set_source_files_properties(${TE_W2C_SOURCES} PROPERTIES COMPILE_OPTIONS "-O2")   # the Vita's CPU needs the optimiser's every pass
+else()
+    set_source_files_properties(${TE_W2C_SOURCES} PROPERTIES COMPILE_OPTIONS "-O1")   # 39 MB of C: -O1 keeps the build minutes, not hours
+endif()
 add_dependencies(tegame te_seam)
 if(WIN32)
     # The runtime's per-thread state stays PLAIN GLOBALS on the Windows lane as on macOS. CMake has no C99
@@ -513,11 +534,30 @@ if(TE_VITA)
     # no fixed-address image). The wasm2c runtime includes <sys/mman.h> unconditionally on POSIX; newlib has none, so the lane
     # supplies the declarations (never called: WASM_RT_USE_MMAP=0) from platform/nativeee/vita/shim.
     target_sources(twinsanityevolved PRIVATE runner/te_vita.cpp)
+    target_link_libraries(twinsanityevolved PRIVATE ScePower_stub)   # the clocks te_vita.cpp raises
     target_include_directories(tegame BEFORE PUBLIC "${CMAKE_SOURCE_DIR}/platform/nativeee/vita/shim")
     # wasm-rt.h unwinds traps with sigsetjmp / siglongjmp, which the Vita's newlib has only for Cygwin / RTEMS: the plain
     # pair stands in (no signals on the device) through a force-included header on the module and the runner.
     target_compile_options(tegame PUBLIC "$<$<COMPILE_LANGUAGE:C,CXX>:-include${CMAKE_SOURCE_DIR}/platform/nativeee/vita/shim/te_vita_setjmp.h>")
     target_link_options(twinsanityevolved PRIVATE -Wl,-q)   # the relocations vita-elf-create reads
+    # vita-elf-create appends its module data (4 KB and more) after the code segment, in the space before the data
+    # segment, which the default script starts at the next 64 KB boundary: code ending in a page's last few KB left no
+    # room ("segment 1 overlaps"), so whether the image converted depended on the code's size. The default script with
+    # the data moved a further page out whenever the code ends in a page's last 16 KB.
+    execute_process(COMMAND ${CMAKE_C_COMPILER} -Wl,--verbose -x c /dev/null -o /dev/null
+                    OUTPUT_VARIABLE TE_VITA_LD_VERBOSE ERROR_QUIET)
+    string(REGEX MATCH "==================================================\n(.*)\n==================================================" TE_VITA_LD_MATCH "${TE_VITA_LD_VERBOSE}")
+    set(TE_VITA_LD_SCRIPT "${CMAKE_MATCH_1}")
+    string(FIND "${TE_VITA_LD_SCRIPT}" ". = DATA_SEGMENT_ALIGN (0x10000, 0x10000);" TE_VITA_LD_AT)
+    if(TE_VITA_LD_AT LESS 0)
+        message(FATAL_ERROR "TwinsanityEvolved: the Vita linker's default script has no DATA_SEGMENT_ALIGN (0x10000, 0x10000) line to adjust")
+    endif()
+    # (DATA_SEGMENT_ALIGN takes no added term: the location is moved past the boundary first, so it aligns to the next)
+    string(REPLACE ". = DATA_SEGMENT_ALIGN (0x10000, 0x10000);"
+                   ". = ((. & 0xFFFF) > 0xC000) ? ALIGN(0x10000) + 1 : .;\n  . = DATA_SEGMENT_ALIGN (0x10000, 0x10000);"
+                   TE_VITA_LD_SCRIPT "${TE_VITA_LD_SCRIPT}")
+    file(WRITE "${CMAKE_BINARY_DIR}/vita_link.ld" "${TE_VITA_LD_SCRIPT}\n")
+    target_link_options(twinsanityevolved PRIVATE "-Wl,-T,${CMAKE_BINARY_DIR}/vita_link.ld")
 endif()
 if(WIN32)
     # Save states carry return addresses into this image: the image must load at the same address in the saving

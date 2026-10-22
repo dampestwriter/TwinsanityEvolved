@@ -65,6 +65,8 @@ public:
     void DeleteVertexArrays(int n, const uint32_t* ids);
 
     uint64_t Skips() const { return skips_; }
+    // every GL call made through the cache, counted: equal counts bracket a stretch in which the cached state did not move
+    uint64_t Mutations() const { return mutations_; }
 
 private:
     struct TexParamBucket {
@@ -80,7 +82,14 @@ private:
                                   kUnknown, kUnknown, kUnknown, kUnknown};
     std::unordered_map<uint32_t, TexParamBucket> tex_params_;
 #if PS2R_HOST_VITA
-    std::unordered_map<uint32_t, std::array<int32_t, 6>> vita_size_locs_;   // program -> te_size_* locations
+    // program -> its te_size_* locations and what each was last given (the texture, its size's generation): a draw
+    // that samples the same textures sets none of them again
+    struct VitaSizes {
+        std::array<int32_t, 6> locs{};
+        std::array<uint32_t, 6> tex{};
+        std::array<uint32_t, 6> generation{};
+    };
+    std::unordered_map<uint32_t, VitaSizes> vita_sizes_;
 #endif
 
     uint32_t program_ = kUnknown;
@@ -101,6 +110,7 @@ private:
     int scissor_box_[4] = {0, 0, 0, 0};
     uint32_t vao_ = kUnknown;
     uint64_t skips_ = 0;
+    uint64_t mutations_ = 0;
 };
 
 }  // namespace render

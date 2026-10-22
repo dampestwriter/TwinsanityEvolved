@@ -185,9 +185,62 @@ float Div(float num, float den) {
 // RINIT R, vf0w: the constant 1.0 the program fetches with RGET
 void Rinit(Vu& u) { u.r = Float(0x3F800000u | (Bits(u.vf[0][3]) & 0x007FFFFFu)); }
 
+
+#if defined(__vita__)
+// The Vita's test: the program's arithmetic in plain floats, in its order (no clamped operands, the CPU's rounding, no
+// fused multiply-adds) -- the faithful register file costs the Vita's game thread a tenth of a hub frame in ray casts.
+// Only a degenerate triangle or ray keeps the program's by-zero rules (RSQRT and DIV give MAX_FLOAT and 0).
+RayMath::Result FastTest(const RayMath::Ray& ray, const RayMath::Triangle& t, const Vector& nearest) {
+    const auto cross = [](const float* a, const float* b, float* out) {
+        out[0] = a[1] * b[2] - b[1] * a[2];
+        out[1] = a[2] * b[0] - b[2] * a[0];
+        out[2] = a[0] * b[1] - b[0] * a[1];
+    };
+    const auto dot = [](const float* a, const float* b) { return (a[0] * b[0] + a[1] * b[1]) + a[2] * b[2]; };
+    const auto rsqrt = [](float den) { return den == 0.f ? Float(kMaxFloat) : 1.f / std::sqrt(std::fabs(den)); };
+    const float* v0 = t[0].data();
+    const float* v1 = t[1].data();
+    const float* v2 = t[2].data();
+    const float e01[3] = {v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2]};
+    const float e02[3] = {v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2]};
+    const float e12[3] = {v2[0] - v1[0], v2[1] - v1[1], v2[2] - v1[2]};
+    const float e20[3] = {v0[0] - v2[0], v0[1] - v2[1], v0[2] - v2[2]};
+    float n[3], c12[3], c01[3], c20[3];
+    cross(e01, e02, n);
+    cross(n, e12, c12);
+    cross(n, e01, c01);
+    cross(n, e20, c20);
+    const float q1 = rsqrt(dot(n, n)), q2 = rsqrt(dot(c12, c12)), q3 = rsqrt(dot(c01, c01)), q4 = rsqrt(dot(c20, c20));
+    float nn[3], n12[3], n01[3], n20[3];
+    for (int k = 0; k < 3; ++k) { nn[k] = n[k] * q1; n12[k] = c12[k] * q2; n01[k] = c01[k] * q3; n20[k] = c20[k] * q4; }
+    const float plane = 0.f - dot(nn, v0);
+    const float ds = dot(ray.start.data(), nn) + plane, de = dot(ray.end.data(), nn) + plane;
+    const float sum = std::fabs(ds) + std::fabs(de);
+    const float share = sum == 0.f ? 0.f : std::fabs(ds) / sum;
+    RayMath::Result out;
+    for (int k = 0; k < 3; ++k) out.hit[size_t(k)] = (ray.start[size_t(k)] - ray.start[size_t(k)] * share) + ray.end[size_t(k)] * share;
+    out.hit[3] = share;
+    const float offset[3] = {0.f - dot(n01, v0), 0.f - dot(n12, v2), 0.f - dot(n20, v0)};
+    const float* normal[3] = {n01, n12, n20};
+    uint32_t edges = 0;
+    for (int k = 0; k < 3; ++k) {
+        const float d = (((offset[k] + normal[k][0] * out.hit[0]) + normal[k][1] * out.hit[1]) + normal[k][2] * out.hit[2]) + 0.1f;
+        if (Bits(d) & kSign) edges |= 0x80u >> k;
+    }
+    const uint32_t sides = ((Bits(ds) & kSign) ? 0x80u : 0u) + ((Bits(de) & kSign) ? 0x80u : 0u);
+    const uint32_t nearer = (Bits(share - nearest[3]) & kSign) ? 0x10u : 0u;
+    out.flags = ((((sides + nearer) << 4) & 0xFFFFu) | edges);
+    out.nearer = out.flags == RayMath::kNearer;
+    return out;
+}
+#endif
+
 }  // namespace
 
 RayMath::Result RayMath::Test(const Ray& ray, const Triangle& t, const Vector& nearest) {
+#if defined(__vita__)
+    return FastTest(ray, t, nearest);
+#endif
     RoundingGuard rounding;
     Vu u;
     u.vf[0] = {0.f, 0.f, 0.f, 1.f};

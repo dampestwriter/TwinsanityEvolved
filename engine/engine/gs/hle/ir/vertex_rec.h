@@ -9,12 +9,15 @@
 // `.gsdl` VertexRec, so recorder and reader copy it verbatim.
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 namespace ps2r {
 namespace gs {
 
-#pragma pack(push, 1)
+// Not packed: every field already sits at its natural alignment, so the 36-byte layout needs no packing, and a packed
+// record's float fields are unaligned stores to the compiler (on a 32-bit ARM, each one byte-wise or through the core
+// registers -- the bulk of the Vita's vertex handling)
 struct VertexRec {
     float x, y, z;
     float s, t, q;
@@ -24,9 +27,10 @@ struct VertexRec {
     uint8_t draw_kick;
     uint8_t pad[2];
 };
-#pragma pack(pop)
 
 static_assert(sizeof(VertexRec) == 36, "VertexRec is 36 bytes on disk");
+static_assert(offsetof(VertexRec, uv_u) == 24 && offsetof(VertexRec, r) == 28 && offsetof(VertexRec, fog) == 32,
+              "VertexRec's on-disk field offsets");
 
 }  // namespace gs
 }  // namespace ps2r

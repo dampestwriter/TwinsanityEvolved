@@ -30,6 +30,10 @@ public:
 
     // Binds the VAO + array buffer for a draw of the PS2 program.
     void BindForDraw(GlStateCache& st);
+    // The same ring read as RawVertex (position, S / T, colour, Q on attribute 6; no fog): a raw draw's arrays
+    void BindRawForDraw(GlStateCache& st);
+    // Uploads `bytes` of `stride`-byte vertices; returns the first-vertex index in that stride
+    int UploadRaw(const void* verts, size_t bytes, size_t stride);
     // Uploads n vertices into the ring; returns the first-vertex index for glDrawArrays.
     // GL_ARRAY_BUFFER must be bound to the ring (BindForDraw).
     int Upload(const GpuVertex* verts, size_t n);
@@ -41,6 +45,7 @@ public:
 
 private:
     uint32_t vao_ = 0;
+    uint32_t raw_vao_ = 0;
     uint32_t vbo_ = 0;
     size_t offset_ = 0;
     bool ready_ = false;

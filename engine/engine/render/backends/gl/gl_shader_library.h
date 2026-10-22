@@ -27,6 +27,8 @@ struct GlUniformLocations {
     int zte = -1, ztst = -1;
     int ate = -1, atst = -1, aref = -1, afail = -1, date = -1, datm = -1;
     int fog_enabled = -1, fogcol = -1;
+    // the native mesh draws' (NATIVE_MESH builds: the Vita); -1 elsewhere
+    int native = -1, mesh_lit = -1, mesh = -1, mesh_light = -1;
     int tex_size = -1, uv_scale = -1, uv_mode = -1;
     int sw_blend = -1, rt_sampler = -1, flip_v = -1;
     int fbmsk16_en = -1, fbmsk16 = -1;
@@ -51,6 +53,10 @@ public:
     // Compiles + links both programs; primes the PS2 program through `uniforms`
     // (which is cleared first). Returns false on any failure.
     bool Build(GlUniformCache& uniforms);
+    // The context's clip control is GL_ZERO_TO_ONE: the PS2 vertex shader maps Z straight to window depth
+    void SetZeroToOneDepth(bool on) { zero_to_one_depth_ = on; }
+    // The PS2 program carries the native mesh transform (GlDevice::DrawMesh): built so on the Vita
+    bool NativeMesh() const { return native_mesh_; }
     void Destroy();
 
     uint32_t Ps2Program() const { return ps2_program_; }
@@ -94,6 +100,8 @@ private:
     int scanout_tex_loc_ = -1;
     int scanout_dither_tex_loc_ = -1, scanout_dither_size_loc_ = -1, scanout_dither_dimx_loc_ = -1;
     GlUniformLocations loc_;
+    bool zero_to_one_depth_ = false;
+    bool native_mesh_ = false;
 };
 
 }  // namespace render

@@ -23,6 +23,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 OUT = os.path.join(ROOT, "engine", "platform", "windows", "gl_loader.h")
 SCAN_DIRS = ("engine", "app", "games", "tools", "tests")
 GL_CALL = re.compile(r"\bgl([A-Z][A-Za-z0-9]*)\s*\(")
+# Entry points newer than the 4.1 core the engine requires: resolved when the driver has them (the pointer stays null
+# otherwise), never a reason to refuse the context. Their call sites test the pointer first.
+OPTIONAL = {"glClipControl"}
 
 
 def scan(root):
@@ -73,12 +76,22 @@ def render(names):
         "#endif",
         "#include <GL/glcorearb.h>",
         "",
-        "// X(type, gl name) for every entry point the engine calls (%d)." % len(names),
+        "// X(type, gl name) for every entry point the engine requires (%d)." % len([n for n in names if n not in OPTIONAL]),
         "#define PS2R_GLWIN_FUNCS(X) \\",
     ]
-    for i, n in enumerate(names):
+    required = [n for n in names if n not in OPTIONAL]
+    optional = [n for n in names if n in OPTIONAL]
+    for i, n in enumerate(required):
         pfn = "PFN" + n.upper() + "PROC"
-        lines.append("    X(%s, %s)%s" % (pfn, n, " \\" if i + 1 < len(names) else ""))
+        lines.append("    X(%s, %s)%s" % (pfn, n, " \\" if i + 1 < len(required) else ""))
+    lines += [
+        "",
+        "// X(type, gl name) for the entry points used when the driver has them (the pointer null otherwise).",
+        "#define PS2R_GLWIN_OPTIONAL_FUNCS(X)%s" % (" \\" if optional else ""),
+    ]
+    for i, n in enumerate(optional):
+        pfn = "PFN" + n.upper() + "PROC"
+        lines.append("    X(%s, %s)%s" % (pfn, n, " \\" if i + 1 < len(optional) else ""))
     lines += [
         "",
         "#ifdef __cplusplus",
@@ -102,9 +115,9 @@ def render(names):
         "namespace ps2r {",
         "namespace glwin {",
         "// Fill every pointer through `getproc` (SDL_GL_GetProcAddress once a context is current). Returns how many",
-        "// entry points the driver did not supply and writes up to `max_missing` of their names into `missing`.",
+        "// required entry points the driver did not supply and writes up to `max_missing` of their names into `missing`.",
         "int Load(void* (*getproc)(const char*), const char** missing, int max_missing);",
-        "// The number of entry points in the table (the generated count).",
+        "// The number of required entry points in the table (the generated count).",
         "int Count();",
         "}  // namespace glwin",
         "}  // namespace ps2r",

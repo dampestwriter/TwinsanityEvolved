@@ -285,6 +285,9 @@ struct Part {
     bool decoded = false;
     uint32_t vertices = 0;
     size_t triangles = 0;
+    uint32_t native = 0;            // the native mesh (te::gfx::NativeMeshes): 0 until made
+    std::array<float, 6> nativeBox{};   // its model-space bounds (x0 y0 z0 x1 y1 z1): the draws' screen boxes
+    mutable uint8_t meshState = 0;  // 0 not asked for, 1 asked for this picture, 2 made (or declined)
 };
 // Each submodel's packet BYTES, kept host-side: the game releases the packet's disk-manager memory after ReadModel
 // (resources.cpp DeferRelease), so a save state cannot re-read it from RAM0; the state carries these and the restore
@@ -304,6 +307,60 @@ std::unordered_map<uint32_t, Model> g_models;   // RigidModelData guest address 
 struct ShadowModel { std::vector<title::ShadowGeometry::Mesh> parts; std::vector<bool> decoded; bool tried = false; };
 std::unordered_map<uint32_t, ShadowModel> g_shadowModels;
 void LoadModelPart(uint32_t model, int32_t index, int32_t count, const uint8_t* bytes, int32_t size, int32_t vertices);
+
+// A part's native mesh handed back (destroyed once no frame still draws it)
+void RetireMesh(Part& part) {
+    te::gfx::RetireMesh(part.native);
+    part.native = 0;
+    part.meshState = 0;
+}
+
+// The part's triangles as a native mesh: the prepared strips' triangles in the build's order (MeshGeometry::
+// BuildPrepared: a vertex flagged restart draws no triangle and restarts the winding; the others alternate it), each
+// vertex with its position, STQ and colour as the build reads them, the normal and the colour LitColours lights
+std::vector<ps2e_draw_mesh_vertex> MeshVertices(const Part& part) {
+    std::vector<ps2e_draw_mesh_vertex> out;
+    const auto& prepared = part.prepared;
+    std::vector<ps2e_draw_mesh_vertex> strip;
+    for (size_t si = 0; si < prepared.strips.size(); ++si) {
+        const auto& range = prepared.strips[si];
+        const bool normals = si < part.normals.size() && part.normals[si].size() == range.count;
+        const bool colours = si < part.colours.size() && part.colours[si].size() == range.count;
+        strip.assign(range.count, ps2e_draw_mesh_vertex{});
+        for (uint32_t i = 0; i < range.count; ++i) {
+            const size_t at = range.first + i;
+            ps2e_draw_mesh_vertex& v = strip[i];
+            v.x = prepared.positions[at][0];
+            v.y = prepared.positions[at][1];
+            v.z = prepared.positions[at][2];
+            v.s = prepared.stq[at][0];
+            v.t = prepared.stq[at][1];
+            v.q = prepared.stq[at][2];
+            const auto& c = prepared.colours[at];
+            v.r = c[0]; v.g = c[1]; v.b = c[2]; v.a = c[3];
+            if (normals) {
+                v.nx = part.normals[si][i][0];
+                v.ny = part.normals[si][i][1];
+                v.nz = part.normals[si][i][2];
+            }
+            const auto& lc = colours ? part.colours[si][i] : c;
+            v.lr = lc[0]; v.lg = lc[1]; v.lb = lc[2]; v.la = lc[3];
+        }
+        unsigned parity = 0;
+        for (uint32_t i = 0; i < range.count; ++i) {
+            if (prepared.restart[range.first + i]) { parity = 0; continue; }
+            if (i < 2) continue;
+            out.push_back(strip[i - 2 + (parity & 1)]);
+            out.push_back(strip[i - 1 - (parity & 1)]);
+            out.push_back(strip[i]);
+            ++parity;
+        }
+    }
+    return out;
+}
+
+// The parts whose meshes this picture's draws asked for (model, submodel); made together before the hand-over
+std::vector<std::pair<uint32_t, uint32_t>> g_meshRequests;
 
 // The VIF UNPACK's size in 32-bit words (the data follows the code word-aligned)
 bool UnpackWords(uint32_t cmd, uint32_t num, size_t& words) {
@@ -630,6 +687,7 @@ struct Emitter {
 std::vector<std::array<uint8_t, 4>> g_colourScratch;   // the lit colours / the shadows' stamp colour per vertex
 
 // The Emitter's appends on a worker (te::gfx::DeferredBuild): the same vertices, each Append's triangles one segment
+
 struct Collector {
     te::gfx::DeferredBuild* out = nullptr;
     bool textured = false;
@@ -653,6 +711,26 @@ std::atomic<uint64_t> g_deferredModelTriangles{0}, g_deferredSkinTriangles{0};
 // Whether this draw's build may run on a worker: workers running, nothing logged or tinted for diagnosis
 bool Deferrable(bool logging) {
     return !logging && !g_diag.flat && te::gfx::DeferringBuilds();
+}
+
+// Whether a clipped instance may still be drawn as a native mesh: every corner of the part's box in front of the eye and
+// inside the depth range (the box's screen depth then is too: a ratio of two linear functions with a positive
+// denominator is extreme at the corners), so the title's clipping would only cut the triangles at the screen's sides --
+// the device's own viewport and scissor do that
+bool NativeInFront(const Part& part, const Geometry::View& view) {
+    if (!part.native) return false;
+    const auto& b = part.nativeBox;
+    for (int c = 0; c < 8; ++c) {
+        const float px = b[(c & 1) ? 3 : 0], py = b[(c & 2) ? 4 : 1], pz = b[(c & 4) ? 5 : 2];
+        float o[4];
+        for (int k = 0; k < 4; ++k)
+            o[k] = view.screen[3][size_t(k)] + view.screen[0][size_t(k)] * px + view.screen[1][size_t(k)] * py +
+                   view.screen[2][size_t(k)] * pz;
+        if (!(o[3] > 0.f)) return false;
+        const float z = o[2] / o[3];
+        if (!(z >= 0.f && z < 2147483648.f)) return false;
+    }
+    return true;
 }
 
 
@@ -694,8 +772,7 @@ bool PrepareScreenCopyMesh(const Part& part, const Matrix& clip, float cornerVal
 // the half vector h = normalize(eye - pos) + n in the model's space, env = (h / 2) through the clip matrix's three rows, the
 // sphere map u = 0.5 * envn.x + 0.5, v = -0.5 * envn.y + 0.5 over the normalised env, clamped to [0, 1], q = 1 (the shader's
 // scroll is the view's payload, added by the build as the micro added it after the clamp)
-bool PrepareEnvMesh(const Part& part, const Matrix& clip, const Vector& eye) {
-    auto& sc = g_screenCopyScratch;
+bool PrepareEnvMesh(const Part& part, const Matrix& clip, const Vector& eye, ScreenCopyScratch& sc = g_screenCopyScratch) {
     sc.mesh = part.mesh;
     for (size_t st = 0; st < sc.mesh.strips.size(); ++st) {
         auto& strip = sc.mesh.strips[st];
@@ -802,8 +879,67 @@ void DrawInstance(const te_gfx_rigid_model* rigid, const Geometry::View& view, c
             // diagnosis: TE_GFX_DIAG_SKIP_BUCKET=6,8 leaves those buckets' model draws out (which layer of a composite is which)
             static const std::string skipBuckets = std::getenv("TE_GFX_DIAG_SKIP_BUCKET") ? std::string(",") + std::getenv("TE_GFX_DIAG_SKIP_BUCKET") + "," : std::string();
             if (!skipBuckets.empty() && skipBuckets.find("," + std::to_string(bucket) + ",") != std::string::npos) continue;
+            // an unclipped instance's plain pass (or a clipped one wholly in front: NativeInFront): the part's native mesh
+            // through the screen matrix, nothing built here (the first picture that draws a part asks for its mesh and
+            // builds on the CPU meanwhile). A blended pass with a UV scroll -- the hub's additive light shafts, mist --
+            // sampled its texture elsewhere drawn natively, with identical vertices and texture coordinates on the CPU:
+            // those stay CPU-built
+            const bool logging = g_diag.Logging();
+            const bool scrolled = sub.scroll[0] != 0.f || sub.scroll[1] != 0.f;
+            static const bool xNoClipNative = std::getenv("TE_X_NO_CLIPNATIVE") != nullptr;   // XBISECT
+            if ((!view.clipped || (!xNoClipNative && NativeInFront(part, sub))) && !screenCopy && !envMap && !logging && !g_diag.flat &&
+                !(state.blend && scrolled) && te::gfx::NativeMeshes()) {
+                if (part.meshState == 0) {
+                    part.meshState = 1;
+                    g_meshRequests.emplace_back(rigid->model, i);
+                }
+                if (part.native) {
+                    ps2e_draw_mesh_params mp{};
+                    for (int r = 0; r < 4; ++r)
+                        for (int c = 0; c < 4; ++c) mp.screen[r * 4 + c] = sub.screen[size_t(r)][size_t(c)];
+                    mp.offset[0] = te::gfx::GsOriginX();
+                    mp.offset[1] = te::gfx::GsOriginY();
+                    mp.scroll[0] = sub.scroll[0];
+                    mp.scroll[1] = sub.scroll[1];
+                    {
+                        // the screen box: the model box's corners through the matrix (all in front but in an unclipped
+                        // instance's rare corner behind the eye: the whole screen)
+                        float x0 = 1e30f, y0 = 1e30f, x1 = -1e30f, y1 = -1e30f;
+                        const auto& b = part.nativeBox;
+                        for (int c = 0; c < 8; ++c) {
+                            const float px = b[(c & 1) ? 3 : 0], py = b[(c & 2) ? 4 : 1], pz = b[(c & 4) ? 5 : 2];
+                            float o[4];
+                            for (int k = 0; k < 4; ++k)
+                                o[k] = sub.screen[3][size_t(k)] + sub.screen[0][size_t(k)] * px + sub.screen[1][size_t(k)] * py +
+                                       sub.screen[2][size_t(k)] * pz;
+                            if (!(o[3] > 0.f)) { x0 = y0 = -1e30f; x1 = y1 = 1e30f; break; }
+                            const float sx = o[0] / o[3] / 16.f - mp.offset[0], sy = o[1] / o[3] / 16.f - mp.offset[1];
+                            x0 = std::min(x0, sx); y0 = std::min(y0, sy); x1 = std::max(x1, sx); y1 = std::max(y1, sy);
+                        }
+                        mp.box[0] = std::max(x0 - 1.f, -1e9f);
+                        mp.box[1] = std::max(y0 - 1.f, -1e9f);
+                        mp.box[2] = std::min(x1 + 1.f, 1e9f);
+                        mp.box[3] = std::min(y1 + 1.f, 1e9f);
+                    }
+                    if (lit) {
+                        mp.lit = 1;
+                        const Lights& L = *inst.lights;
+                        for (int l = 0; l < 3; ++l)
+                            for (int k = 0; k < 3; ++k) {
+                                mp.light_dir[l][k] = L.directions[size_t(l)][size_t(k)];
+                                mp.light_colour[l][k] = L.colours[size_t(l)][size_t(k)];
+                            }
+                        for (int k = 0; k < 3; ++k) mp.ambient[k] = L.ambient[size_t(k)];
+                    }
+                    te::gfx::RecordMesh(bucket, state, part.native, mp);
+                    if (pass) scene.material_passes++;
+                    continue;
+                }
+            }
+            // a plain build runs on a worker (the placeholder takes its place in the bucket), its lighting with it
+            const bool deferred = !screenCopy && Deferrable(logging);
             const std::array<uint8_t, 4>* colours = nullptr;
-            if (lit) {
+            if (lit && !deferred) {
                 LitColours(part, *inst.lights, g_colourScratch);
                 colours = g_colourScratch.data();
             }
@@ -811,22 +947,28 @@ void DrawInstance(const te_gfx_rigid_model* rigid, const Geometry::View& view, c
                 if (!PrepareScreenCopyMesh(part, view.clip, m.shader->extra[0])) continue;
                 emitter.BeginScreenCopy(bucket, state, scroll);
             } else {
-                if (envMap && !PrepareEnvMesh(part, view.clip, *inst.eye)) continue;
+                if (envMap && !deferred && !PrepareEnvMesh(part, view.clip, *inst.eye)) continue;
                 emitter.Begin(bucket, state);
             }
             emitter.flatTint = inst.overrideState ? 2 : view.clipped ? 1 : 0;
             DiagBox box;
-            const bool logging = g_diag.Logging();
             emitter.box = logging ? &box : nullptr;
-            if (!screenCopy && !envMap && Deferrable(logging)) {
-                // the plain build on a worker: the placeholder takes this draw's place in the bucket
+            if (deferred) {
                 te::gfx::DeferredBuild& build = te::gfx::ReserveDeferred(bucket, emitter.state);
-                std::vector<std::array<uint8_t, 4>> lit;
-                if (colours) lit.assign(g_colourScratch.begin(), g_colourScratch.end());
-                te::gfx::PostBuild(build, [&build, prepared = &part.prepared, sub, lit = std::move(lit), state = BuildState(),
+                std::optional<Lights> lights;
+                if (lit) lights = *inst.lights;
+                // an env-map pass: its reflection STQ prepared on the worker too, into the worker's own scratch
+                std::optional<Vector> envEye;
+                if (envMap) envEye = *inst.eye;
+                te::gfx::PostBuild(build, [&build, mesh = &part, sub, lights, envEye, clip = view.clip, state = BuildState(),
                                            textured = emitter.textured, model = rigid->model, i, pass] {
+                    thread_local std::vector<std::array<uint8_t, 4>> litScratch;
+                    thread_local ScreenCopyScratch envScratch;
+                    if (envEye && !PrepareEnvMesh(*mesh, clip, *envEye, envScratch)) return;
+                    if (lights) LitColours(*mesh, *lights, litScratch);
                     Collector collector{&build, textured};
-                    const Geometry::Result r = te::gfx::MeshBuild(*prepared, sub, state, lit.empty() ? nullptr : lit.data(), &Collector::Sink, &collector);
+                    const Geometry::Result r = te::gfx::MeshBuild(envEye ? envScratch.prepared : mesh->prepared, sub, state,
+                                                                  lights ? litScratch.data() : nullptr, &Collector::Sink, &collector);
                     if (r != Geometry::Result::Ok) {
                         static std::atomic<int> said{0};
                         if (said++ < 8) std::fprintf(stderr, "[te.gfx] model %#x part %u pass %u: Build refused (%d)\n", model, i, pass, int(r));
@@ -944,6 +1086,8 @@ void ps2e_gfx2_model_loaded(ps2e_u32 model, ps2e_s32 index, ps2e_s32 count, ps2e
 
 void ps2e_gfx2_model_released(ps2e_u32 model) {
     te::gfx::DrainBuilds();   // a posted build may still read its parts
+    if (auto it = g_models.find(model); it != g_models.end())
+        for (Part& part : it->second.parts) RetireMesh(part);
     g_models.erase(model);
     g_shadowModels.erase(model);
 }
@@ -956,11 +1100,16 @@ void LoadModelPart(uint32_t model, int32_t index, int32_t count, const uint8_t* 
     if (index < 0 || count <= 0 || index >= count || count > 4096) return;
     te::gfx::DrainBuilds();   // a posted build may still read the parts this replaces
     Model& m = g_models[model];
-    if (m.parts.size() != size_t(count)) { m.parts.assign(size_t(count), Part{}); m.sources.assign(size_t(count), PartSource{}); }
+    if (m.parts.size() != size_t(count)) {
+        for (Part& old : m.parts) RetireMesh(old);
+        m.parts.assign(size_t(count), Part{});
+        m.sources.assign(size_t(count), PartSource{});
+    }
     PartSource& source = m.sources[size_t(index)];
     source.vertices = vertices;
     if (bytes && size > 0 && source.packet.data() != bytes) source.packet.assign(bytes, bytes + size);
     Part& part = m.parts[size_t(index)];
+    RetireMesh(part);
     part = Part{};
     std::string why;
     if (!bytes || !DecodePacket(bytes, size_t(size), uint32_t(vertices), part, &why)) {
@@ -1016,8 +1165,36 @@ std::vector<ModelSource> ModelSources() {
                 out.push_back(ModelSource{address, int32_t(i), int32_t(m.sources.size()), m.sources[i].vertices, m.sources[i].packet});
     return out;
 }
+void FlushNativeMeshes() {
+    if (g_meshRequests.empty()) return;
+    std::vector<MeshRequest> requests;
+    std::vector<Part*> parts;
+    for (const auto& [model, index] : g_meshRequests) {
+        auto it = g_models.find(model);
+        if (it == g_models.end() || index >= it->second.parts.size()) continue;
+        Part& part = it->second.parts[index];
+        if (part.meshState != 1 || !part.decoded) continue;
+        part.meshState = 2;
+        MeshRequest r;
+        r.vertices = MeshVertices(part);
+        if (r.vertices.size() < 3) continue;
+        std::array<float, 6> box{1e30f, 1e30f, 1e30f, -1e30f, -1e30f, -1e30f};
+        for (const auto& v : r.vertices) {
+            box[0] = std::min(box[0], v.x); box[1] = std::min(box[1], v.y); box[2] = std::min(box[2], v.z);
+            box[3] = std::max(box[3], v.x); box[4] = std::max(box[4], v.y); box[5] = std::max(box[5], v.z);
+        }
+        part.nativeBox = box;
+        requests.push_back(std::move(r));
+        parts.push_back(&part);
+    }
+    g_meshRequests.clear();
+    CreateMeshes(requests);
+    for (size_t k = 0; k < parts.size(); ++k) parts[k]->native = requests[k].handle;
+}
 void ReplayModelSources(const std::vector<ModelSource>& sources) {
     DrainBuilds();
+    for (auto& [address, m] : g_models)
+        for (Part& part : m.parts) RetireMesh(part);
     g_models.clear();
     g_shadowModels.clear();
     auto& scene = Scene();
@@ -1073,7 +1250,8 @@ void ps2e_graphics_draw_rigid_model(ps2e_u32 model, ps2e_u32 matrix, ps2e_u32 li
     inst.lights = haveLights ? &l : nullptr;
     if (rigid->needsEye) inst.eye = EyeIn(*world, view->toCamera);   // the env-map passes
     // the interpolator's identity: this model at this instance's matrix (a stable address while the instance lives)
-    if (const auto w = WorldOfScreen(v.screen)) TagRigid(OrdinalId(TagId(model, 0)), *w, v.screen);   // (the matrix is a stack local: the order names the instance)
+    if (te::gfx::Interpolating())
+        if (const auto w = WorldOfScreen(v.screen)) TagRigid(OrdinalId(TagId(model, 0)), *w, v.screen);   // (the matrix is a stack local: the order names the instance)
     if (g_diag.Logging()) {
         const auto* t = te::gfx::CurrentTarget();
         std::fprintf(stderr, "[te.gfx.diag] present %ld rigid view: toScreen row3 (%.1f %.1f %.1f %.1f) proj row0 (%.3f %.3f %.3f %.3f) clip (%.2f %.2f %.2f %.2f) world row3 (%.2f %.2f %.2f) target %s off (%d %d) size (%d %d) display (%d %d) xy (%d %d) c2s row3 (%.1f %.1f %.1f %.1f)\n",
@@ -1118,7 +1296,8 @@ void ps2e_graphics_draw_placed_model(ps2e_u32 model, ps2e_u32 viewAddress, ps2e_
     // the current camera (the view carries the chunk's matrix; the game's `world` is chunk-local)
     // (the matrices live in the frame arena, recycled per frame: the same offsets recur across chunks, so the chunk view is
     // part of the identity; within a chunk the array's order is the placement's)
-    if (const auto w = WorldOfScreen(v.screen)) TagRigid(OrdinalId(TagId(model, viewAddress)), *w, v.screen);   // (the world matrix is a frame-arena slot: the order within the chunk view names the placement)
+    if (te::gfx::Interpolating())
+        if (const auto w = WorldOfScreen(v.screen)) TagRigid(OrdinalId(TagId(model, viewAddress)), *w, v.screen);   // (the world matrix is a frame-arena slot: the order within the chunk view names the placement)
     DrawInstance(rigid, v, inst, te::gfx::Scene().placed_models);
     te::gfx::ClearDrawTag();
 }
@@ -1154,7 +1333,8 @@ void ps2e_gfx2_draw_sky(ps2e_u32 skyAddress, ps2e_u32 viewAddress, ps2e_u32 came
         const auto* rigid = Guest<te_gfx_rigid_model>(models[i]);
         if (!rigid) continue;
         // the interpolator's identity: the sky's i-th model, its world the camera's place (it turns with the camera, no parallax)
-        if (const auto w = WorldOfScreen(toScreen)) TagRigid(TagId(skyAddress, models[i]), *w, toScreen);
+        if (te::gfx::Interpolating())
+            if (const auto w = WorldOfScreen(toScreen)) TagRigid(TagId(skyAddress, models[i]), *w, toScreen);
         // Drawn in the sky bucket under the materials' own blend state, the depth test ALWAYS and the depth not written
         const te_gfx_model* data = rigid->model ? Guest<te_gfx_model>(rigid->model) : nullptr;
         auto it = g_models.find(rigid->model);
@@ -1174,6 +1354,16 @@ void ps2e_gfx2_draw_sky(ps2e_u32 skyAddress, ps2e_u32 viewAddress, ps2e_u32 came
             emitter.Begin(BucketSky, state);
             Geometry::View sub = v;
             if (m.shader && std::isfinite(m.shader->scroll[0]) && std::isfinite(m.shader->scroll[1])) sub.scroll = {m.shader->scroll[0], m.shader->scroll[1]};
+            if (Deferrable(false)) {
+                // built on a worker as the scene's models are (the placeholder keeps its place in the sky bucket)
+                te::gfx::DeferredBuild& build = te::gfx::ReserveDeferred(BucketSky, emitter.state);
+                te::gfx::PostBuild(build, [&build, mesh = &part, sub, state = BuildState(), textured = emitter.textured] {
+                    Collector collector{&build, textured};
+                    if (te::gfx::MeshBuild(mesh->prepared, sub, state, nullptr, &Collector::Sink, &collector) == Geometry::Result::Ok)
+                        g_deferredModelTriangles += collector.triangles;
+                });
+                continue;
+            }
             Geometry::Result result;
             const size_t triangles = emitter.Build(part, sub, nullptr, &result);
             if (result != Geometry::Result::Ok) continue;
@@ -1240,6 +1430,21 @@ struct ShadowEmitter {
         SetStencil(up, PS2E_DRAW_STENCIL_COUNT_UP);
         SetStencil(down, PS2E_DRAW_STENCIL_COUNT_DOWN);
     }
+    // One volume strip's vertices as the counting draw's: ShadowGeometry emits the type-0B program's NEGATED depth
+    // (2^32 - z, for the GS's inverted depth copy); the frame's depth is the ordinary z, the count taken where the
+    // ordinary test fails
+    static void Convert(const ps2r::gs::VertexRec* verts, size_t count, uint8_t colour, ps2e_draw_vertex* out) {
+        for (size_t i = 0; i < count; ++i) {
+            const auto& v = verts[i];
+            ps2e_draw_vertex& o = out[i];
+            o = ps2e_draw_vertex{};
+            o.x = v.x;
+            o.y = v.y;
+            o.z = v.z > 0.f ? 4294967296.f - v.z : 0.f;
+            o.r = o.g = o.b = colour;
+            o.a = 0x80;
+        }
+    }
     void Append(const ps2r::gs::VertexRec* verts, size_t count) {
         count = count / 3 * 3;
         if (!count) return;
@@ -1249,19 +1454,9 @@ struct ShadowEmitter {
         Draw& d = te::gfx::OpenDraw(BucketShadows, state);
         const size_t base = d.verts.size();
         d.verts.resize(base + count);
-        for (size_t i = 0; i < count; ++i) {
-            const auto& v = verts[i];
-            ps2e_draw_vertex& o = d.verts[base + i];
-            o = ps2e_draw_vertex{};
-            o.x = v.x;
-            o.y = v.y;
-            // ShadowGeometry emits the type-0B program's NEGATED depth (2^32 - z, for the GS's inverted depth copy); the
-            // frame's depth is the ordinary z, the count taken where the ordinary test fails
-            o.z = v.z > 0.f ? 4294967296.f - v.z : 0.f;
-            o.r = o.g = o.b = colour;
-            o.a = 0x80;
-            if (box) box->Add(o);
-        }
+        Convert(verts, count, colour, d.verts.data() + base);
+        if (box)
+            for (size_t i = 0; i < count; ++i) box->Add(d.verts[base + i]);
         te::gfx::CloseDraw(BucketShadows);
         triangles += count / 3;
     }
@@ -1398,7 +1593,48 @@ void ps2e_graphics_draw_shadow_mesh(ps2e_u32 mesh, ps2e_u32 toScreen, ps2e_u32 t
     sv.guard = v.guard;
     sv.offset = {te::gfx::GsOriginX(), te::gfx::GsOriginY()};
     // the interpolator's identity: this volume mesh at this instance's world matrix (a rigid object, re-projected with it)
-    if (const auto w = WorldOfScreen(*screen)) TagRigid(OrdinalId(TagId(mesh, 0)), *w, *screen);
+    if (te::gfx::Interpolating())
+        if (const auto w = WorldOfScreen(*screen)) TagRigid(OrdinalId(TagId(mesh, 0)), *w, *screen);
+    if (Deferrable(logging)) {
+        // the volumes built on a worker: each part's strips in their order, each its counting-up or counting-down draw
+        bool posted = false;
+        for (uint32_t p = 0; p < count && p < sm.parts.size(); ++p) {
+            if (!sm.decoded[p]) continue;
+            te::gfx::DeferredBuild& build = te::gfx::ReserveDeferred(BucketShadows, g_shadowEmitter.up);
+            build.alt_state = g_shadowEmitter.down;
+            te::gfx::PostBuild(build, [&build, part = &sm.parts[p], sv, mesh] {
+                thread_local std::vector<ps2r::gs::DrawIr> built;
+                built.clear();
+                const auto r = title::ShadowGeometry::Build(*part, {sv}, built);
+                if (r == title::ShadowGeometry::Result::Ok) {
+                    size_t triangles = 0, odd = 0;
+                    for (const auto& d : built) {
+                        const size_t n = d.verts.size() / 3 * 3;
+                        if (!n) continue;
+                        const uint8_t colour = d.verts[0].r;
+                        if (colour != kWindingUp && colour != kWindingDown) odd++;
+                        const size_t base = build.verts.size();
+                        build.verts.resize(base + n);
+                        ShadowEmitter::Convert(d.verts.data(), n, colour, build.verts.data() + base);
+                        build.segments.push_back(uint32_t(n));
+                        build.alternate.push_back(colour == kWindingDown ? 1 : 0);
+                        triangles += n / 3;
+                    }
+                    g_deferredModelTriangles += triangles;
+                    if (odd) {
+                        static std::atomic<int> said{0};
+                        if (said++ < 4) std::fprintf(stderr, "[te.gfx] shadow mesh %#x: %zu strips without a +8/-8 winding colour\n", mesh, odd);
+                    }
+                }
+            });
+            posted = true;
+        }
+        te::gfx::ClearDrawTag();
+        g_shadowEmitter.box = nullptr;
+        if (posted) g_shadowVolumes++;   // the composite runs; with no volume drawn its stencil test passes nowhere
+        scene.shadow_meshes++;
+        return;
+    }
     static std::vector<ps2r::gs::DrawIr> volumes;
     for (uint32_t p = 0; p < count && p < sm.parts.size(); ++p) {
         if (!sm.decoded[p]) continue;
@@ -1720,6 +1956,7 @@ void ps2e_gfx2_skin_released(ps2e_u32 skin) {
     g_skins.erase(skin);
 }
 void ps2e_gfx2_blend_skin_released(ps2e_u32 skin) {
+    te::gfx::DrainBuilds();   // a posted blend may still read its parts
     g_blendSkins.erase(skin);
 }
 
@@ -1875,6 +2112,25 @@ void ps2e_graphics_draw_blend_skin(ps2e_u32 skinAddress, ps2e_u32 joints, ps2e_s
                 blend.shapes.push_back(sh);
             }
             if (!ok) continue;
+            if (Deferrable(logging)) {
+                // the blend on a worker, as the plain skins' builds (the shapes' rows are the model's, unchanged while it is
+                // loaded; the part's decode lives until the skin is released, which drains the builds first)
+                te::gfx::DeferredBuild& build = te::gfx::ReserveDeferred(bucket, emitter.state);
+                te::gfx::PostBuild(build, [&build, geometry = &geo.part, in, blend, buildState = BuildState(), textured = emitter.textured, skinAddress, i, p] {
+                    thread_local std::vector<ps2r::gs::DrawIr> built;
+                    built.clear();
+                    const SkinGeo::Result r = SkinGeo::BuildBlend(*geometry, in, blend, buildState, built);
+                    if (r != SkinGeo::Result::Ok) {
+                        static std::atomic<int> said{0};
+                        if (said++ < 8) std::fprintf(stderr, "[te.gfx] blend skin %#x submodel %u part %u: BuildBlend refused (%d)\n", skinAddress, i, p, int(r));
+                        return;
+                    }
+                    Collector collector{&build, textured};
+                    for (const auto& d : built) collector.Append(d.verts.data(), d.verts.size());
+                    g_deferredSkinTriangles += collector.triangles;
+                });
+                continue;
+            }
             draws.clear();
             const SkinGeo::Result r = SkinGeo::BuildBlend(geo.part, in, blend, BuildState(), draws);
             lastResult = int(r);

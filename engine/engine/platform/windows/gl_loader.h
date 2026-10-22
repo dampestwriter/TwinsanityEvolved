@@ -21,10 +21,11 @@
 #endif
 #include <GL/glcorearb.h>
 
-// X(type, gl name) for every entry point the engine calls (94).
+// X(type, gl name) for every entry point the engine requires (96).
 #define PS2R_GLWIN_FUNCS(X) \
     X(PFNGLACTIVETEXTUREPROC, glActiveTexture) \
     X(PFNGLATTACHSHADERPROC, glAttachShader) \
+    X(PFNGLBINDATTRIBLOCATIONPROC, glBindAttribLocation) \
     X(PFNGLBINDBUFFERPROC, glBindBuffer) \
     X(PFNGLBINDFRAMEBUFFERPROC, glBindFramebuffer) \
     X(PFNGLBINDRENDERBUFFERPROC, glBindRenderbuffer) \
@@ -113,16 +114,22 @@
     X(PFNGLUNIFORM2IPROC, glUniform2i) \
     X(PFNGLUNIFORM3FPROC, glUniform3f) \
     X(PFNGLUNIFORM4FPROC, glUniform4f) \
+    X(PFNGLUNIFORM4FVPROC, glUniform4fv) \
     X(PFNGLUNMAPBUFFERPROC, glUnmapBuffer) \
     X(PFNGLUSEPROGRAMPROC, glUseProgram) \
     X(PFNGLVERTEXATTRIBPOINTERPROC, glVertexAttribPointer) \
     X(PFNGLVIEWPORTPROC, glViewport)
+
+// X(type, gl name) for the entry points used when the driver has them (the pointer null otherwise).
+#define PS2R_GLWIN_OPTIONAL_FUNCS(X) \
+    X(PFNGLCLIPCONTROLPROC, glClipControl)
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 extern PFNGLACTIVETEXTUREPROC ps2r_glwin_glActiveTexture;
 extern PFNGLATTACHSHADERPROC ps2r_glwin_glAttachShader;
+extern PFNGLBINDATTRIBLOCATIONPROC ps2r_glwin_glBindAttribLocation;
 extern PFNGLBINDBUFFERPROC ps2r_glwin_glBindBuffer;
 extern PFNGLBINDFRAMEBUFFERPROC ps2r_glwin_glBindFramebuffer;
 extern PFNGLBINDRENDERBUFFERPROC ps2r_glwin_glBindRenderbuffer;
@@ -141,6 +148,7 @@ extern PFNGLCLEARCOLORPROC ps2r_glwin_glClearColor;
 extern PFNGLCLEARDEPTHPROC ps2r_glwin_glClearDepth;
 extern PFNGLCLEARSTENCILPROC ps2r_glwin_glClearStencil;
 extern PFNGLCLIENTWAITSYNCPROC ps2r_glwin_glClientWaitSync;
+extern PFNGLCLIPCONTROLPROC ps2r_glwin_glClipControl;
 extern PFNGLCOLORMASKPROC ps2r_glwin_glColorMask;
 extern PFNGLCOMPILESHADERPROC ps2r_glwin_glCompileShader;
 extern PFNGLCOPYTEXSUBIMAGE2DPROC ps2r_glwin_glCopyTexSubImage2D;
@@ -211,6 +219,7 @@ extern PFNGLUNIFORM2FPROC ps2r_glwin_glUniform2f;
 extern PFNGLUNIFORM2IPROC ps2r_glwin_glUniform2i;
 extern PFNGLUNIFORM3FPROC ps2r_glwin_glUniform3f;
 extern PFNGLUNIFORM4FPROC ps2r_glwin_glUniform4f;
+extern PFNGLUNIFORM4FVPROC ps2r_glwin_glUniform4fv;
 extern PFNGLUNMAPBUFFERPROC ps2r_glwin_glUnmapBuffer;
 extern PFNGLUSEPROGRAMPROC ps2r_glwin_glUseProgram;
 extern PFNGLVERTEXATTRIBPOINTERPROC ps2r_glwin_glVertexAttribPointer;
@@ -222,6 +231,7 @@ extern PFNGLVIEWPORTPROC ps2r_glwin_glViewport;
 // The GL names resolve to the pointers.
 #define glActiveTexture ps2r_glwin_glActiveTexture
 #define glAttachShader ps2r_glwin_glAttachShader
+#define glBindAttribLocation ps2r_glwin_glBindAttribLocation
 #define glBindBuffer ps2r_glwin_glBindBuffer
 #define glBindFramebuffer ps2r_glwin_glBindFramebuffer
 #define glBindRenderbuffer ps2r_glwin_glBindRenderbuffer
@@ -240,6 +250,7 @@ extern PFNGLVIEWPORTPROC ps2r_glwin_glViewport;
 #define glClearDepth ps2r_glwin_glClearDepth
 #define glClearStencil ps2r_glwin_glClearStencil
 #define glClientWaitSync ps2r_glwin_glClientWaitSync
+#define glClipControl ps2r_glwin_glClipControl
 #define glColorMask ps2r_glwin_glColorMask
 #define glCompileShader ps2r_glwin_glCompileShader
 #define glCopyTexSubImage2D ps2r_glwin_glCopyTexSubImage2D
@@ -310,6 +321,7 @@ extern PFNGLVIEWPORTPROC ps2r_glwin_glViewport;
 #define glUniform2i ps2r_glwin_glUniform2i
 #define glUniform3f ps2r_glwin_glUniform3f
 #define glUniform4f ps2r_glwin_glUniform4f
+#define glUniform4fv ps2r_glwin_glUniform4fv
 #define glUnmapBuffer ps2r_glwin_glUnmapBuffer
 #define glUseProgram ps2r_glwin_glUseProgram
 #define glVertexAttribPointer ps2r_glwin_glVertexAttribPointer
@@ -319,9 +331,9 @@ extern PFNGLVIEWPORTPROC ps2r_glwin_glViewport;
 namespace ps2r {
 namespace glwin {
 // Fill every pointer through `getproc` (SDL_GL_GetProcAddress once a context is current). Returns how many
-// entry points the driver did not supply and writes up to `max_missing` of their names into `missing`.
+// required entry points the driver did not supply and writes up to `max_missing` of their names into `missing`.
 int Load(void* (*getproc)(const char*), const char** missing, int max_missing);
-// The number of entry points in the table (the generated count).
+// The number of required entry points in the table (the generated count).
 int Count();
 }  // namespace glwin
 }  // namespace ps2r

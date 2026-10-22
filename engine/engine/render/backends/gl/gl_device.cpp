@@ -5,6 +5,7 @@
 #include PS2R_GL_HEADER
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdio>
 #include <cstring>
 #include <limits>
@@ -23,6 +24,24 @@ bool GlDevice::Init(std::function<void()> swap) {
     Shutdown();
     swap_ = std::move(swap);
     state_.InvalidateAll();
+    // Window depth is z / 2^32 either way; with clip control (GL 4.5 or ARB_clip_control, which 4.1 contexts carry
+    // on the desktop drivers) it needs no -1..1 detour, which costs the float depth the low 7 bits of Z
+    bool zero_to_one = false;
+#if defined(_WIN32)
+    if (ps2r_glwin_glClipControl) {
+        GLint extensions = 0;
+        glGetIntegerv(GL_NUM_EXTENSIONS, &extensions);
+        for (GLint i = 0; i < extensions && !zero_to_one; ++i) {
+            const GLubyte* name = glGetStringi(GL_EXTENSIONS, GLuint(i));
+            zero_to_one = name && std::strcmp(reinterpret_cast<const char*>(name), "GL_ARB_clip_control") == 0;
+        }
+        if (zero_to_one) {
+            glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE);
+            zero_to_one = glGetError() == GL_NO_ERROR;
+        }
+    }
+#endif
+    shaders_.SetZeroToOneDepth(zero_to_one);
     if (!shaders_.Build(uniforms_)) return false;
     if (!vertices_.Init(state_)) return false;
 
@@ -117,6 +136,11 @@ bool GlDevice::Init(std::function<void()> swap) {
 void GlDevice::Shutdown() {
     if (!initialized_) return;
     executor_.reset();
+    for (auto& kv : meshes_) {
+        state_.DeleteBuffers(1, &kv.second.vbo);
+        state_.DeleteVertexArrays(1, &kv.second.vao);
+    }
+    meshes_.clear();
     for (auto& kv : surfaces_) ReleaseSurface(kv.second);
     surfaces_.clear();
     pool_.DropAll(state_);
@@ -565,6 +589,68 @@ DrawResult GlDevice::Draw(const gs::DrawIr& ir, const gs::TextureSource& tex,
                           const DrawParams& params) {
     if (!executor_) return DrawResult{};
     return executor_->Draw(ir, tex, params);
+}
+
+// A native mesh: its vertices in a buffer of their own with the attribute layout bound once (GpuVertex's four, then the
+// normal and the lit colour); 0 when the PS2 program has no native transform (the caller builds on the CPU)
+uint32_t GlDevice::CreateMesh(const MeshVertex* verts, size_t count) {
+    if (!shaders_.NativeMesh() || !verts || count < 3) return 0;
+    GlMesh m;
+    m.count = count;
+    glGenVertexArrays(1, &m.vao);
+    glGenBuffers(1, &m.vbo);
+    if (!m.vao || !m.vbo) return 0;
+    state_.BindVertexArray(m.vao);
+    state_.BindArrayBuffer(m.vbo);
+    glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(count * sizeof(MeshVertex)), verts, GL_STATIC_DRAW);
+    const GLsizei stride = sizeof(MeshVertex);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<void*>(offsetof(MeshVertex, x)));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<void*>(offsetof(MeshVertex, s)));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, stride, reinterpret_cast<void*>(offsetof(MeshVertex, r)));
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, 1, GL_UNSIGNED_BYTE, GL_TRUE, stride, reinterpret_cast<void*>(offsetof(MeshVertex, fog)));
+    glEnableVertexAttribArray(4);
+    glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<void*>(offsetof(MeshVertex, nx)));
+    glEnableVertexAttribArray(5);
+    glVertexAttribPointer(5, 4, GL_UNSIGNED_BYTE, GL_TRUE, stride, reinterpret_cast<void*>(offsetof(MeshVertex, lr)));
+    state_.BindVertexArray(0);
+    const uint32_t id = next_mesh_++;
+    meshes_[id] = m;
+    return id;
+}
+
+void GlDevice::DestroyMesh(uint32_t mesh) {
+    auto it = meshes_.find(mesh);
+    if (it == meshes_.end()) return;
+    state_.DeleteBuffers(1, &it->second.vbo);
+    state_.DeleteVertexArrays(1, &it->second.vao);
+    meshes_.erase(it);
+}
+
+DrawResult GlDevice::DrawMesh(const gs::DrawIr& ir, const gs::TextureSource& tex, const DrawParams& params, uint32_t mesh,
+                              const MeshDrawParams& mp) {
+    auto it = meshes_.find(mesh);
+    if (!executor_ || it == meshes_.end()) return DrawResult{};
+    return executor_->DrawMesh(ir, tex, params, it->second.vao, it->second.count, mp);
+}
+
+DrawResult GlDevice::DrawMeshAgain(uint32_t mesh, const MeshDrawParams& mp) {
+    auto it = meshes_.find(mesh);
+    if (!executor_ || it == meshes_.end()) return DrawResult{};
+    return executor_->DrawMeshAgain(it->second.vao, it->second.count, mp);
+}
+
+bool GlDevice::DrawsRaw(const gs::DrawIr& ir, const gs::TextureSource& tex, const DrawParams& params) const {
+    return executor_ && executor_->DrawsRaw(ir, tex, params);
+}
+
+DrawResult GlDevice::DrawRaw(const gs::DrawIr& ir, const gs::TextureSource& tex, const DrawParams& params,
+                             const RawVertex* verts, size_t n, const float* box) {
+    if (!executor_) return DrawResult{};
+    return executor_->DrawRaw(ir, tex, params, verts, n, box);
 }
 
 // glCopyTexSubImage2D from the source attachment into the destination texture

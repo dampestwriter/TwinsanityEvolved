@@ -5,6 +5,8 @@
 // absolute addresses the file cannot hold, so they end the walk with an error.
 #include "gs_texture.h"
 
+#include <algorithm>
+
 #include <cstdio>
 #include <cstring>
 
@@ -203,6 +205,22 @@ bool DecodeTextureResource(const te_gfx_texture_header& h, const uint8_t* packet
     if (out.rgba.size() != size_t(out.width) * out.height) {
         if (error) *error = "decoder produced the wrong texel count";
         return false;
+    }
+    // The levels below: the same view at each level's address and buffer width, its size halved per level (the GS reads
+    // level i at MIPTBPi with TW / TH less i, never under 1). A level the decoder cannot read ends the chain there.
+    out.mips.clear();
+    const unsigned levels = std::min<unsigned>(h.levels, 7);
+    for (unsigned i = 1; i < levels; ++i) {
+        ps2r::gs::TexReadView lv = v;
+        lv.tbp = h.levelOffsets[i] * 256u;
+        lv.tbw = std::max<uint32_t>(h.levelWidths[i], 1u) * 64u;
+        lv.tw = h.widthPower > i ? h.widthPower - i : 0;
+        lv.th = h.heightPower > i ? h.heightPower - i : 0;
+        lv.mxl = 0;
+        std::vector<uint32_t> level;
+        ps2r::gs::TextureDecoder::Decode(vram.Bytes(), lv, nullptr, nullptr, &level);
+        if (level.size() != (size_t(1) << lv.tw) * (size_t(1) << lv.th)) break;
+        out.mips.push_back(std::move(level));
     }
     return true;
 }

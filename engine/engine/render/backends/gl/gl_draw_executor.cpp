@@ -6,6 +6,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
+#include <cstdlib>   // XBISECT
 
 #include "engine/gs/hle/ir/draw_ir.h"
 #include "engine/gs/hle/texsrc/texture_source.h"
@@ -13,6 +15,7 @@
 #include "engine/render/backends/gl/cd_copy_policy.h"
 #include "engine/render/backends/gl/gl_device.h"
 #include "engine/render/backends/gl/vertex_convert.h"
+
 
 namespace ps2r {
 namespace render {
@@ -132,6 +135,9 @@ DrawResult GlDrawExecutor::Draw(const gs::DrawIr& ir, const gs::TextureSource& t
     GlUniformCache& u = dev_.Uniforms();
     const GlUniformLocations& L = dev_.Shaders().Locations();
     st.UseProgram(dev_.Shaders().Ps2Program());
+    // the vertices as they are (a native mesh draw leaves its transform on: cached, so a run of these sets nothing)
+    u.Set1i(L.native, 0);
+    u.Set1i(L.uv_mode, 0);
     u.Set2f(L.screen_size, static_cast<float>(s.render_w), static_cast<float>(s.render_h));
     TextureUniforms(ir, tex, p, s);
     RegisterUniforms(ir, p);
@@ -153,6 +159,178 @@ DrawResult GlDrawExecutor::Draw(const gs::DrawIr& ir, const gs::TextureSource& t
     if (p.stencil_state.enabled) GlDevice::ResetStencil();
     // Masks return to their open defaults after every draw, so any raw GL pass
     // that follows (clear, refresh, present) inherits writable colour and depth.
+    st.ColorMask(true, true, true, true);
+    st.DepthMask(true);
+    return MakeResult(ir, p, s);
+}
+
+// A native mesh: Draw's state sequence over the mesh's buffer, the vertices transformed by the shader (u_native) rather
+// than converted and uploaded; no screen box is known, so the copy and write rectangles are the whole target
+DrawResult GlDrawExecutor::DrawMesh(const gs::DrawIr& ir, const gs::TextureSource& tex, const DrawParams& p, uint32_t vao,
+                                    size_t count, const MeshDrawParams& mp) {
+    Step s;
+    DrawResult none;
+    if (count < 3 || !dev_.Shaders().NativeMesh()) return none;
+    if (!BindTarget(ir, p, s)) return none;
+    FrameClear(p);
+    BindTextures(tex, p, s);
+    const auto& t = tex.transform;
+    const bool textured = tex.enabled && t.uv_tex_w > 0 && t.uv_tex_h > 0;
+    for (int k = 0; k < 4; ++k) s.bb_all[k] = s.bb_tri[k] = mp.box[k];
+    s.bb_valid = true;
+    s.tri_verts = count / 3 * 3;
+    GlStateCache& st = dev_.State();
+    GlUniformCache& u = dev_.Uniforms();
+    const GlUniformLocations& L = dev_.Shaders().Locations();
+    st.UseProgram(dev_.Shaders().Ps2Program());
+    u.Set2f(L.screen_size, static_cast<float>(s.render_w), static_cast<float>(s.render_h));
+    TextureUniforms(ir, tex, p, s);
+    RegisterUniforms(ir, p);
+    ClassifyRoutes(ir, tex, p, s);
+    {
+        // the destination copy's rectangle (ClassifyRoutes takes it from the vertices, which a mesh draw has none of here):
+        // the box, inside the scissor and the target
+        const auto& sc = ir.raster.scissor;
+        int rx0 = std::max(static_cast<int>(std::floor(mp.box[0])), static_cast<int>(sc.x0));
+        int ry0 = std::max(static_cast<int>(std::floor(mp.box[1])), static_cast<int>(sc.y0));
+        int rx1 = std::min(static_cast<int>(std::ceil(mp.box[2])), static_cast<int>(sc.x1) + 1);
+        int ry1 = std::min(static_cast<int>(std::ceil(mp.box[3])), static_cast<int>(sc.y1) + 1);
+        rx0 = std::max(0, std::min(rx0, p.target_w));
+        ry0 = std::max(0, std::min(ry0, p.target_h));
+        rx1 = std::max(0, std::min(rx1, p.target_w));
+        ry1 = std::max(0, std::min(ry1, p.target_h));
+        if (rx1 > rx0 && ry1 > ry0 && !s.idx_self_serve) {
+            s.copy_x = rx0; s.copy_y = ry0; s.copy_w = rx1 - rx0; s.copy_h = ry1 - ry0;
+        }
+    }
+    BlendState(ir, p, s);
+    DepthState(ir, p, s);
+    ScissorState(ir, s);
+    // the destination copy and the shader blend's set-up above may have used other programs: the PS2 program again,
+    // with the mesh's transform, before its draw
+    st.UseProgram(dev_.Shaders().Ps2Program());
+    u.Set1i(L.native, 1);
+    u.Set1i(L.uv_mode, textured ? 2 : 3);
+    if (textured) u.Set2f(L.uv_scale, static_cast<float>(t.uv_pre_w), static_cast<float>(t.uv_pre_h));
+    MeshUniforms(mp);
+    st.BindVertexArray(vao);
+    ColorMaskState(ir, s);
+    if (p.stencil_state.enabled) GlDevice::ApplyStencil(p.stencil_state);
+#if PS2R_HOST_VITA
+    st.ApplyVitaSamplerSizes();
+#endif
+    glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(s.tri_verts));
+    if (p.stencil_state.enabled) GlDevice::ResetStencil();
+    st.ColorMask(true, true, true, true);
+    st.DepthMask(true);
+    // the transform and the mesh's vertex array stay bound for the next mesh draw: a plain draw turns the transform off
+    // and binds the stream's own array
+    // another mesh may take this state as it stands (no destination copy, shader blend, stencil or clear of its own)
+    run_valid_ = !s.needs_rt_copy && !s.sw_blend_active && !s.cd_copied && !p.stencil_state.enabled && !p.do_frame_clear;
+    if (run_valid_) {
+        run_step_ = s;
+        run_ir_ = &ir;
+        run_params_ = p;
+        run_state_ = st.Mutations();
+        run_uniforms_ = u.Mutations();
+    }
+    return MakeResult(ir, p, s);
+}
+
+void GlDrawExecutor::MeshUniforms(const MeshDrawParams& mp) {
+    GlUniformCache& u = dev_.Uniforms();
+    const GlUniformLocations& L = dev_.Shaders().Locations();
+    float mesh[20];
+    std::memcpy(mesh, mp.screen, sizeof mp.screen);
+    mesh[16] = mp.offset[0];
+    mesh[17] = mp.offset[1];
+    mesh[18] = mp.scroll[0];
+    mesh[19] = mp.scroll[1];
+    u.Set4fv(L.mesh, 5, mesh);
+    u.Set1i(L.mesh_lit, mp.lit ? 1 : 0);
+    if (mp.lit) {
+        float light[28] = {};
+        for (int l = 0; l < 3; ++l)
+            for (int k = 0; k < 3; ++k) {
+                light[l * 4 + k] = mp.light_dir[l][k];
+                light[(3 + l) * 4 + k] = mp.light_colour[l][k];
+            }
+        for (int k = 0; k < 3; ++k) light[24 + k] = mp.ambient[k];
+        u.Set4fv(L.mesh_light, 7, light);
+    }
+}
+
+DrawResult GlDrawExecutor::DrawMeshAgain(uint32_t vao, size_t count, const MeshDrawParams& mp) {
+    GlStateCache& st = dev_.State();
+    GlUniformCache& u = dev_.Uniforms();
+    if (!run_valid_ || count < 3 || st.Mutations() != run_state_ || u.Mutations() != run_uniforms_) return DrawResult{};
+    Step s = run_step_;
+    for (int k = 0; k < 4; ++k) s.bb_all[k] = s.bb_tri[k] = mp.box[k];
+    s.tri_verts = count / 3 * 3;
+    MeshUniforms(mp);
+    st.BindVertexArray(vao);
+    ColorMaskState(*run_ir_, s);
+    DepthState(*run_ir_, run_params_, s);
+#if PS2R_HOST_VITA
+    st.ApplyVitaSamplerSizes();
+#endif
+    glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(s.tri_verts));
+    st.ColorMask(true, true, true, true);
+    st.DepthMask(true);
+    run_state_ = st.Mutations();
+    run_uniforms_ = u.Mutations();
+    return MakeResult(*run_ir_, run_params_, s);
+}
+
+// A raw draw takes what Draw's conversion would have done to the vertices to the shader: the S / T prescale (u_uv_mode 2,
+// the same single multiply), Q 0 read as 1 (u_native 2); a texture that rebases or rescales its coordinates per vertex,
+// a fogged or a stencil-program draw takes Draw
+bool GlDrawExecutor::DrawsRaw(const gs::DrawIr& ir, const gs::TextureSource& tex, const DrawParams& p) const {
+    static const bool xNoRaw = std::getenv("TE_X_NO_RAW") != nullptr;   // XBISECT
+    if (xNoRaw) return false;
+    if (!dev_.Shaders().NativeMesh() || p.program != StencilProgram::None || ir.fog || ir.tex.fst) return false;
+    const auto& t = tex.transform;
+    return !t.region.applied && t.shuffle_uv_scale_u == 1.0f && !t.shuffle_snap;
+}
+
+DrawResult GlDrawExecutor::DrawRaw(const gs::DrawIr& ir, const gs::TextureSource& tex, const DrawParams& p,
+                                   const RawVertex* verts, size_t n, const float* box) {
+    Step s;
+    DrawResult none;
+    if (n < 3 || !DrawsRaw(ir, tex, p)) return none;
+    if (!BindTarget(ir, p, s)) return none;
+    FrameClear(p);
+    BindTextures(tex, p, s);
+    const auto& t = tex.transform;
+    const bool textured = tex.enabled && t.uv_tex_w > 0 && t.uv_tex_h > 0;
+    for (int k = 0; k < 4; ++k) s.bb_all[k] = s.bb_tri[k] = box[k];
+    s.bb_valid = true;
+    s.tri_verts = n / 3 * 3;
+    GlStateCache& st = dev_.State();
+    GlUniformCache& u = dev_.Uniforms();
+    const GlUniformLocations& L = dev_.Shaders().Locations();
+    st.UseProgram(dev_.Shaders().Ps2Program());
+    u.Set1i(L.native, 2);
+    u.Set1i(L.uv_mode, textured ? 2 : 3);
+    if (textured) u.Set2f(L.uv_scale, static_cast<float>(t.uv_pre_w), static_cast<float>(t.uv_pre_h));
+    u.Set2f(L.screen_size, static_cast<float>(s.render_w), static_cast<float>(s.render_h));
+    TextureUniforms(ir, tex, p, s);
+    RegisterUniforms(ir, p);
+    ClassifyRoutes(ir, tex, p, s);
+    BlendState(ir, p, s);
+    DepthState(ir, p, s);
+    ScissorState(ir, s);
+    // the destination copy and the shader blend's set-up above may have used other programs
+    st.UseProgram(dev_.Shaders().Ps2Program());
+    dev_.Vertices().BindRawForDraw(st);
+    s.first = dev_.Vertices().UploadRaw(verts, s.tri_verts * sizeof(RawVertex), sizeof(RawVertex));
+    ColorMaskState(ir, s);
+    if (p.stencil_state.enabled) GlDevice::ApplyStencil(p.stencil_state);
+#if PS2R_HOST_VITA
+    st.ApplyVitaSamplerSizes();
+#endif
+    glDrawArrays(GL_TRIANGLES, s.first, static_cast<GLsizei>(s.tri_verts));
+    if (p.stencil_state.enabled) GlDevice::ResetStencil();
     st.ColorMask(true, true, true, true);
     st.DepthMask(true);
     return MakeResult(ir, p, s);

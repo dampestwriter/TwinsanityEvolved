@@ -116,7 +116,7 @@ void RecordSplit(const FrameContext& ctx, const char* what, const std::string& c
 
 std::string PracticeDir() {
     const std::string& mc = GetSettings().mc_dir;
-    const size_t slash = mc.rfind('/');
+    const size_t slash = mc.find_last_of("/\\");   // either separator: a Windows path has backslashes
     const std::string base = (!mc.empty() && slash != std::string::npos) ? mc.substr(0, slash) : std::string(".");
     return base + "/practice";
 }

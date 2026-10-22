@@ -79,6 +79,14 @@ public:
     void FinishMipChain(SurfaceId id, int authored_levels, bool synthesize_tail) override;
     DrawResult Draw(const gs::DrawIr& ir, const gs::TextureSource& tex,
                     const DrawParams& params) override;
+    uint32_t CreateMesh(const MeshVertex* verts, size_t count) override;
+    void DestroyMesh(uint32_t mesh) override;
+    DrawResult DrawMesh(const gs::DrawIr& ir, const gs::TextureSource& tex, const DrawParams& params, uint32_t mesh,
+                        const MeshDrawParams& mp) override;
+    DrawResult DrawMeshAgain(uint32_t mesh, const MeshDrawParams& mp) override;
+    bool DrawsRaw(const gs::DrawIr& ir, const gs::TextureSource& tex, const DrawParams& params) const override;
+    DrawResult DrawRaw(const gs::DrawIr& ir, const gs::TextureSource& tex, const DrawParams& params, const RawVertex* verts,
+                       size_t n, const float* box) override;
     void CopyRect(SurfaceId src, const Rect& src_rect, SurfaceId dst, const Rect& dst_rect,
                   uint32_t transform) override;
     void Readback(SurfaceId id, const Rect& rect, void* out, size_t stride) override;
@@ -179,6 +187,12 @@ private:
     bool CaptureTarget(int w, int h);
     std::unordered_map<uint32_t, GlSurface> surfaces_;
     uint32_t next_surface_ = 1;
+    struct GlMesh {
+        uint32_t vao = 0, vbo = 0;
+        size_t count = 0;
+    };
+    std::unordered_map<uint32_t, GlMesh> meshes_;
+    uint32_t next_mesh_ = 1;
     struct PendingReadback {
         std::vector<uint8_t> bytes;
         size_t stride = 0;

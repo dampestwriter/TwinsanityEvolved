@@ -5,6 +5,7 @@
 #include PS2R_GL_HEADER
 
 #include <cstring>
+#include <cstdlib>   // XBISECT
 
 namespace ps2r {
 namespace render {
@@ -41,6 +42,7 @@ void GlStateCache::BindFb(uint32_t target, uint32_t fbo) {
         if (fbo_read_ == fbo) return;
         fbo_read_ = fbo;
     }
+    ++mutations_;
     glBindFramebuffer(target, fbo);
 }
 
@@ -49,6 +51,7 @@ void GlStateCache::DeleteFramebuffers(int n, const uint32_t* ids) {
         if (fbo_draw_ == ids[i]) fbo_draw_ = 0;
         if (fbo_read_ == ids[i]) fbo_read_ = 0;
     }
+    ++mutations_;
     glDeleteFramebuffers(n, ids);
 }
 
@@ -58,16 +61,19 @@ void GlStateCache::ActiveTexture(uint32_t unit_enum) {
     const int idx = static_cast<int>(unit_enum - GL_TEXTURE0);
     if (idx >= 0 && idx < kMaxUnits && active_unit_ == idx) return;
     active_unit_ = (idx >= 0 && idx < kMaxUnits) ? idx : -1;
+    ++mutations_;
     glActiveTexture(unit_enum);
 }
 
 void GlStateCache::BindTex2D(uint32_t tex) {
     if (active_unit_ < 0) {
+        ++mutations_;
         glBindTexture(GL_TEXTURE_2D, tex);
         return;
     }
     if (tex2d_[active_unit_] == tex) return;
     tex2d_[active_unit_] = tex;
+    ++mutations_;
     glBindTexture(GL_TEXTURE_2D, tex);
 }
 
@@ -86,21 +92,25 @@ bool GlStateCache::TexParamCheckSet(uint32_t tex, uint32_t pname, int32_t bits) 
 
 void GlStateCache::TexParami(uint32_t pname, int param) {
     if (active_unit_ < 0 || tex2d_[active_unit_] == kUnknown || tex2d_[active_unit_] == 0) {
+        ++mutations_;
         glTexParameteri(GL_TEXTURE_2D, pname, param);
         return;
     }
     if (TexParamCheckSet(tex2d_[active_unit_], pname, param)) { skips_++; return; }
+    ++mutations_;
     glTexParameteri(GL_TEXTURE_2D, pname, param);
 }
 
 void GlStateCache::TexParamf(uint32_t pname, float param) {
     if (active_unit_ < 0 || tex2d_[active_unit_] == kUnknown || tex2d_[active_unit_] == 0) {
+        ++mutations_;
         glTexParameterf(GL_TEXTURE_2D, pname, param);
         return;
     }
     int32_t bits = 0;
     std::memcpy(&bits, &param, sizeof(bits));
     if (TexParamCheckSet(tex2d_[active_unit_], pname, bits)) { skips_++; return; }
+    ++mutations_;
     glTexParameterf(GL_TEXTURE_2D, pname, param);
 }
 
@@ -110,6 +120,7 @@ void GlStateCache::DeleteTextures(int n, const uint32_t* ids) {
             if (tex2d_[u] == ids[i]) tex2d_[u] = 0;
         tex_params_.erase(ids[i]);
     }
+    ++mutations_;
     glDeleteTextures(n, ids);
 }
 
@@ -122,18 +133,26 @@ void GlStateCache::ApplyVitaSamplerSizes() {
         {"te_size_u_texture", 0}, {"te_size_u_frame", 0}, {"te_size_u_rt_texture", 1},
         {"te_size_u_clut", 2},    {"te_size_u_idx_tex2", 3}, {"te_size_u_zsrc_tex", 4},
     };
-    auto it = vita_size_locs_.find(program_);
-    if (it == vita_size_locs_.end()) {
-        std::array<int32_t, 6> locs{};
-        for (int i = 0; i < 6; ++i) locs[i] = glGetUniformLocation(program_, kSizes[i].name);
-        it = vita_size_locs_.emplace(program_, locs).first;
+    auto it = vita_sizes_.find(program_);
+    if (it == vita_sizes_.end()) {
+        VitaSizes sizes;
+        for (int i = 0; i < 6; ++i) sizes.locs[i] = glGetUniformLocation(program_, kSizes[i].name);
+        it = vita_sizes_.emplace(program_, sizes).first;
     }
+    VitaSizes& sizes = it->second;
+    const uint32_t generation = ps2r_vita_TexGeneration();
     for (int i = 0; i < 6; ++i) {
-        const int32_t loc = it->second[i];
+        const int32_t loc = sizes.locs[i];
         const uint32_t tex = tex2d_[kSizes[i].unit];
         if (loc < 0 || tex == kUnknown || tex == 0) continue;
+        static const bool xNoSizeCache = std::getenv("TE_X_NO_SIZECACHE") != nullptr;   // XBISECT
+        if (!xNoSizeCache && sizes.tex[i] == tex && sizes.generation[i] == generation) continue;
         int w = 0, h = 0;
-        if (ps2r_vita_TexSize(tex, &w, &h)) glUniform2f(loc, float(w), float(h));
+        if (!ps2r_vita_TexSize(tex, &w, &h)) continue;
+        ++mutations_;
+        glUniform2f(loc, float(w), float(h));
+        sizes.tex[i] = tex;
+        sizes.generation[i] = generation;
     }
 }
 #endif
@@ -141,23 +160,30 @@ void GlStateCache::ApplyVitaSamplerSizes() {
 void GlStateCache::UseProgram(uint32_t prog) {
     if (program_ == prog) { skips_++; return; }
     program_ = prog;
+    ++mutations_;
     glUseProgram(prog);
 }
 
 void GlStateCache::DeleteProgram(uint32_t prog) {
     if (program_ == prog) program_ = kUnknown;
+#if PS2R_HOST_VITA
+    vita_sizes_.erase(prog);
+#endif
+    ++mutations_;
     glDeleteProgram(prog);
 }
 
 void GlStateCache::BindArrayBuffer(uint32_t buf) {
     if (array_buffer_ == buf) { skips_++; return; }
     array_buffer_ = buf;
+    ++mutations_;
     glBindBuffer(GL_ARRAY_BUFFER, buf);
 }
 
 void GlStateCache::DeleteBuffers(int n, const uint32_t* ids) {
     for (int i = 0; i < n; i++)
         if (array_buffer_ == ids[i]) array_buffer_ = 0;
+    ++mutations_;
     glDeleteBuffers(n, ids);
 }
 
@@ -169,6 +195,7 @@ void GlStateCache::Viewport(int x, int y, int w, int h) {
     }
     viewport_known_ = true;
     viewport_[0] = x; viewport_[1] = y; viewport_[2] = w; viewport_[3] = h;
+    ++mutations_;
     glViewport(x, y, w, h);
 }
 
@@ -183,6 +210,7 @@ void GlStateCache::SetCap(uint32_t cap, bool on) {
         if (*s == static_cast<int8_t>(on ? 1 : 0)) { skips_++; return; }
         *s = static_cast<int8_t>(on ? 1 : 0);
     }
+    ++mutations_;
     if (on) glEnable(cap); else glDisable(cap);
 }
 
@@ -193,6 +221,7 @@ void GlStateCache::BlendEquationSeparate(uint32_t rgb, uint32_t a) {
     if (blend_eq_rgb_ == rgb && blend_eq_a_ == a) { skips_++; return; }
     blend_eq_rgb_ = rgb;
     blend_eq_a_ = a;
+    ++mutations_;
     glBlendEquationSeparate(rgb, a);
 }
 
@@ -204,6 +233,7 @@ void GlStateCache::BlendFuncSeparate(uint32_t sr, uint32_t dr, uint32_t sa, uint
     }
     blend_src_rgb_ = sr; blend_dst_rgb_ = dr;
     blend_src_a_ = sa;   blend_dst_a_ = da;
+    ++mutations_;
     glBlendFuncSeparate(sr, dr, sa, da);
 }
 
@@ -220,6 +250,7 @@ void GlStateCache::BlendColor(float r, float g, float b, float a) {
 #if PS2R_HOST_VITA
     (void)r; (void)g; (void)b; (void)a;   // vitaGL has no constant-colour blend factor
 #else
+    ++mutations_;
     glBlendColor(r, g, b, a);
 #endif
 }
@@ -227,6 +258,7 @@ void GlStateCache::BlendColor(float r, float g, float b, float a) {
 void GlStateCache::DepthFunc(uint32_t f) {
     if (depth_func_ == f) { skips_++; return; }
     depth_func_ = f;
+    ++mutations_;
     glDepthFunc(f);
 }
 
@@ -234,6 +266,7 @@ void GlStateCache::DepthMask(bool m) {
     const int8_t v = m ? 1 : 0;
     if (depth_mask_ == v) { skips_++; return; }
     depth_mask_ = v;
+    ++mutations_;
     glDepthMask(m ? GL_TRUE : GL_FALSE);
 }
 
@@ -245,6 +278,7 @@ void GlStateCache::ColorMask(bool r, bool g, bool b, bool a) {
         return;
     }
     color_mask_[0] = vr; color_mask_[1] = vg; color_mask_[2] = vb; color_mask_[3] = va;
+    ++mutations_;
     glColorMask(r, g, b, a);
 }
 
@@ -256,6 +290,7 @@ void GlStateCache::Scissor(int x, int y, int w, int h) {
     }
     scissor_known_ = true;
     scissor_box_[0] = x; scissor_box_[1] = y; scissor_box_[2] = w; scissor_box_[3] = h;
+    ++mutations_;
     glScissor(x, y, w, h);
 }
 
@@ -265,12 +300,14 @@ void GlStateCache::BindVertexArray(uint32_t vao) {
     // GL_ARRAY_BUFFER binding is not vertex-array state (GL 4.1), but a real VAO
     // bind drops the array-buffer shadow so no spec corner can be argued.
     array_buffer_ = kUnknown;
+    ++mutations_;
     glBindVertexArray(vao);
 }
 
 void GlStateCache::DeleteVertexArrays(int n, const uint32_t* ids) {
     for (int i = 0; i < n; i++)
         if (vao_ == ids[i]) vao_ = 0;
+    ++mutations_;
     glDeleteVertexArrays(n, ids);
 }
 

@@ -62,6 +62,7 @@ struct ps2e_draw {
     struct Texture {
         render::SurfaceId surface;
         int w = 0, h = 0;
+        int levels = 0;   // the levels below the first (ps2e_draw_texture_set_mips)
     };
     std::unordered_map<uint32_t, Texture> textures;
     // The screen copy (ps2e_draw_copy_frame): a texture of the frame target's physical size, re-made with it; valid
@@ -71,6 +72,11 @@ struct ps2e_draw {
     ps2e_draw_counters counters{};
     std::vector<uint8_t> scratch;
     gs::DrawIr ir;   // the submit's record, kept so its vertex storage is reused across draws (no allocation per draw)
+    // the last mesh draw's state while the next draw may be another mesh under it (the device's DrawMeshAgain): valid
+    // while no other draw came between (the draw count it left)
+    bool mesh_run = false;
+    ps2e_draw_state mesh_run_state{};
+    uint64_t mesh_run_draws = 0;
 };
 
 namespace {
@@ -322,16 +328,26 @@ int ps2e_draw_pump(ps2e_draw* d) {
             }
         }
     }
+    // the size asked every pump as well: a maximize / restore / mode change whose event came before the window settled
+    // (or never came) must not leave the picture laid out for the old size, anchored at the drawable's bottom-left
+    if (!d->headless) {
+        int w = 0, h = 0;
+        SDL_GL_GetDrawableSize(d->window.Handle(), &w, &h);
+        if (w > 0 && h > 0) {
+            d->drawable_w = w;
+            d->drawable_h = h;
+        }
+    }
     return quit;
 }
 
 int ps2e_draw_bind_thread(ps2e_draw* d, int bind) {
     if (!d || !d->context.IsCreated()) return 0;
 #if PS2R_HOST_VITA
-    // vitaGL's one context stays with the thread that created it (SDL's Vita video has no GL to hand over): the frames are
-    // drawn on that thread
+    // vitaGL has one context and no per-thread binding (SDL's Vita video has no GL to hand over): the frames may be drawn
+    // on another thread as they are, one thread at a time -- the render thread's hand-over keeps it so
     (void)bind;
-    return 0;
+    return 1;
 #endif
     if (bind) return d->context.MakeCurrent(d->window) ? 1 : 0;
     return SDL_GL_MakeCurrent(d->window.Handle(), nullptr) == 0 ? 1 : 0;
@@ -386,6 +402,20 @@ int ps2e_draw_texture_upload(ps2e_draw* d, uint32_t texture, int x, int y, int w
     return 1;
 }
 
+int ps2e_draw_texture_set_mips(ps2e_draw* d, uint32_t texture, int count, const void* const* levels) {
+    if (!d || count < 0 || count > 6 || (count && !levels)) return 0;
+    auto it = d->textures.find(texture);
+    if (it == d->textures.end()) return 0;
+    ps2e_draw::Texture& t = it->second;
+    for (int i = 1; i <= count; ++i) {
+        if (!levels[i - 1]) return 0;
+        d->device->UploadLevel(t.surface, i, std::max(t.w >> i, 1), std::max(t.h >> i, 1), levels[i - 1]);
+    }
+    d->device->FinishMipChain(t.surface, count, false);
+    t.levels = count;
+    return 1;
+}
+
 void ps2e_draw_texture_destroy(ps2e_draw* d, uint32_t texture) {
     if (!d) return;
     auto it = d->textures.find(texture);
@@ -397,6 +427,7 @@ void ps2e_draw_texture_destroy(ps2e_draw* d, uint32_t texture) {
 
 void ps2e_draw_begin_frame(ps2e_draw* d, const ps2e_draw_clear* clear) {
     if (!d) return;
+    d->mesh_run = false;
     if (d->in_frame) d->device->EndDrawRun();
     // A changed internal scale takes effect at a frame's start (the target re-made before its draws); the texture
     // filter override with it (the present applies the rest)
@@ -425,22 +456,9 @@ void ps2e_draw_begin_frame(ps2e_draw* d, const ps2e_draw_clear* clear) {
     d->device->BeginDrawRun();
 }
 
-int ps2e_draw_submit(ps2e_draw* d, const ps2e_draw_state* st, const ps2e_draw_vertex* v, int count) {
-    if (!d || !st || !v || count < 3) {
-        if (d) d->counters.refused++;
-        return -1;
-    }
-    if (!d->in_frame) ps2e_draw_begin_frame(d, nullptr);
-    if (st->stencil == PS2E_DRAW_STENCIL_CLEAR) {
-        // The counter's origin (15: counts 1..16 set bit 4, as the GS byte 120 + 8n set bit 7 for n in 1..16)
-        StencilProbe(d, "before-clear");
-        d->device->ClearStencil(d->depth, kStencilOrigin);
-        SeedCasterMask(d);
-        StencilProbe(d, "after-clear");
-        d->counters.draws++;
-        return 0;
-    }
-    const int tri_verts = (count / 3) * 3;
+// The draw's GS record (d->ir, its vertices left as they are) and texture source from the producer's state; 0, or -2
+// when the state names a texture that is not there (counted as refused)
+static int PrepareRecord(ps2e_draw* d, const ps2e_draw_state* st, gs::TextureSource& ts) {
     // The record starts from its defaults each draw; the vertex vector keeps its capacity (a frame's draws allocate
     // nothing once the largest has been seen -- a fresh vector per draw cost a large allocation and its page faults).
     gs::DrawIr& ir = d->ir;
@@ -487,7 +505,6 @@ int ps2e_draw_submit(ps2e_draw* d, const ps2e_draw_state* st, const ps2e_draw_ve
                              uint16_t(std::clamp(st->scissor_y1, 0, d->frame_h - 1))};
     }
 
-    gs::TextureSource ts;
     const ps2e_draw::Texture* tex = nullptr;
     if (st->texture == PS2E_DRAW_TEXTURE_FRAME_COPY) {
         // The screen copy as the texture -- only once a copy of this frame has been taken
@@ -530,31 +547,25 @@ int ps2e_draw_submit(ps2e_draw* d, const ps2e_draw_state* st, const ps2e_draw_ve
         ts.sampler.mmin = linear ? 1 : 0;
         ts.sampler.wms = uint8_t(st->wrap_u ? 1 : 0);
         ts.sampler.wmt = uint8_t(st->wrap_v ? 1 : 0);
+        // TEX1's mipmapping over the texture's levels: the shader's per-pixel LOD (Q-based, LCM 0) between them
+        const int mxl = std::min(st->mip_max_level, tex->levels);
+        if (mxl > 0 && st->mip_minify >= 2 && st->mip_minify <= 5) {
+            ts.owner.levels = uint8_t(tex->levels);
+            ts.transform.mip_levels = uint8_t(mxl);
+            ts.transform.mip_lcm = false;
+            ts.transform.mip_k = int16_t(int32_t(uint32_t(st->mip_k) << 20) >> 20);   // the 12-bit field, sign-extended
+            ts.transform.mip_l = uint8_t(st->mip_l & 3);
+            // the Display page's point / bilinear choice keeps the mipmaps, nearest or linear within a level
+            ts.sampler.mmin = uint8_t(d->applied.texture_filter == 1 ? 2 : d->applied.texture_filter == 2 ? 4 : st->mip_minify);
+            ir.tex.mmin = ts.sampler.mmin;
+        }
     }
 
-    ir.verts.resize(size_t(tri_verts));
-    for (int i = 0; i < tri_verts; ++i) {
-        gs::VertexRec& r = ir.verts[size_t(i)];
-        r = gs::VertexRec{};
-        r.x = v[i].x;
-        r.y = v[i].y;
-        r.z = v[i].z;
-        // The GS's STQ: a producer giving q has u = S = u'.q, v = T = v'.q (the backend's per-pixel divide makes the
-        // mapping perspective-correct); one leaving q 0 gets q = 1 (the affine mapping of its u, v)
-        const float q = (std::isfinite(v[i].q) && v[i].q != 0.f) ? v[i].q : 1.f;
-        r.s = v[i].u;
-        r.t = v[i].v;
-        r.q = q;
-        r.uv_u = uint16_t(std::clamp(int(v[i].u / q * (tex ? tex->w : 1) * 16.f), 0, 0x3FFF));
-        r.uv_v = uint16_t(std::clamp(int(v[i].v / q * (tex ? tex->h : 1) * 16.f), 0, 0x3FFF));
-        r.r = v[i].r;
-        r.g = v[i].g;
-        r.b = v[i].b;
-        r.a = v[i].a;
-        r.draw_kick = 1;
-    }
-    ir.vertex_count = uint32_t(tri_verts);
+    return 0;
+}
 
+// The frame target the draws go to, and the shadow counter's stencil test around this one draw
+static render::DrawParams TargetParams(ps2e_draw* d, const ps2e_draw_state* st) {
     render::DrawParams p;
     p.color = d->color;
     p.depth = d->depth;
@@ -567,6 +578,92 @@ int ps2e_draw_submit(ps2e_draw* d, const ps2e_draw_state* st, const ps2e_draw_ve
     // test and update around this one draw (VolumeStencil).
     if (st->stencil == PS2E_DRAW_STENCIL_INSIDE) StencilProbe(d, "composite");
     if (st->stencil != PS2E_DRAW_STENCIL_OFF) p.stencil_state = VolumeStencil(st);
+    return p;
+}
+
+int ps2e_draw_submit(ps2e_draw* d, const ps2e_draw_state* st, const ps2e_draw_vertex* v, int count) {
+    if (!d || !st || !v || count < 3) {
+        if (d) d->counters.refused++;
+        return -1;
+    }
+    if (!d->in_frame) ps2e_draw_begin_frame(d, nullptr);
+    if (st->stencil == PS2E_DRAW_STENCIL_CLEAR) {
+        // The counter's origin (15: counts 1..16 set bit 4, as the GS byte 120 + 8n set bit 7 for n in 1..16)
+        StencilProbe(d, "before-clear");
+        d->device->ClearStencil(d->depth, kStencilOrigin);
+        SeedCasterMask(d);
+        StencilProbe(d, "after-clear");
+        d->counters.draws++;
+        return 0;
+    }
+    const int tri_verts = (count / 3) * 3;
+    gs::DrawIr& ir = d->ir;
+    gs::TextureSource ts;
+    if (PrepareRecord(d, st, ts) < 0) return -2;
+    const render::DrawParams p = TargetParams(d, st);
+    {
+        // the device's raw draw when it takes this one: the vertices as given, their screen box (a vertex whose Q is
+        // not finite takes the records, which read it as 1)
+        static_assert(sizeof(ps2e_draw_vertex) == sizeof(render::RawVertex), "the producer's vertex is the raw layout");
+        if (d->device->DrawsRaw(ir, ts, p)) {
+            float box[4] = {v[0].x, v[0].y, v[0].x, v[0].y};
+            bool finite = true;
+            for (int i = 0; i < tri_verts; ++i) {
+                const float x = v[i].x, y = v[i].y;
+                box[0] = std::min(box[0], x);
+                box[1] = std::min(box[1], y);
+                box[2] = std::max(box[2], x);
+                box[3] = std::max(box[3], y);
+                if (!std::isfinite(v[i].q)) finite = false;
+            }
+            if (finite) {
+                ir.verts.clear();
+                ir.vertex_count = uint32_t(tri_verts);
+                const render::DrawResult r =
+                    d->device->DrawRaw(ir, ts, p, reinterpret_cast<const render::RawVertex*>(v), size_t(tri_verts), box);
+                d->counters.draws++;
+                if (!r.drew) {
+                    d->counters.refused++;
+                    return -3;
+                }
+                d->counters.triangles += uint64_t(tri_verts / 3);
+                return tri_verts / 3;
+            }
+        }
+    }
+    ir.verts.resize(size_t(tri_verts));
+    // Each record assembled in a local and copied out whole (no zeroing pass over the records first)
+    struct alignas(4) Rec {
+        float x, y, z, s, t, q;
+        uint16_t uv_u, uv_v;
+        uint8_t r, g, b, a, fog, draw_kick, pad[2];
+    };
+    static_assert(sizeof(Rec) == sizeof(gs::VertexRec), "Rec mirrors VertexRec's layout");
+    uint8_t* out = reinterpret_cast<uint8_t*>(ir.verts.data());
+    for (int i = 0; i < tri_verts; ++i) {
+        const ps2e_draw_vertex& in = v[i];
+        Rec rec;
+        rec.x = in.x;
+        rec.y = in.y;
+        rec.z = in.z;
+        // The GS's STQ: a producer giving q has u = S = u'.q, v = T = v'.q (the backend's per-pixel divide makes the
+        // mapping perspective-correct); one leaving q 0 gets q = 1 (the affine mapping of its u, v)
+        rec.q = (std::isfinite(in.q) && in.q != 0.f) ? in.q : 1.f;
+        rec.s = in.u;
+        rec.t = in.v;
+        // uv_u / uv_v (the UV register's 12.4 texels) stay 0: the record is STQ (tex.fst off), and only the UV mode reads them
+        rec.uv_u = rec.uv_v = 0;
+        rec.r = in.r;
+        rec.g = in.g;
+        rec.b = in.b;
+        rec.a = in.a;
+        rec.fog = 0;
+        rec.draw_kick = 1;
+        rec.pad[0] = rec.pad[1] = 0;
+        std::memcpy(out + size_t(i) * sizeof(Rec), &rec, sizeof(Rec));
+    }
+    ir.vertex_count = uint32_t(tri_verts);
+
     const render::DrawResult r = d->device->Draw(ir, ts, p);
     d->counters.draws++;
     if (!r.drew) {
@@ -577,8 +674,64 @@ int ps2e_draw_submit(ps2e_draw* d, const ps2e_draw_state* st, const ps2e_draw_ve
     return tri_verts / 3;
 }
 
+uint32_t ps2e_draw_mesh_create(ps2e_draw* d, const ps2e_draw_mesh_vertex* verts, int count) {
+    static_assert(sizeof(ps2e_draw_mesh_vertex) == sizeof(render::MeshVertex), "the mesh vertex is the backend's");
+    if (!d || !d->device || !verts || count < 3) return 0;
+    return d->device->CreateMesh(reinterpret_cast<const render::MeshVertex*>(verts), size_t(count / 3 * 3));
+}
+
+void ps2e_draw_mesh_destroy(ps2e_draw* d, uint32_t mesh) {
+    if (d && d->device && mesh) d->device->DestroyMesh(mesh);
+}
+
+int ps2e_draw_submit_mesh(ps2e_draw* d, const ps2e_draw_state* st, uint32_t mesh, const ps2e_draw_mesh_params* mp) {
+    if (!d || !st || !mesh || !mp || st->stencil == PS2E_DRAW_STENCIL_CLEAR) {
+        if (d) d->counters.refused++;
+        return -1;
+    }
+    if (!d->in_frame) ps2e_draw_begin_frame(d, nullptr);
+    render::MeshDrawParams m;
+    std::memcpy(m.screen, mp->screen, sizeof m.screen);
+    m.offset[0] = mp->offset[0];
+    m.offset[1] = mp->offset[1];
+    m.scroll[0] = mp->scroll[0];
+    m.scroll[1] = mp->scroll[1];
+    m.lit = mp->lit != 0;
+    std::memcpy(m.light_dir, mp->light_dir, sizeof m.light_dir);
+    std::memcpy(m.light_colour, mp->light_colour, sizeof m.light_colour);
+    std::memcpy(m.ambient, mp->ambient, sizeof m.ambient);
+    std::memcpy(m.box, mp->box, sizeof m.box);
+    static const bool xNoAgain = std::getenv("TE_X_NO_AGAIN") != nullptr;   // XBISECT
+    if (!xNoAgain && d->mesh_run && d->mesh_run_draws == d->counters.draws && std::memcmp(&d->mesh_run_state, st, sizeof *st) == 0) {
+        const render::DrawResult again = d->device->DrawMeshAgain(mesh, m);
+        if (again.drew) {
+            d->counters.draws++;
+            d->mesh_run_draws = d->counters.draws;
+            return 1;
+        }
+    }
+    d->mesh_run = false;
+    gs::DrawIr& ir = d->ir;
+    gs::TextureSource ts;
+    if (PrepareRecord(d, st, ts) < 0) return -2;
+    ir.verts.clear();
+    ir.vertex_count = 0;
+    const render::DrawParams p = TargetParams(d, st);
+    const render::DrawResult r = d->device->DrawMesh(ir, ts, p, mesh, m);
+    d->counters.draws++;
+    if (!r.drew) {
+        d->counters.refused++;
+        return -3;
+    }
+    d->mesh_run = true;
+    d->mesh_run_state = *st;
+    d->mesh_run_draws = d->counters.draws;
+    return 1;
+}
+
 int ps2e_draw_copy_frame(ps2e_draw* d) {
     if (!d || !d->frame_copy.surface.id) return 0;
+    d->mesh_run = false;
     if (!d->in_frame) ps2e_draw_begin_frame(d, nullptr);
     // The draws so far are issued (the device draws as it goes; the vertex ring is flushed per draw), so the copy holds
     // every submit before this call and none after it.
@@ -596,6 +749,7 @@ void Scanout(ps2e_draw* d, bool to_window);
 
 void ps2e_draw_present(ps2e_draw* d) {
     if (!d) return;
+    d->mesh_run = false;
     Scanout(d, true);
     d->presented++;
 }

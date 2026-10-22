@@ -1,10 +1,10 @@
 #include "games/slus_20909_crash_twinsanity/hle/graphics/skin_geometry.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <utility>
 
-#include "engine/gs/hle/ir/gsdl_format.h"
 #include "engine/vu/vu_chop_round_guard.h"
 #include "games/slus_20909_crash_twinsanity/vu1_library/qw_ptr.h"
 #include "games/slus_20909_crash_twinsanity/vu1_library/skinned_lit_strip.h"
@@ -269,6 +269,101 @@ bool RunDisplace(QwPtr m, uint32_t top, const SkinGeometry::Shape& shape, const 
     return true;
 }
 
+#if defined(__vita__)
+// The Vita's skinning: what the 0xcb0 scale + skin and the 0x1720 lit emitter compute, done per vertex in plain floats
+// straight from the batch (no VU memory image, no clamped operands, the CPU's rounding) -- the faithful programs cost
+// the Vita's builders most of their frame. An unclipped plain skin only (the clip marks and the blends keep the programs).
+//   position, normal x: QW0 ints x the batch's x scale; S, T, normal y z: QW1 ints x its y scale; QW2: the three weights
+//   (each one's low 9 bits its bone's quadword in the palette), w = the flags (bits 0-1 the bone count, 15 ADC); QW3 the
+//   vertex colour. Bones blend in order; the normal turns by the first bone; the colour is lit by the three lights'
+//   (direction . normal, at least 0) times their colours plus the ambient, times the vertex colour, at most 255.
+SkinGeometry::Result FastSkin(const SkinGeometry::Part& part, const SkinGeometry::Inputs& in, const Draw& state, std::vector<Draw>& out) {
+    using Result = SkinGeometry::Result;
+    const auto F = [](uint32_t b) { float f; std::memcpy(&f, &b, 4); return f; };
+    float screen[4][4], light[3][3], colour[3][3], ambient[3];
+    for (int r = 0; r < 4; ++r)
+        for (int k = 0; k < 4; ++k) screen[r][k] = F(in.to_screen[r][k]);
+    for (int l = 0; l < 3; ++l)
+        for (int k = 0; k < 3; ++k) { light[l][k] = F(in.lights[l][k]); colour[l][k] = F(in.colours[l][k]); }
+    for (int k = 0; k < 3; ++k) ambient[k] = F(in.ambient[k]);
+    const size_t palette = in.joints.size();
+    std::vector<Draw> result;
+    thread_local std::vector<Vertex> queue;
+    size_t output = 0;
+    for (const auto& batch : part.batches) {
+        const uint32_t count = batch.Vertices();
+        if (count < 3 || count > SkinGeometry::kMaxBatchVertices || batch.vertices.size() != 4 * size_t(count))
+            return Result::InvalidGeometry;
+        const float sx = F(batch.scale[0]), sy = F(batch.scale[1]);
+        Draw draw = state;
+        draw.verts.clear();
+        draw.verts.reserve(size_t(count) * 3);
+        queue.clear();
+        unsigned parity = 0;
+        for (uint32_t j = 0; j < count; ++j) {
+            const auto& q0 = batch.vertices[4 * j];
+            const auto& q1 = batch.vertices[4 * j + 1];
+            const auto& q2 = batch.vertices[4 * j + 2];
+            const auto& q3 = batch.vertices[4 * j + 3];
+            const float px = float(int32_t(q0[0])) * sx, py = float(int32_t(q0[1])) * sx, pz = float(int32_t(q0[2])) * sx;
+            const float nx = float(int32_t(q0[3])) * sx, ny = float(int32_t(q1[2])) * sy, nz = float(int32_t(q1[3])) * sy;
+            const float s0 = float(int32_t(q1[0])) * sy, t0 = float(int32_t(q1[1])) * sy;
+            const uint32_t flags = q2[3] & 0xFFFFu;
+            const uint32_t bones = flags & 3u;
+            const int used = bones == 1 ? 1 : bones == 2 ? 2 : 3;
+            float po[3] = {0.f, 0.f, 0.f}, n[3] = {0.f, 0.f, 0.f};
+            for (int b = 0; b < used; ++b) {
+                const size_t at = q2[b] & 0x1FFu;
+                if (at + 3 >= palette) continue;
+                const float w = F(q2[b]);
+                const auto& c0 = in.joints[at];
+                const auto& c1 = in.joints[at + 1];
+                const auto& c2 = in.joints[at + 2];
+                const auto& tr = in.joints[at + 3];
+                for (int k = 0; k < 3; ++k)
+                    po[k] += w * (F(tr[k]) + F(c0[k]) * px + F(c1[k]) * py + F(c2[k]) * pz);
+                if (b == 0)
+                    for (int k = 0; k < 3; ++k) n[k] = F(c0[k]) * nx + F(c1[k]) * ny + F(c2[k]) * nz;
+            }
+            float T[4];
+            for (int k = 0; k < 4; ++k) T[k] = screen[3][k] + screen[0][k] * po[0] + screen[1][k] * po[1] + screen[2][k] * po[2];
+            const float Q = T[3] != 0.f ? 1.0f / T[3] : 3.4028235e38f;
+            float lit[3] = {ambient[0], ambient[1], ambient[2]};
+            for (int l = 0; l < 3; ++l) {
+                const float d = std::max(0.f, light[l][0] * n[0] + light[l][1] * n[1] + light[l][2] * n[2]);
+                for (int k = 0; k < 3; ++k) lit[k] += colour[l][k] * d;
+            }
+            Vertex v{};
+            const auto channel = [](float value) { return uint8_t(int32_t(std::min(value, 255.f))); };
+            v.r = channel(lit[0] * float(int32_t(q3[0])));
+            v.g = channel(lit[1] * float(int32_t(q3[1])));
+            v.b = channel(lit[2] * float(int32_t(q3[2])));
+            v.a = uint8_t(std::min<int32_t>(int32_t(q3[3]), 255));
+            v.s = (s0 + in.scroll[0]) * Q;
+            v.t = (t0 + in.scroll[1]) * Q;
+            v.q = Q;
+            const auto fixed = [](float value) {
+                if (!(std::fabs(value) < 2147483648.f)) return value < 0.f ? 0x80000000u : 0x7FFFFFFFu;
+                return uint32_t(int32_t(value));
+            };
+            v.x = float(uint16_t(fixed(T[0] * Q))) / 16.0f - state.off_x;
+            v.y = float(uint16_t(fixed(T[1] * Q))) / 16.0f - state.off_y;
+            v.z = float(fixed(T[2] * Q));
+            const bool adc = (flags & 0x8000u) != 0;
+            v.draw_kick = adc ? 0 : 1;
+            Assemble(queue, parity, v, !adc, draw.verts);
+        }
+        output += draw.verts.size();
+        if (output > SkinGeometry::kMaxVertices * 24) return Result::LimitExceeded;
+        if (draw.verts.empty()) continue;
+        draw.vertex_count = uint32_t(draw.verts.size());
+        result.push_back(std::move(draw));
+    }
+    out.insert(out.end(), std::make_move_iterator(result.begin()), std::make_move_iterator(result.end()));
+    return Result::Ok;
+}
+#endif
+
 SkinGeometry::Result BuildBatches(const SkinGeometry::Part& part, const SkinGeometry::Inputs& inputs, const BatchProgram& program,
                                   const Draw& state, std::vector<Draw>& out) {
     using Result = SkinGeometry::Result;
@@ -278,6 +373,9 @@ SkinGeometry::Result BuildBatches(const SkinGeometry::Part& part, const SkinGeom
     if (inputs.joints.empty() || (inputs.joints.size() & 3) || inputs.joints.size() / 4 > SkinGeometry::kMaxJoints ||
         part.batches.empty())
         return Result::InvalidGeometry;
+#if defined(__vita__)
+    if (!program.blend && !inputs.clipped) return FastSkin(part, inputs, state, out);
+#endif
     // The image: the header (QW1.x = the output list, QW3.x = the material's
     // buffer), the joints at 13.., the material's buffer B (the dispatcher
     // nodes, then the data rows at B+78..), the batch at `top`, the output at
@@ -329,19 +427,19 @@ SkinGeometry::Result BuildBatches(const SkinGeometry::Part& part, const SkinGeom
     std::vector<Draw> result;
     size_t output = 0;
     VuChopRoundGuard rounding;
+    thread_local std::vector<Vertex> queue;
     for (const auto& batch : part.batches) {
         const uint32_t count = batch.Vertices();
         if (count < 3 || count > SkinGeometry::kMaxBatchVertices || batch.vertices.size() != 4 * size_t(count))
             return Result::InvalidGeometry;
         // The batch's quadwords, exactly as the VIF left them; the stale tail
         // the pipelined scale pass reads past the vertices is zero here.
-        for (uint32_t q = top; q < list; ++q) set(q, Qw{});
+        std::memset(memory.data() + size_t(top) * 16, 0, size_t(list - top) * 16);
         set(top, batch.tag);
         set(top + 1, batch.count);
         set(top + 2, batch.scale);
         for (uint32_t q = 0; q < 4 * count; ++q) set(top + 3 + q, batch.vertices[q]);
-        for (uint32_t q = list; q < list + 1 + 3 * SkinGeometry::kMaxBatchVertices; ++q) set(q, Qw{});
-        Vu1HleOutput kicks;
+        std::memset(memory.data() + size_t(list) * 16, 0, size_t(1 + 3 * SkinGeometry::kMaxBatchVertices) * 16);
         if (!program.blend) {
             if (!SkinnedLitStrip::RunSkinCb0(m, top)) return Result::InvalidGeometry;
         } else {
@@ -355,14 +453,13 @@ SkinGeometry::Result BuildBatches(const SkinGeometry::Part& part, const SkinGeom
             if (!SkinnedLitStrip::RunSkin1040(m, top, 0)) return Result::InvalidGeometry;   // pos.w (the stale vf19.w) is never read
         }
         if (inputs.clipped && !SkinnedLitStrip::RunClipMark0B30(m, top)) return Result::InvalidGeometry;
-        if (!SkinnedLitStrip::RunSkinnedLitCall(m, emitter, top, kicks)) return Result::InvalidGeometry;
-        // RunSkinnedLitCall rotated QW1 (MR32): put the list back for the next batch.
-        set(1, {list, 0, 0, 0});
+        // the emitter's body: the strip packet in memory, read back below (the kicks would only copy it)
+        if (!SkinnedLitStrip::RunSkinnedLitBody(m, emitter, top)) return Result::InvalidGeometry;
         // The strip packet is at `list`: QW[list+1+3j] ST, +1 RGBAQ, +2 XYZ2 (the
         // PACKED lanes the GS reads: VertexKick::PackedXyz, PackedSt, PackedRgbaq).
         Draw draw = state;
         draw.verts.clear();
-        std::vector<Vertex> queue;
+        queue.clear();
         unsigned parity = 0;
         for (uint32_t j = 0; j < count; ++j) {
             const uint32_t st = list + 1 + 3 * j;
@@ -385,9 +482,6 @@ SkinGeometry::Result BuildBatches(const SkinGeometry::Part& part, const SkinGeom
         if (output > SkinGeometry::kMaxVertices * 24) return Result::LimitExceeded;
         if (draw.verts.empty()) continue;
         draw.vertex_count = uint32_t(draw.verts.size());
-        draw.snapshot.vertex_hash = ps2r::gs::GsdlFormat::VertexHash(draw.verts.data(), draw.verts.size());
-        draw.snapshot.verts_incl = 1;
-        ps2r::gs::GsdlFormat::Bbox(draw.verts.data(), draw.verts.size(), draw.bbox);
         result.push_back(std::move(draw));
     }
     out.insert(out.end(), std::make_move_iterator(result.begin()), std::make_move_iterator(result.end()));

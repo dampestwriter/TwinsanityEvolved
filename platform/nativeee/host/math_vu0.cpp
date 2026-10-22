@@ -425,7 +425,10 @@ void ps2e_math_start_ray_triangle(ps2e_u32 vertices, ps2e_u32 nearest) {
     if (!v || !n || !g_ray.haveRay) { g_ray.pending.reset(); return; }
     for (int i = 0; i < 3; ++i) g_ray.triangle[i] = {v[i * 4], v[i * 4 + 1], v[i * 4 + 2], v[i * 4 + 3]};
     g_ray.nearest = *n;
-    g_ray.pending = title::CollisionMath::EvaluateStartEdges(g_ray.start, g_ray.end, g_ray.triangle);
+    // the edges' set-up only feeds the provisional body; the retail one (the default) tests the triangle itself
+    g_rayMicro.Read();
+    g_ray.pending = RetailRays() && !g_rayMicro.ready ? title::CollisionMath::EdgeSetup{}
+                                                      : title::CollisionMath::EvaluateStartEdges(g_ray.start, g_ray.end, g_ray.triangle);
 }
 
 namespace {
